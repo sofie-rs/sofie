@@ -15,7 +15,7 @@ mod schema_migration;
 mod search;
 pub(crate) mod task;
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use sofie_model::naming::{contract_package, crate_name, snake_case};
 use sofie_model::{App, Module};
@@ -109,11 +109,10 @@ pub fn new_app(parent: &Path, name: &str) -> Result<Vec<GenOutcome>, GenError> {
     let name = checked_package_name(name)?;
     let root = parent.join(name);
     refuse_existing(&root)?;
-    let crates = framework_crates();
     let crate_name = crate_name(name);
     let [build, library, main] = app_sources(&crate_name);
     let files = [
-        ("Cargo.toml", workspace_manifest(&crates)),
+        ("Cargo.toml", workspace_manifest()),
         (".gitignore", "/target\n/.env\n".to_owned()),
         ("app/Cargo.toml", app_manifest(name)),
         build,
@@ -516,20 +515,37 @@ pub(crate) fn write_all(
     Ok(())
 }
 
-/// A new app depends on them by path until the framework is published.
-pub(super) fn framework_crates() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .map(Path::to_path_buf)
-        .unwrap_or_default()
+/// Where a new app finds framework crate `package` until the framework is published: the
+/// commit `cargo install --git` built this binary from, else this checkout by path.
+pub(super) fn framework_source(package: &str) -> String {
+    source_of(package, option_env!("SOFIE_CLI_COMMIT"))
 }
 
-fn workspace_manifest(crates: &Path) -> String {
-    let path = |name: &str| toml_escaped(&crates.join(name).display().to_string());
+fn source_of(package: &str, commit: Option<&str>) -> String {
+    if let Some(commit) = commit {
+        return format!(
+            "git = \"{}\", rev = \"{commit}\"",
+            env!("CARGO_PKG_REPOSITORY")
+        );
+    }
+    let crates = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .map(Path::to_path_buf)
+        .unwrap_or_default();
+    let directory = if package == "sofie-framework" {
+        "sofie"
+    } else {
+        package
+    };
+    let path = crates.join(directory).display().to_string();
+    format!("path = \"{}\"", toml_escaped(&path))
+}
+
+fn workspace_manifest() -> String {
     format!(
         "[workspace]\nresolver = \"3\"\nmembers = [\"app\", \"modules/*\"]\n\n\
          [workspace.package]\nedition = \"2024\"\nversion = \"0.1.0\"\npublish = false\n\n\
-         [workspace.dependencies]\nsofie = {{ package = \"sofie-framework\", path = \"{}\" }}\nsofie-cli = {{ path = \"{}\" }}\n\n\
+         [workspace.dependencies]\nsofie = {{ package = \"sofie-framework\", {} }}\nsofie-cli = {{ {} }}\n\n\
          [workspace.lints.rust]\nunsafe_code = \"forbid\"\n\n\
          [workspace.lints.clippy]\nall = {{ level = \"warn\", priority = -1 }}\n\
          pedantic = {{ level = \"warn\", priority = -1 }}\nmissing_errors_doc = \"allow\"\n\
@@ -537,8 +553,8 @@ fn workspace_manifest(crates: &Path) -> String {
          their body awaits.\nunused_async = \"allow\"\n\n\
          # What `sofie build` builds with: about half the binary and less CPU per request.\n\
          [profile.dist]\ninherits = \"release\"\nlto = \"fat\"\ncodegen-units = 1\nstrip = \"symbols\"\n",
-        path("sofie"),
-        path("sofie-cli"),
+        framework_source("sofie-framework"),
+        framework_source("sofie-cli"),
     )
 }
 
@@ -583,7 +599,7 @@ const MODULE_LIBRARY: &str = "pub mod config;\npub mod module;\nmod wiring;\n\nm
 
 #[cfg(test)]
 mod tests {
-    use super::{PRELUDE_TYPES, checked_name, checked_package_name, checked_type_name};
+    use super::{PRELUDE_TYPES, checked_name, checked_package_name, checked_type_name, source_of};
 
     #[test]
     fn refuses_names_that_become_rust_keywords() {
@@ -664,5 +680,18 @@ mod tests {
             );
         }
         assert_eq!(checked_package_name("shop").unwrap(), "shop");
+    }
+
+    #[test]
+    fn an_installed_cli_names_the_framework_by_its_commit_and_a_local_one_by_path() {
+        let commit = "318950386cebddd99c40181813ae4f4e8da5c6a7";
+        assert_eq!(
+            source_of("sofie-framework", Some(commit)),
+            format!("git = \"https://github.com/sofie-rs/sofie\", rev = \"{commit}\"")
+        );
+        let local = source_of("sofie-framework", None);
+        assert!(local.starts_with("path = \""), "{local}");
+        assert!(local.ends_with("crates/sofie\""), "{local}");
+        assert!(source_of("sofie-cli", None).ends_with("crates/sofie-cli\""));
     }
 }

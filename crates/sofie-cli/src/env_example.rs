@@ -645,7 +645,8 @@ mod tests {
     };
 
     /// Named by the CLI, its tests and the test harness, never read by a running app.
-    const TOOLING_PREFIXES: [&str; 5] = [
+    const TOOLING_PREFIXES: [&str; 6] = [
+        "SOFIE_CLI_",
         "SOFIE_TEST_",
         "SOFIE_BENCH_",
         "SOFIE_DEV_",

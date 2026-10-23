@@ -5,12 +5,12 @@ use sofie_check::{ALLOW_FILE, AllowList};
 use sofie_model::naming::{crate_name, relative_path};
 use sofie_model::{Crate, KnownArea};
 
-use super::{framework_crates, refuse_existing};
+use super::{framework_source, refuse_existing};
 use crate::gen_command::GenError;
 use crate::rustfmt::format_rust;
 use crate::source_edits::{
     DEPENDENCIES, Journal, add_import, declared_module, insert_at, path_dependency, read,
-    toml_escaped, toml_section, with_dependency_line,
+    toml_section, with_dependency_line,
 };
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -333,7 +333,7 @@ fn without_comment(line: &str) -> &str {
 }
 
 /// A new app's workspace declares only `sofie` and `sofie-cli`, so a framework crate a
-/// generator inherits joins `[workspace.dependencies]` by path, as they did: the workspace
+/// generator inherits joins `[workspace.dependencies]` from where they come: the workspace
 /// manifest and its new text, or `None` when it declares the crate already.
 pub(crate) fn workspace_declaration(
     directory: &Path,
@@ -344,8 +344,7 @@ pub(crate) fn workspace_declaration(
         return Ok(None);
     };
     let text = read(&manifest)?;
-    let path = toml_escaped(&framework_crates().join(package).display().to_string());
-    let line = format!("{package} = {{ path = \"{path}\" }}");
+    let line = format!("{package} = {{ {} }}", framework_source(package));
     let Some((start, end)) = toml_section(&text, WORKSPACE_DEPENDENCIES) else {
         let table = format!("\n{WORKSPACE_DEPENDENCIES}\n{line}\n");
         return Ok(Some((manifest, insert_at(&text, None, &table))));

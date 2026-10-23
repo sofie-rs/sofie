@@ -1,9 +1,8 @@
 # Scenario Walk
 
-> Status: **draft, proof of concept**. Each scenario is walked through
-> [structure.md](structure.md) on paper: what is written by hand, what is
-> generated, and where the structure strains. Findings end in decisions; none
-> is applied to `structure.md` until accepted.
+> Each scenario is walked through [structure.md](structure.md): what is
+> written by hand, what is generated, and where the structure strains. The
+> decisions at the end (D1–D15) are the ones `structure.md` refers to.
 
 The example app is a small online shop; it stands for any app, and nothing in
 it is part of the framework. Modules used below: `identity`

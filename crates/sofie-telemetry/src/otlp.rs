@@ -1,4 +1,4 @@
-//! Our own OTLP/HTTP exporter (review round G7): protobuf bodies, batched per signal and sent to
+//! Our own OTLP/HTTP exporter: protobuf bodies, batched per signal and sent to
 //! `OTEL_EXPORTER_OTLP_ENDPOINT` with `hyper`.
 
 use std::borrow::Cow;

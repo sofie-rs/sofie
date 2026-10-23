@@ -2080,7 +2080,7 @@ one walks templates the same way.
   `Accept-Encoding`, for HTML, JSON, CSS, JavaScript, SVG and plain text of
   1 KiB or more, `Vary: Accept-Encoding, Sec-Fetch-Site`; the engine's CSS and
   JavaScript are compressed by sofie-engine's build script and embedded
-  beside the originals); and `etag` (H5). Against BREACH, an answer to a
+  beside the originals); and `etag`. Against BREACH, an answer to a
   request another site started (`Sec-Fetch-Site` neither `same-origin` nor
   `none`) is never compressed, and CSRF protection reads headers, so no token
   sits in a body.
@@ -2906,54 +2906,3 @@ to route calls with literal paths; anything else is a generation error.
 | A module's environment keys carry its prefix | The loader derives them from the module's name; there is no other way to declare one |
 | A declared task can be run | `sofie check` (`task-runner`): a module with `#[task]`s needs an app whose `main` calls `sofie::run_with_tasks` |
 | A client area's screens can be served | `sofie check` (`client-feature`): an app with a client area enables sofie's `clients` feature |
-
-## Open decisions
-
-Each has a recommendation; none is settled until marked so.
-
-1. **Can modules of one context reach each other's internals?**
-   Recommended: no. One rule everywhere, and any module can be split alone.
-   Splitting a whole context remains possible by naming several modules.
-2. **Are events delivered synchronously in-process or always through the
-   outbox?** Recommended: always the outbox. One delivery model before and
-   after a split, and a listener can never run inside the writer's transaction.
-3. **Is `gen/` committed?** Recommended: yes. `cargo build` and the IDE work
-   without running `sofie gen`, diffs show what a change generates, and CI checks
-   it is current. Only the wiring, contract exports and non-Rust output are in
-   it.
-4. **Updates: through aggregate methods only.** Settled: module privacy makes
-   any other path impossible. A resource's edit screen calls the aggregate's
-   `update`, derived by default.
-5. **Translations format.** Settled: TOML per language per module (a subset
-   read by the engine), behind the engine's `i18n` feature. `sofie gen` may
-   write the keys as constants; a missing key fails the template check at
-   load and `sofie check` (see [core.md](core.md)).
-6. **Doc comments on public items and the comment ceiling.** Recommended: public
-   `///` docs and doctests are exempt; the ceiling applies to `//` comments and
-   private docs. `missing_docs` keeps public items documented.
-7. **Database driver.** Settled: our own ORM layer on `tokio-postgres` and
-   `deadpool-postgres`, behind a database seam so databases other than
-   Postgres can be added later. See [core.md](core.md#the-database-seam).
-8. **Comment lexer.** Settled: `proc-macro2` tokens with span locations, no
-   lexer of our own. A line is code when a non-doc token covers it, a comment
-   when no token covers it; doc comments are prose except fenced doctests.
-9. **Telemetry libraries.** Settled: `tracing` in the core, with
-   `sofie-telemetry`'s own subscriber and, behind its opt-in `otlp` feature,
-   its own OTLP/HTTP exporter (protobuf encoded by hand, sent with `hyper`;
-   review round G7 replaced the OpenTelemetry SDK crates). Session encryption, signing and content hashes use
-   `ring`, the library `rustls` also builds on; passwords use RustCrypto's
-   `argon2` (review round G1).
-10. **Frontend dependencies.** Settled: htmx for interactions, used only
-    inside catalog components; Svelte for islands, built by esbuild. Both are
-    owned and supported by the framework; other custom elements are mounted
-    without support. Exact versions are pinned when they are added.
-11. **Reference app.** Recommended: RealWorld (Conduit) for the public
-   comparison with Loco, and one richer sample of our own that exercises
-   payments, a scheduled job and an admin area.
-
-## Next step
-
-The scenario walk is in [scenarios.md](scenarios.md); its decisions D1–D15 are
-open there, except where [core.md](core.md) has already taken one (D1
-dependencies by signature, D3 no transaction during the body). Then the proof
-of concept, in the order [core.md](core.md#building-it) gives.

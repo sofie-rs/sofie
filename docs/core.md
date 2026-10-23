@@ -1,9 +1,7 @@
 # The Smallest Core
 
-> Status: **draft, proof of concept**. How to build what
-> [structure.md](structure.md) describes with the least code. Where this
-> document disagrees with `structure.md`, it is a proposal to change
-> `structure.md`; the list is at the end.
+> Status: **proof of concept**. How the framework builds what
+> [structure.md](structure.md) describes with the least code.
 
 ## The rule
 
@@ -1140,11 +1138,11 @@ by default.
   `allow_another(PROJECTS, count)`, `consume(CALLS, 1)` returning an outcome
   that counts the use with the commit (an upsert refusing to pass the
   allowance, so racing requests cannot overspend), `used`, `seats`, `plan`
-  and the subscription's `standing`. `Billing`
-  (any context, an explicit `Subscriber`): `start_trial` (no card, once per
-  owner), `subscribe` (refused while a plan renews at the provider)/`buy`
-  and `portal` returning a `Link`, followed by a
-  route with `.then_follow()`, `seats`, and `change_seats` (the provider's
+  and the subscription's `standing`. `Checkout`
+  (any context, an explicit `Subscriber`): `subscribe` (refused while a plan
+  renews at the provider), `buy` and `portal` returning a `Link`, followed by
+  a route with `.then_follow()`. `Billing` (the same): `start_trial` (no card,
+  once per owner), `seats`, and `change_seats` (the provider's
   subscription quantity, sent by a job after the commit and prorated: to
   Stripe with the job's idempotency key, to Paddle as a count that changes
   nothing more when sent again; seats follow the provider's notification;
@@ -1545,8 +1543,8 @@ atomic count read when the metrics are rendered; the outbox's depth is
 polled: every 15 seconds the metrics thread has a running worker's runtime
 count the waiting messages, never waiting on the query itself.
 
-With `otlp`, `sofie-telemetry` exports traces, logs and metrics itself
-(review round G7): OTLP/HTTP with protobuf bodies to
+With `otlp`, `sofie-telemetry` exports traces, logs and metrics itself:
+OTLP/HTTP with protobuf bodies to
 `OTEL_EXPORTER_OTLP_ENDPOINT` + `/v1/traces`, `/v1/logs` and `/v1/metrics`,
 over `hyper`, with `rustls` and the webpki roots for `https://`. It reads
 `OTEL_EXPORTER_OTLP_HEADERS`, `OTEL_EXPORTER_OTLP_TIMEOUT` (milliseconds,
@@ -1721,28 +1719,9 @@ environment, the app's plans or its started `Flags` stays in `app` and
 `worker`: content's and billing's `install`, billing's routes, and a job a flag
 gates.
 
-## What changes in the spec
+## Dependencies
 
-| `structure.md` says | Proposed | Code removed |
-|---|---|---|
-| `sofie gen` writes Rust per type into `gen/` folders; annotations are inert | Derives describe each type; `sofie gen` writes one wiring file and non-Rust output | Every per-type generated file and its `--check` |
-| A token only `factory.rs` can create | Module privacy: the aggregate is a folder, the factory its child | The token |
-| One `schema.rs` per module | One folder per aggregate holding its schema and behaviour | — |
-| Views in Rust, pages as templates | One template format for every screen | The Rust view DSL |
-| Generated Rust SSR plus a dev interpreter and a parity suite | One runtime renderer | Two of three renderers |
-| A client of signals, resumability and lazy chunks | HTML over the wire plus small local state; islands for the rest | Most of the client |
-| A generated static router | A `matchit` router built at boot, on `hyper` directly | The router generator |
-| Gateway registry generated as an enum | Trait objects chosen at boot | The registry generator |
-| Outbox, queue and scheduler as separate parts | One message table and one worker | Two subsystems |
-| Unit of work tracks loaded aggregates | Actions return what they changed; snapshot comparison | Tracking and per-field dirty flags |
-| Scopes are inherent methods on a generated query type | Scopes are plain functions applied with `.scope(…)` | The generated query type per aggregate (inherent methods on a generic library type are not allowed in the app's crate anyway) |
-| `with()` eager loading on aggregates | Aggregates load whole; read models state their joins | The relation loading API |
-| TypeScript generated for every app | A plugin, needed only by islands and API consumers | TypeScript in the core |
-
-## Dependencies to approve
-
-Each is asked for separately before it is added; listed here so the size of
-the core is visible.
+Listed so the size of the core is visible.
 
 | Crate | For |
 |---|---|
@@ -1758,25 +1737,6 @@ the core is visible.
 | `jiff` | Instants, dates and IANA time zones (read from the system zoneinfo database, so an image must ship it); log timestamps |
 | htmx (browser) | Fragment swapping inside catalog components |
 | Svelte 5.57.2, esbuild 0.28.2 (build toolchain, `tools/web`, run by Node) | Building islands, only for apps that have them; only the bundles reach the binary |
-| `tracing` | Telemetry (approved); the subscriber is `sofie-telemetry`'s own, and so is the OTLP exporter behind `otlp` (G7): spans built from its span store with the traceparent ids, log records from its log lines on the writer's thread, encoded as protobuf by hand and sent with `hyper` |
-| `ring` | Session encryption and signing, content hashes, checking passwords hashed before Argon2id, and later TLS through `rustls` (approved) |
-| `argon2` (RustCrypto, `alloc` and `password-hash` only) | Password hashing in sofie-identity: Argon2id, 19 MiB, two passes, one lane, PHC strings; brings `blake2`, `base64ct`, `password-hash` and `phc` (approved, review round G1) |
-
-## Building it
-
-Each step ends with something running:
-
-1. `sofie-core`, `sofie-model` and `sofie-macros`: the traits; parse a module; derive
-   `Aggregate` and `Value`.
-2. `sofie-db` and `sofie-postgres`: store, unit of work, query builder, migrations —
-   against a real Postgres, through the seam from the first line.
-3. `sofie-http`: the server on `hyper`, areas, guards, `Resolve`, routes; one
-   action and one query served over HTTP with the secure defaults on.
-4. `sofie-cli`: `sofie gen` writes the wiring; `sofie check` runs the first rules.
-5. `sofie-engine`: templates, resource screens, fragment swaps.
-6. Messages: events, jobs, schedules in one worker.
-7. Telemetry through the generic paths.
-
-Steps 1–3 are the proof of concept that matters: if aggregates, the unit of
-work and `Resolve` are as small as they look here, the rest follows the same
-shape.
+| `tracing` | Telemetry; the subscriber is `sofie-telemetry`'s own, and so is the OTLP exporter behind `otlp`: spans built from its span store with the traceparent ids, log records from its log lines on the writer's thread, encoded as protobuf by hand and sent with `hyper` |
+| `ring` | Session encryption and signing, content hashes, checking passwords hashed before Argon2id, and later TLS through `rustls` |
+| `argon2` (RustCrypto, `alloc` and `password-hash` only) | Password hashing in sofie-identity: Argon2id, 19 MiB, two passes, one lane, PHC strings; brings `blake2`, `base64ct`, `password-hash` and `phc` |

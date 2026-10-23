@@ -38,8 +38,12 @@ fn clock() -> TestClock {
     TestClock::starting_at(Timestamp::from_second(1_700_000_000).unwrap())
 }
 
-async fn scan(server: &TestServer, client: Option<&str>, count: usize) {
+/// A second apart, so a slow-down decided off the request path never meets a later scan.
+async fn scan(server: &TestServer, clock: &TestClock, client: Option<&str>, count: usize) {
     for index in 0..count {
+        if index > 0 {
+            clock.advance(Duration::from_secs(1)).unwrap();
+        }
         let request = server.get(&format!("/wp-admin/{index}"));
         let request = match client {
             Some(client) => request.header("x-forwarded-for", client),
@@ -72,7 +76,7 @@ async fn refused(server: &TestServer, client: &str, seconds: &str) -> TestRespon
 async fn a_scanning_caller_is_slowed_down_to_one_request_a_second() {
     let clock = clock();
     let server = served(&clock).await;
-    scan(&server, Some(ATTACKER), 3).await;
+    scan(&server, &clock, Some(ATTACKER), 3).await;
 
     let slowed = refused(&server, ATTACKER, "1").await;
     clock.advance(Duration::from_secs(1)).unwrap();
@@ -91,7 +95,7 @@ async fn a_scanning_caller_is_slowed_down_to_one_request_a_second() {
 async fn a_caller_scanning_on_is_blocked_until_its_block_ends() {
     let clock = clock();
     let server = served(&clock).await;
-    scan(&server, Some(ATTACKER), 6).await;
+    scan(&server, &clock, Some(ATTACKER), 6).await;
 
     let blocked = refused(&server, ATTACKER, "900").await;
     assert_eq!(blocked.status, StatusCode::TOO_MANY_REQUESTS);
@@ -127,7 +131,7 @@ async fn a_caller_scanning_on_is_blocked_until_its_block_ends() {
 async fn a_blocked_caller_is_refused_the_framework_s_own_endpoints_too() {
     let clock = clock();
     let server = served(&clock).await;
-    scan(&server, Some(ATTACKER), 6).await;
+    scan(&server, &clock, Some(ATTACKER), 6).await;
     refused(&server, ATTACKER, "900").await;
 
     let ready = server
@@ -147,8 +151,8 @@ async fn a_blocked_caller_is_refused_the_framework_s_own_endpoints_too() {
 async fn the_trusted_proxy_itself_is_never_blocked() {
     let clock = clock();
     let server = served(&clock).await;
-    scan(&server, None, 20).await;
-    scan(&server, Some(ATTACKER), 6).await;
+    scan(&server, &clock, None, 20).await;
+    scan(&server, &clock, Some(ATTACKER), 6).await;
 
     // Signals are counted in order, so the proxy's were counted by now.
     assert_eq!(
@@ -171,7 +175,7 @@ async fn paths_browsers_ask_for_on_their_own_are_no_scan() {
         let missing = server.get(path).header("x-forwarded-for", NEIGHBOUR).await;
         assert_eq!(missing.status, StatusCode::NOT_FOUND, "{path}");
     }
-    scan(&server, Some(ATTACKER), 3).await;
+    scan(&server, &clock, Some(ATTACKER), 3).await;
 
     // Signals are counted in order, so the neighbour's were counted by now.
     refused(&server, ATTACKER, "1").await;
@@ -221,7 +225,7 @@ mod webhooks {
                     .shield(shield)
             });
         let server = TestServer::start(app).await;
-        scan(&server, Some(ATTACKER), 6).await;
+        scan(&server, &clock, Some(ATTACKER), 6).await;
         let blocked = refused(&server, ATTACKER, "900").await;
 
         let delivered = server

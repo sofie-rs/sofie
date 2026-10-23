@@ -1474,7 +1474,7 @@ a Svelte area and an HTML area side by side.
   compiles for the area. An app's own replacement keeps its key; a framework
   screen a client cannot render stays an HTML page instead of failing the
   build.
-- **One runtime, the catalog written once.** `tools/web/client/core` builds
+- **One runtime, the catalog written once.** `crates/sofie-cli/web/client/core` builds
   each catalog component as an element tree written as the engine writes its
   HTML (fields of every control, tables, listings, forms, money, badges,
   layout, islands), formats with what the envelope describes, and runs the
@@ -1485,7 +1485,7 @@ a Svelte area and an HTML area side by side.
   what `engine.js` acts on in an HTML page's markup: a `data-sofie-passkey`
   button runs the same WebAuthn ceremony and posts the same answer, and a
   `data-sofie-autosubmit` form posts once its screen is shown.
-  `tools/web/client/svelte` only renders those trees and mounts the screens,
+  `crates/sofie-cli/web/client/svelte` only renders those trees and mounts the screens,
   so one stylesheet serves both kinds of area. Islands stay custom elements
   loaded from the area's islands bundle.
 - **The screen envelope.** A page navigation to a screen the area's bundle
@@ -1743,7 +1743,7 @@ Listed so the size of the core is visible.
 | `syn`, `quote`, `proc-macro2` | Derives and `sofie gen` |
 | `jiff` | Instants, dates and IANA time zones (read from the system zoneinfo database, so an image must ship it); log timestamps |
 | htmx (browser) | Fragment swapping inside catalog components |
-| Svelte 5.57.2, esbuild 0.28.2 (build toolchain, `tools/web`, run by Node) | Building islands, only for apps that have them; only the bundles reach the binary |
+| Svelte 5.57.2, esbuild 0.28.2 (build toolchain, `crates/sofie-cli/web`, run by Node) | Building islands, only for apps that have them; only the bundles reach the binary |
 | `tracing` | Telemetry; the subscriber is `sofie-telemetry`'s own, and so is the OTLP exporter behind `otlp`: spans built from its span store with the traceparent ids, log records from its log lines on the writer's thread, encoded as protobuf by hand and sent with `hyper` |
 | `ring` | Session encryption and signing, content hashes, checking passwords hashed before Argon2id, and later TLS through `rustls` |
 | `argon2` (RustCrypto, `alloc` and `password-hash` only) | Password hashing in sofie-identity: Argon2id, 19 MiB, two passes, one lane, PHC strings; brings `blake2`, `base64ct`, `password-hash` and `phc` |

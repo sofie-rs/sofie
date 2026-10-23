@@ -85,7 +85,7 @@ async fn library(clock: Clock) -> (TestDatabase, Db) {
     let database = TestDatabase::create().await;
     let db = Db::new(Postgres::connect(database.url()).unwrap()).with_clock(clock);
     // With `module-roles`, raw SQL runs as the module's role.
-    let role = include_str!("../module_role.sql").replace("{module}", "library");
+    let role = include_str!("../../sofie-cli/module_role.sql").replace("{module}", "library");
     let files = [
         File::new("0000_module_role.sql", String::leak(role).as_bytes()),
         File::new("0001_books.sql", CREATE_BOOKS.as_bytes()),

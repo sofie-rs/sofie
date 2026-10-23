@@ -186,9 +186,9 @@ mod tests {
 
     #[test]
     fn installs_the_island_toolchain_only_for_an_app_with_islands() {
-        let text = dockerfile("shop", Some("tools/web"));
+        let text = dockerfile("shop", Some("crates/sofie-cli/web"));
 
         assert!(text.contains("apt-get install --yes --no-install-recommends nodejs npm"));
-        assert!(text.contains("RUN npm ci --prefix tools/web\n"));
+        assert!(text.contains("RUN npm ci --prefix crates/sofie-cli/web\n"));
     }
 }

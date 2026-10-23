@@ -5,7 +5,7 @@ use sofie_db::{Aggregate, Db, Field, File, Meta, Migrations};
 use sofie_postgres::Postgres;
 use sofie_testing::TestDatabase;
 
-const MODULE_ROLE: &str = include_str!("../module_role.sql");
+const MODULE_ROLE: &str = include_str!("../../sofie-cli/module_role.sql");
 
 const ITEMS: File = File::new(
     "0001_items.sql",

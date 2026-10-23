@@ -385,7 +385,7 @@ anything else crosses a web standard and is the app's own.
 | | Owned by the framework | Open to the app |
 |---|---|---|
 | Interactions | **htmx**, pinned and embedded, configured strictly (no `eval`, same-origin requests only, a strict CSP), extended by the framework for CSRF, `traceparent` and error responses. Its attributes appear only inside catalog components, never in an app's templates | — |
-| Rich components | **Svelte** islands: compiled by the app's build script (svelte and esbuild, pinned in the framework's `tools/web`), hot-reloaded by `sofie dev`, mounted as custom elements the framework defines, props typed from the loader, one bundle per area | Any other custom element — React, Vue, plain JavaScript — mounted by the engine, with no typed props, build or reload support from the framework |
+| Rich components | **Svelte** islands: compiled by the app's build script (svelte and esbuild, pinned in the framework's `crates/sofie-cli/web`), hot-reloaded by `sofie dev`, mounted as custom elements the framework defines, props typed from the loader, one bundle per area | Any other custom element — React, Vue, plain JavaScript — mounted by the engine, with no typed props, build or reload support from the framework |
 
 An app without islands needs no Node toolchain at all.
 
@@ -486,11 +486,11 @@ routes.island("/editor/{page}", "page-editor", page_draft);
   `<area>.css`: component styles are bundled into the stylesheet, never
   injected inline, so the strict CSP holds. The app's `build.rs` (through
   `sofie_cli::check_in_build_script`) builds them into `OUT_DIR` with Node and
-  the framework's pinned `tools/web` toolchain, minified for a release
+  the framework's pinned `crates/sofie-cli/web` toolchain, minified for a release
   build; the wiring embeds them, and every page of the area loads its
   bundle, the script under the page's nonce, so an island swapped in by
   htmx mounts too.
-  The toolchain is installed once with `npm ci` in `tools/web`; the
+  The toolchain is installed once with `npm ci` in `crates/sofie-cli/web`; the
   workspace's own test run needs it too, for the `examples/islands` demo
   and sofie-cli's island build tests. Without it they fail with that
   instruction instead of being skipped, since a skipped island build would

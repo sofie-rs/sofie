@@ -8,8 +8,8 @@ use crate::cargo::Diagnostics;
 use crate::clients::{absolute, check_toolchain, run_node};
 use crate::gen_command::{GenError, io_error};
 
-/// Beside this crate while the framework is a path dependency.
-pub(crate) const TOOLCHAIN: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../tools/web");
+/// Shipped inside this crate, so an installed CLI finds it beside its own sources.
+pub(crate) const TOOLCHAIN: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/web");
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum IslandMode {

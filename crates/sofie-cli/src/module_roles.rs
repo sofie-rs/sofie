@@ -4,7 +4,7 @@ use std::path::PathBuf;
 
 use sofie_model::App;
 
-const TEMPLATE: &str = include_str!("../../sofie-postgres/module_role.sql");
+const TEMPLATE: &str = include_str!("../module_role.sql");
 
 const FILE_NAME: &str = "0000_module_role.sql";
 

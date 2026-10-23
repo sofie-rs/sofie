@@ -22,9 +22,28 @@ and checks from it, so an app writes only its own logic.
 - `bench/`: benchmarks and size limits checked against a Loco twin of the
   shop.
 
-## Trying it
+## Starting an app
 
-Requires Rust 1.99 and Docker for the development Postgres.
+Requires Rust 1.99 and a local Postgres. Until the crates are published, the
+CLI installs from this repository, and a new app depends on the framework at
+the commit the CLI was built from.
+
+```sh
+cargo install --git https://github.com/sofie-rs/sofie sofie-cli
+sofie new app shop
+cd shop
+cp .env.example .env
+```
+
+In `.env`, set `DATABASE_URL` (such as
+`postgres://sofie:sofie@127.0.0.1:25432/sofie` from this repository's
+`compose.yaml`) and `SOFIE_SIGNING_KEYS` (the output of
+`openssl rand -base64 32`). Then `sofie dev` migrates the database, runs the
+app and reloads it on changes. `AGENTS.md` in the new app lists every command.
+
+A binary started outside `sofie dev` migrates only with `SOFIE_MIGRATE=on`.
+
+## Working on the framework
 
 ```sh
 docker compose up -d

@@ -77,8 +77,13 @@ async fn a_block_decided_by_one_instance_holds_on_the_other() {
         instance(database.url()).await,
     );
 
+    // The block is decided off the request path, so a later scan may already meet it.
     for index in 0..4 {
-        assert_eq!(status(&first, &format!("/wp-admin/{index}")).await, 404);
+        let scanned = status(&first, &format!("/wp-admin/{index}")).await;
+        assert!(
+            matches!(scanned, 404 | 429),
+            "scan {index} answered {scanned}"
+        );
     }
 
     assert_eq!(eventually(&first, 429).await, 429);

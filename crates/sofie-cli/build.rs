@@ -1,5 +1,5 @@
-//! Records the commit `cargo install --git` built the CLI from, so `sofie new app` names the
-//! framework by that commit rather than by a path into cargo's cache, which it may clean.
+//! Records where the CLI was built from, so `sofie new app` names the framework by version or
+//! commit rather than by a path into cargo's cache, which it may clean.
 
 use std::fs;
 use std::path::Path;
@@ -7,10 +7,16 @@ use std::path::Path;
 fn main() {
     println!("cargo::rerun-if-changed=build.rs");
     let manifest = std::env::var("CARGO_MANIFEST_DIR").expect("cargo sets CARGO_MANIFEST_DIR");
-    let Some(root) = Path::new(&manifest).ancestors().nth(2) else {
+    let manifest = Path::new(&manifest);
+    // Cargo marks a package it unpacked from a registry, and a git checkout it made, with this
+    // file; a developer's own clone has none.
+    if manifest.join(".cargo-ok").exists() {
+        println!("cargo::rustc-env=SOFIE_CLI_REGISTRY=1");
+        return;
+    }
+    let Some(root) = manifest.ancestors().nth(2) else {
         return;
     };
-    // Cargo marks a git checkout it made complete with this file; a developer's own clone has none.
     if !root.join(".cargo-ok").exists() {
         return;
     }

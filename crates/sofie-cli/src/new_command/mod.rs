@@ -515,19 +515,40 @@ pub(crate) fn write_all(
     Ok(())
 }
 
-/// Where a new app finds framework crate `package` until the framework is published: the
-/// commit `cargo install --git` built this binary from, else this checkout by path.
-pub(super) fn framework_source(package: &str) -> String {
-    source_of(package, option_env!("SOFIE_CLI_COMMIT"))
+/// Where this binary was built from, which decides where a new app finds the framework.
+enum Origin {
+    Registry,
+    Commit(&'static str),
+    Checkout,
 }
 
-fn source_of(package: &str, commit: Option<&str>) -> String {
-    if let Some(commit) = commit {
-        return format!(
+impl Origin {
+    fn of_this_binary() -> Self {
+        if option_env!("SOFIE_CLI_REGISTRY").is_some() {
+            return Self::Registry;
+        }
+        option_env!("SOFIE_CLI_COMMIT").map_or(Self::Checkout, Self::Commit)
+    }
+}
+
+/// The version a CLI from crates.io was published as, the commit `cargo install --git` built
+/// it from, or this checkout by path, so the app and the CLI always match.
+pub(super) fn framework_source(package: &str) -> String {
+    source_of(package, &Origin::of_this_binary())
+}
+
+fn source_of(package: &str, origin: &Origin) -> String {
+    match origin {
+        Origin::Registry => format!("version = \"{}\"", env!("CARGO_PKG_VERSION")),
+        Origin::Commit(commit) => format!(
             "git = \"{}\", rev = \"{commit}\"",
             env!("CARGO_PKG_REPOSITORY")
-        );
+        ),
+        Origin::Checkout => checkout_path(package),
     }
+}
+
+fn checkout_path(package: &str) -> String {
     let crates = Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
         .map(Path::to_path_buf)
@@ -599,7 +620,9 @@ const MODULE_LIBRARY: &str = "pub mod config;\npub mod module;\nmod wiring;\n\nm
 
 #[cfg(test)]
 mod tests {
-    use super::{PRELUDE_TYPES, checked_name, checked_package_name, checked_type_name, source_of};
+    use super::{
+        Origin, PRELUDE_TYPES, checked_name, checked_package_name, checked_type_name, source_of,
+    };
 
     #[test]
     fn refuses_names_that_become_rust_keywords() {
@@ -683,15 +706,19 @@ mod tests {
     }
 
     #[test]
-    fn an_installed_cli_names_the_framework_by_its_commit_and_a_local_one_by_path() {
+    fn the_framework_is_named_by_version_commit_or_path_after_where_the_cli_came_from() {
+        assert_eq!(
+            source_of("sofie-framework", &Origin::Registry),
+            format!("version = \"{}\"", env!("CARGO_PKG_VERSION"))
+        );
         let commit = "318950386cebddd99c40181813ae4f4e8da5c6a7";
         assert_eq!(
-            source_of("sofie-framework", Some(commit)),
+            source_of("sofie-framework", &Origin::Commit(commit)),
             format!("git = \"https://github.com/sofie-rs/sofie\", rev = \"{commit}\"")
         );
-        let local = source_of("sofie-framework", None);
+        let local = source_of("sofie-framework", &Origin::Checkout);
         assert!(local.starts_with("path = \""), "{local}");
         assert!(local.ends_with("crates/sofie\""), "{local}");
-        assert!(source_of("sofie-cli", None).ends_with("crates/sofie-cli\""));
+        assert!(source_of("sofie-cli", &Origin::Checkout).ends_with("crates/sofie-cli\""));
     }
 }

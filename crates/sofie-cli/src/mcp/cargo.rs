@@ -176,7 +176,12 @@ fn format_report(output: &Output, write: bool) -> String {
 
 fn app_cargo(root: &Path, app: &App, arguments: &[&str]) -> Command {
     let mut cargo = cargo::command();
-    cargo.args(arguments).current_dir(root).stdin(Stdio::null());
+    // Escape codes from a `CARGO_TERM_COLOR=always` environment would hide the progress lines.
+    cargo
+        .args(arguments)
+        .current_dir(root)
+        .stdin(Stdio::null())
+        .env("CARGO_TERM_COLOR", "never");
     for package in packages(app) {
         cargo.args(["--package", package]);
     }

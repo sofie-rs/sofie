@@ -784,7 +784,8 @@ async fn a_forgotten_principal_keeps_no_rows_and_gets_no_digest() {
         )
         .await;
     assert_eq!(schedules, [vec![SqlValue::Null]]);
-    assert_eq!(unread(&other).await, 1);
+    // A day on, the session `other` signed in with has expired.
+    assert_eq!(unread(&app.as_(&member(41))).await, 1);
 }
 
 #[tokio::test]

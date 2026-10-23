@@ -2052,6 +2052,7 @@ one walks templates the same way.
   role builds the app, so a worker fails at boot on what a web process would.
 - It migrates on start only when told to, with `SOFIE_MIGRATE=on`; unset, it
   does not, so which process migrates, and when, is the deployment's choice.
+  It refuses to start on a database with none of the framework's tables.
   A test database is migrated by the test's own `app` function.
 - `sofie db fresh` runs the app's binary, built with sofie's `development` as
   `sofie dev` builds it, as `db fresh`: it drops the schema of

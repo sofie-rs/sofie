@@ -222,6 +222,17 @@ async fn a_database_never_migrated_has_every_migration_pending() {
 }
 
 #[tokio::test]
+async fn the_framework_tables_are_seen_only_once_migrated() {
+    let database = TestDatabase::create().await;
+    let db = Db::new(Postgres::connect(database.url()).unwrap());
+
+    assert_eq!(db.schema().framework_migrated().await.unwrap(), Some(false));
+    db.schema().migrate(&[]).await.unwrap();
+
+    assert_eq!(db.schema().framework_migrated().await.unwrap(), Some(true));
+}
+
+#[tokio::test]
 async fn a_failing_migration_is_not_recorded() {
     let database = TestDatabase::create().await;
     let db = Db::new(Postgres::connect(database.url()).unwrap());

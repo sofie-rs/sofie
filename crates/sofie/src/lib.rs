@@ -412,9 +412,17 @@ fn notify_set_up(db: &Db) -> Result<sofie_notify::Setup> {
     Ok(setup)
 }
 
+/// A database nothing migrated would fail every query and worker poll, so it is refused once,
+/// read from the catalog, which needs no right to write.
 async fn migrate_when_told(settings: &Settings, db: &Db, migrations: &[Migrations]) -> Result<()> {
     if settings.migrate {
-        db.schema().migrate(migrations).await?;
+        return db.schema().migrate(migrations).await;
+    }
+    if db.schema().framework_migrated().await? == Some(false) {
+        return Err(Error::internal_message(
+            "the database has none of the framework's tables: start once with \
+             `SOFIE_MIGRATE=on`, or migrate it the way the deployment does",
+        ));
     }
     Ok(())
 }

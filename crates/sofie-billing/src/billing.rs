@@ -10,7 +10,7 @@ use sofie_http::{Area, Entitled, Principal, RequestContext};
 use crate::entitlements::Entitlements;
 use crate::provider::Cancellation;
 use crate::subscription::Subscription;
-use crate::{Plan, Plans, Product, SeatRule, Seats, Setup};
+use crate::{Plan, Plans, SeatRule, Seats, Setup};
 
 /// Whoever a subscription and its quotas belong to: an account, or an organization.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -120,52 +120,6 @@ impl Billing {
         Ok(TrialStarted(subscription))
     }
 
-    pub async fn subscribe(
-        &self,
-        subscriber: Subscriber,
-        plan: Plan,
-        seats: u32,
-        return_path: &str,
-    ) -> Result<Link> {
-        let plan = self.catalog.plans.declared(plan)?;
-        let subscription = self.subscription(subscriber).await?;
-        let running = subscription
-            .as_ref()
-            .is_some_and(|held| held.standing(self.now()).renews_at_provider());
-        if running {
-            return Err(Error::Rule(PLAN_RUNNING.to_owned()));
-        }
-        self.checkout(
-            subscriber,
-            subscription,
-            plan.name(),
-            seats,
-            true,
-            return_path,
-        )
-        .await
-    }
-
-    pub async fn buy(
-        &self,
-        subscriber: Subscriber,
-        product: Product,
-        quantity: u32,
-        return_path: &str,
-    ) -> Result<Link> {
-        let product = self.catalog.plans.declared_product(product)?;
-        let subscription = self.subscription(subscriber).await?;
-        self.checkout(
-            subscriber,
-            subscription,
-            product.name(),
-            quantity,
-            false,
-            return_path,
-        )
-        .await
-    }
-
     /// For an owner that is gone, such as a deleted organization whose checkout completed
     /// after it; run from a job, which retries with the same key.
     pub async fn cancel_at_provider(
@@ -187,43 +141,6 @@ impl Billing {
         self.catalog.setup.provider()?.cancel(&cancellation).await
     }
 
-    pub async fn portal(&self, subscriber: Subscriber, return_path: &str) -> Result<Link> {
-        let subscription = self.subscription(subscriber).await?;
-        let provider_customer = subscription
-            .as_ref()
-            .and_then(Subscription::provider_customer)
-            .ok_or_else(|| Error::Rule("Nothing has been paid for yet.".to_owned()))?;
-        self.catalog
-            .setup
-            .portal(provider_customer, return_path)
-            .await
-    }
-
-    async fn checkout(
-        &self,
-        subscriber: Subscriber,
-        subscription: Option<Subscription>,
-        name: &str,
-        quantity: u32,
-        recurring: bool,
-        return_path: &str,
-    ) -> Result<Link> {
-        let provider_customer = subscription
-            .as_ref()
-            .and_then(Subscription::provider_customer);
-        self.catalog
-            .setup
-            .checkout(
-                subscriber,
-                provider_customer,
-                name,
-                quantity,
-                recurring,
-                return_path,
-            )
-            .await
-    }
-
     pub(crate) async fn subscription(
         &self,
         subscriber: Subscriber,
@@ -235,8 +152,6 @@ impl Billing {
         self.db.clock().now().timestamp()
     }
 }
-
-const PLAN_RUNNING: &str = "A plan already renews; change it from the billing portal.";
 
 impl<C: Context> Resolve<C> for Billing {
     fn resolve(context: &mut C) -> impl Future<Output = Result<Self>> + Send {
@@ -285,27 +200,6 @@ impl Entitled for Billing {
             );
             Ok(Arc::from(plan.held()))
         })
-    }
-}
-
-/// A link to a page of the provider's; return it from an action routed `.then_follow()`.
-#[derive(Clone, Debug)]
-pub struct Link {
-    pub(crate) location: String,
-}
-
-impl Link {
-    #[must_use]
-    pub fn location(&self) -> &str {
-        &self.location
-    }
-}
-
-impl Outcome for Link {
-    fn reply(self) -> Result<Reply> {
-        Ok(Reply::Json(
-            serde_json::json!({ "location": self.location }),
-        ))
     }
 }
 

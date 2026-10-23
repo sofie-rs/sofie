@@ -1,4 +1,5 @@
 mod billing;
+mod checkout;
 mod entitlement;
 mod entitlements;
 mod events;
@@ -14,7 +15,8 @@ mod webhook;
 
 use sofie_db::{AggregateTable, Migrations};
 
-pub use billing::{Billing, Link, SeatsChangeAsked, Subscriber, TrialStarted, install};
+pub use billing::{Billing, SeatsChangeAsked, Subscriber, TrialStarted, install};
+pub use checkout::{Checkout, Link};
 pub use entitlement::{Entitlement, Limit, Period, Quota, UNLIMITED};
 pub use entitlements::Entitlements;
 pub use events::{PurchaseCompleted, SubscriptionChanged};

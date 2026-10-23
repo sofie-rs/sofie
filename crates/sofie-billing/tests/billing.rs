@@ -11,8 +11,8 @@ use hyper_util::rt::TokioIo;
 use ring::hmac;
 use serde_json::{Value, json};
 use sofie_billing::{
-    Billing, Consumed, Entitlement, Entitlements, Limit, Link, Period, Plan, Plans, Product,
-    ProviderKeys, PurchaseCompleted, Quota, Seats, Setup, Standing, Status, Subscriber,
+    Billing, Checkout, Consumed, Entitlement, Entitlements, Limit, Link, Period, Plan, Plans,
+    Product, ProviderKeys, PurchaseCompleted, Quota, Seats, Setup, Standing, Status, Subscriber,
     SubscriptionChanged, TrialStarted, UNLIMITED, Vendor,
 };
 use sofie_core::encoding::hex;
@@ -81,20 +81,20 @@ async fn plan_page() -> Result<()> {
     Ok(())
 }
 
-async fn upgrade(me: Principal<Members>, billing: Billing) -> Result<Link> {
-    billing
+async fn upgrade(me: Principal<Members>, checkout: Checkout) -> Result<Link> {
+    checkout
         .subscribe(me.id().into(), PRO, 2, "/members/plan")
         .await
 }
 
-async fn buy_credits(me: Principal<Members>, billing: Billing) -> Result<Link> {
-    billing
+async fn buy_credits(me: Principal<Members>, checkout: Checkout) -> Result<Link> {
+    checkout
         .buy(me.id().into(), CREDITS, 3, "/members/plan")
         .await
 }
 
-async fn manage(me: Principal<Members>, billing: Billing) -> Result<Link> {
-    billing.portal(me.id().into(), "/members/plan").await
+async fn manage(me: Principal<Members>, checkout: Checkout) -> Result<Link> {
+    checkout.portal(me.id().into(), "/members/plan").await
 }
 
 fn member_routes(routes: &mut Routes<Members>) {

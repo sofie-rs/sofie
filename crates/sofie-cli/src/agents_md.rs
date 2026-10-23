@@ -200,7 +200,7 @@ const RULES: &str = "## Rules `sofie check` holds the app to
 - Requests leave the app only through gateways and contracts.
 - Every field constraint and enum of an aggregate has a CHECK or unique index in a migration.
 - Screens bind only what their loader provides; flags are named `<module>.<flag>` and declared by their module with the day they were added.
-- No dead code or unused dependency (unless `dead-code-allow.toml` gives a reason), comments at most 10% of code lines, no god types.
+- No dead code or unused dependency (unless `dead-code-allow.toml` gives a reason); an app setting `structure-ceilings = true` also keeps comments within 2.86% of code lines and no type a god type.
 - Generated files are current: run `sofie gen`.
 ";
 

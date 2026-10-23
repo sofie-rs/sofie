@@ -8,6 +8,8 @@ and checks from it, so an app writes only its own logic.
 > **Status: proof of concept.** APIs change without notice and nothing is
 > published on crates.io yet. Do not build on it for production.
 
+Documentation: [sofie-rs.github.io/sofie.rs](https://sofie-rs.github.io/sofie.rs/).
+
 ## Contents
 
 - `crates/sofie`: the facade an app depends on (package `sofie-framework`,

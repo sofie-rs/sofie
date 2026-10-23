@@ -1,4 +1,4 @@
-# sofie
+# Sofie
 
 A Rust web framework built around a fixed app structure. Because every file has
 a known place and role, the framework reads the whole app at build time and

@@ -1,0 +1,7 @@
+<Section title={t("identity.sign_in_link.title")}>
+  <p>{t("identity.sign_in_link.intro")}</p>
+  <Form id="ask-sign-in-link" post={data.action}>
+    <Submit label={t("identity.action.mail_link")} />
+  </Form>
+  {#if data.other}<a href={data.other}>{t("identity.sign_in_link.with_password")}</a>{/if}
+</Section>

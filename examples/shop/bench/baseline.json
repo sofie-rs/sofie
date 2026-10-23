@@ -1,0 +1,20 @@
+{
+  "routes": {
+    "journey order.place_and_cancel": {
+      "error_rate": 0.0,
+      "p95_ms": 64.0
+    },
+    "order.customer.list_orders html": {
+      "error_rate": 0.0,
+      "p95_ms": 1.15
+    },
+    "order.customer.list_orders json": {
+      "error_rate": 0.0,
+      "p95_ms": 1.17
+    },
+    "order.customer.place_order json": {
+      "error_rate": 0.0,
+      "p95_ms": 4.78
+    }
+  }
+}

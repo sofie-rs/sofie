@@ -1,0 +1,43 @@
+[package]
+name = "sofie-values"
+description = "The values the framework ships: money, email and the like."
+edition.workspace = true
+rust-version.workspace = true
+version.workspace = true
+publish.workspace = true
+license.workspace = true
+repository.workspace = true
+
+# The core set (Money, Currency, Email, Secret) is always built;
+# each group of further values is opt-in, so an app compiles only what it uses.
+[features]
+# The operators a list screen filters a value by.
+filter = []
+# Values as structured log fields, masked when sensitive.
+log-fields = []
+# `Fixture` and `Samples` for every value, and what derived inputs, enums
+# and contract fakes generate theirs with; for tests only.
+fixtures = ["dep:serde_json"]
+geo = ["serde/derive"]
+measure = ["serde/derive"]
+percentage = []
+person = []
+phone = []
+time = ["dep:jiff", "serde/derive"]
+web = ["dep:http"]
+
+[dependencies]
+sofie-core.workspace = true
+http = { workspace = true, optional = true }
+# Time zones are read from the system's zoneinfo database, which needs no
+# further crate; a deployment image must ship it.
+jiff = { workspace = true, features = ["tzdb-zoneinfo"], optional = true }
+serde.workspace = true
+serde_json = { workspace = true, optional = true }
+unicode-normalization.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
+
+[lints]
+workspace = true

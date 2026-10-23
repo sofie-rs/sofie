@@ -1,0 +1,35 @@
+[package]
+name = "sofie-notify"
+description = "Notifications over mail, web push and an in-app inbox, held to each principal's preferences, quiet hours and digests."
+edition.workspace = true
+rust-version.workspace = true
+version.workspace = true
+publish.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+sofie-client.workspace = true
+sofie-core.workspace = true
+sofie-db = { workspace = true, features = ["local-time", "retention"] }
+sofie-http.workspace = true
+sofie-mail.workspace = true
+sofie-values = { workspace = true, features = ["time"] }
+jiff = { workspace = true, features = ["tzdb-zoneinfo"] }
+ring.workspace = true
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+tracing.workspace = true
+
+[build-dependencies]
+sofie-engine = { workspace = true, features = ["compile"] }
+
+[dev-dependencies]
+sofie-core = { workspace = true, features = ["testing"] }
+sofie-telemetry = { workspace = true, features = ["capture"] }
+sofie-values = { workspace = true, features = ["time"] }
+sofie-testing = { workspace = true, features = ["mail"] }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+
+[lints]
+workspace = true

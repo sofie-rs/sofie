@@ -1,0 +1,59 @@
+[label]
+email = "E-posta"
+password = "Parola"
+new_password = "Yeni parola"
+
+[identity.action]
+sign_in = "Giriş yap"
+mail_link = "Bana bağlantı gönder"
+create_account = "Hesap oluştur"
+confirm = "Onayla"
+
+[identity.sign_in]
+passkey = "Geçiş anahtarıyla giriş yap"
+provider = "{provider} ile giriş yap"
+by_link = "Bana giriş bağlantısı gönder"
+
+[identity.sign_up]
+submit = "Hesap oluştur"
+
+[identity.sign_in_link]
+title = "E-postayla giriş"
+intro = "Kaydolduğunuz adresi girin. Burada bir hesaba aitse, giriş bağlantısı bu adrese gönderilir."
+with_password = "Parolayla giriş yap"
+
+[identity.verification]
+title = "E-posta adresinizi onaylayın"
+intro = "Kaydolduğunuz adresi girin; onaylamanız için yeni bir bağlantı bu adrese gönderilir."
+
+[identity.forgot_password]
+title = "Parolanızı sıfırlayın"
+intro = "Kaydolduğunuz adresi girin. Burada bir hesaba aitse, yeni bir parola seçme bağlantısı bu adrese gönderilir."
+
+[identity.link_sent]
+title = "E-postanızı kontrol edin"
+intro = "Bu adrese ait bir hesap buradaysa, bağlantı yola çıktı. Bir saat içinde, yalnızca bir kez çalışır."
+
+[identity.oauth]
+title = "Giriş yapılıyor"
+refused = "Sağlayıcı girişinizi yapmadı: {error}"
+back = "Girişe dön"
+continue = "Devam"
+
+[identity.reset_password]
+title = "Yeni bir parola seçin"
+submit = "Parolayı kaydet"
+
+[identity.second_factor]
+title = "İki adımlı giriş"
+intro = "Kimlik doğrulayıcı uygulamanızın gösterdiği kodu ya da kurtarma kodlarınızdan birini girin."
+
+[identity.join]
+title = "Katılmak için giriş yapın"
+intro = "Zaten bir hesabınız var. Buraya da katılmak için onunla giriş yapın."
+submit = "Giriş yap ve katıl"
+
+[identity.join_mail]
+intro = "Biri bu adresle burada kaydolmaya çalıştı; bu adresin zaten bir hesabı var."
+sign_in = "Katılmak için o hesapla giriş yapın"
+ignore = "Bağlantı bir saat içinde, yalnızca bir kez çalışır. Siz değilseniz bu e-postayı yok sayın: hiçbir şey değişmedi."

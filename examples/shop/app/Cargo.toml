@@ -1,0 +1,33 @@
+# HTTPS once SOFIE_TLS_CERTIFICATE and SOFIE_TLS_KEY are set; bench/ builds without it, as Loco's twin serves plain HTTP.
+features = { default = ["sofie/tls"] }
+
+[package]
+name = "shop"
+description = "Example app built on the framework."
+edition.workspace = true
+rust-version.workspace = true
+version.workspace = true
+publish.workspace = true
+
+[dependencies]
+# No `postgres-tls`: the database is reached inside the shop's network, in plain text.
+sofie = { workspace = true, default-features = false, features = ["engine", "postgres"] }
+sofie-identity.workspace = true
+order = { path = "../modules/order" }
+order-contract = { path = "../modules/order/contract" }
+
+[build-dependencies]
+sofie-cli.workspace = true
+
+[dev-dependencies]
+# The telemetry tests read what a request recorded.
+sofie = { workspace = true, default-features = false, features = ["capture"] }
+sofie-testing.workspace = true
+# Members of the shop's areas signed up through sofie-identity.
+sofie-identity = { workspace = true, features = ["testing"] }
+serde_json.workspace = true
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "sync", "time"] }
+tracing.workspace = true
+
+[lints]
+workspace = true

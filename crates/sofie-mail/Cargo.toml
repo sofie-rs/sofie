@@ -1,0 +1,48 @@
+[package]
+name = "sofie-mail"
+description = "Mail: messages rendered from templates, sent by a job over SMTP, to the log or to a test's outbox."
+edition.workspace = true
+rust-version.workspace = true
+version.workspace = true
+publish.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[features]
+# Each mail rereads its template's source, so an edit shows without a rebuild.
+development = ["sofie-engine/parse"]
+metrics = ["sofie-telemetry/metrics"]
+# A fake transport with an outbox, and SMTP trusting a test's own root certificate.
+testing = []
+# `web::routes`: the unsubscribe page and its one-click POST, and webhooks for a
+# provider's bounces and complaints.
+web = ["dep:ring", "dep:sofie-http", "sofie-http/resources", "sofie-http/signed-links", "sofie-http/webhooks"]
+
+[dependencies]
+ring = { workspace = true, optional = true }
+sofie-auth.workspace = true
+sofie-core.workspace = true
+sofie-db = { workspace = true, features = ["idempotency", "jobs"] }
+sofie-engine.workspace = true
+sofie-http = { workspace = true, optional = true }
+sofie-telemetry.workspace = true
+sofie-values.workspace = true
+jiff.workspace = true
+rustls.workspace = true
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+tokio = { workspace = true, features = ["io-util", "net", "time"] }
+tokio-rustls.workspace = true
+tracing.workspace = true
+webpki-roots.workspace = true
+
+[dev-dependencies]
+sofie-engine = { workspace = true, features = ["parse"] }
+sofie-mail = { path = ".", features = ["testing", "web"] }
+sofie-telemetry = { workspace = true, features = ["capture"] }
+sofie-http.workspace = true
+sofie-testing = { workspace = true, features = ["mail"] }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+
+[lints]
+workspace = true

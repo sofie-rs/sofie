@@ -1,0 +1,14 @@
+<Section title="Notes">
+  <Form id="write-note" post="/board/notes" target="notes">
+    <Field name="body" label="What it says" />
+    <Submit label="Write" />
+  </Form>
+  {#if data}
+    <p>{"Written so far"}</p>
+  {:else}
+    <p>Nothing written yet.</p>
+  {/if}
+  <Table id="notes" of={data} columns="title price pinned" as="note">
+    {#if note.pinned}<strong>Pinned</strong>{:else}<Action post="/board/notes/{note.id}/pin" label="Pin" target="notes" />{/if}
+  </Table>
+</Section>

@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "sofie": {
+      "command": "sofie",
+      "args": ["mcp"]
+    }
+  }
+}

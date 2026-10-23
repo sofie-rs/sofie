@@ -1,0 +1,6 @@
+<Section title="Signed-in sessions">
+  <Table id="sessions" of={data} columns="area device created_at last_seen_at" as="session">
+    <Action post="sessions/{session.id}/end" label="Sign out" target="sessions" />
+  </Table>
+  <Action post="sessions/others" label="Sign out everywhere else" target="sessions" />
+</Section>

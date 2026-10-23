@@ -1,0 +1,25 @@
+[package]
+name = "sofie-model"
+description = "The app model: modules, areas and routes, read from source without compiling it."
+edition.workspace = true
+rust-version.workspace = true
+version.workspace = true
+publish.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[features]
+# Temporary app roots and model builders, for the tests of crates that read the model.
+testing = []
+
+[dependencies]
+proc-macro2 = { workspace = true, features = ["span-locations"] }
+serde_json.workspace = true
+sofie-core.workspace = true
+syn = { workspace = true, features = ["full", "visit"] }
+
+[dev-dependencies]
+sofie-model = { workspace = true, features = ["testing"] }
+
+[lints]
+workspace = true

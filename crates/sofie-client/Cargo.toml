@@ -1,0 +1,45 @@
+[package]
+name = "sofie-client"
+description = "The one way out: outgoing requests of gateway adapters, traced, bounded and held to their vendor's hosts."
+edition.workspace = true
+rust-version.workspace = true
+version.workspace = true
+publish.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[features]
+metrics = ["sofie-telemetry/metrics"]
+# An `Outgoing` trusting a test's own root certificate.
+testing = []
+# Calling a split app's contracts, batch lookups and event feed.
+remote-contracts = ["dep:sofie-auth", "serde/derive", "sofie-db/remote-contracts"]
+# Meilisearch as the search engine of `Searched` aggregates.
+meilisearch = ["sofie-db/search-engine"]
+
+[dependencies]
+bytes.workspace = true
+sofie-auth = { workspace = true, optional = true }
+sofie-core.workspace = true
+sofie-db = { workspace = true, features = ["idempotency"] }
+sofie-telemetry.workspace = true
+http.workspace = true
+http-body-util.workspace = true
+hyper = { workspace = true, features = ["client"] }
+hyper-util.workspace = true
+rustls.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio = { workspace = true, features = ["net", "time"] }
+tokio-rustls.workspace = true
+tracing.workspace = true
+webpki-roots.workspace = true
+
+[dev-dependencies]
+sofie-client = { workspace = true, features = ["meilisearch", "testing"] }
+sofie-db = { workspace = true, features = ["etag"] }
+sofie-telemetry = { workspace = true, features = ["capture"] }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+
+[lints]
+workspace = true

@@ -1,0 +1,57 @@
+[package]
+name = "sofie-postgres"
+description = "The database seam implemented for Postgres."
+edition.workspace = true
+rust-version.workspace = true
+version.workspace = true
+publish.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[features]
+default = ["tls"]
+# Encryption as the url's `sslmode` asks, and `sslrootcert`; without it a url asking for
+# encryption is refused at boot.
+tls = ["dep:rustls", "dep:tokio-rustls", "dep:webpki-roots"]
+# Raw SQL in a read-only transaction; see sofie-db.
+raw-sql = ["sofie-db/raw-sql"]
+# Raw SQL runs as its module's role; see sofie-db.
+module-roles = ["raw-sql", "sofie-db/module-roles"]
+# The shield's blocks shared through `sofie.shield` and `NOTIFY sofie_shield`.
+shield = ["sofie-db/shield"]
+# The payloads notified on `sofie_cache`, for sofie-cache; see sofie-db.
+cache = ["sofie-db/cache"]
+# Changes told to other instances' open screens through `sofie_live`; see sofie-db.
+live = ["sofie-db/live"]
+# The event feed split apps pull from each other; see sofie-db.
+remote-contracts = ["sofie-db/remote-contracts"]
+product-reports = ["sofie-db/product-reports"]
+search = ["sofie-db/search"]
+
+[dependencies]
+bytes.workspace = true
+deadpool-postgres.workspace = true
+sofie-core.workspace = true
+sofie-db = { workspace = true, features = ["concurrent-indexes"] }
+futures-core.workspace = true
+jiff.workspace = true
+rustls = { workspace = true, optional = true }
+serde_json.workspace = true
+tokio = { workspace = true, features = ["time"] }
+tokio-postgres.workspace = true
+tokio-rustls = { workspace = true, optional = true }
+tracing.workspace = true
+webpki-roots = { workspace = true, optional = true }
+
+[dev-dependencies]
+# So `tests/product_events.rs` runs in every test run.
+sofie-postgres = { path = ".", default-features = false, features = ["product-reports"] }
+sofie-telemetry = { workspace = true, features = ["capture", "product-events"] }
+sofie-db = { workspace = true, features = ["cache", "children", "codes", "contracts", "flags", "history", "joins", "listing", "migration-status", "pagination", "publishing", "retention", "search-engine", "soft-delete", "streams"] }
+sofie-values.workspace = true
+sofie-testing.workspace = true
+serde.workspace = true
+tokio = { workspace = true, features = ["macros"] }
+
+[lints]
+workspace = true

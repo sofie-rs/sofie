@@ -1,0 +1,35 @@
+[package]
+name = "sofie-tenancy"
+description = "Organizations that own records, their members and roles, and invitations by email."
+edition.workspace = true
+rust-version.workspace = true
+version.workspace = true
+publish.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[features]
+# Members and pending invitations held to the seats the organization's plan allows.
+billing = ["sofie/billing"]
+# Memberships in an account's export, ended when it closes, which the last owner of an
+# organization may not (`OrganizationMemberships`, registered by the app).
+account-data = ["sofie-identity/account-data"]
+
+[dependencies]
+sofie = { workspace = true, features = ["mail", "resources", "signed-links", "soft-delete"] }
+sofie-identity = { workspace = true, features = ["sessions"] }
+
+[build-dependencies]
+sofie-engine = { workspace = true, features = ["compile"] }
+
+[dev-dependencies]
+# Its own seats and account closing tests run in every test run.
+sofie-tenancy = { path = ".", features = ["account-data", "billing"] }
+# Spans give route names; its SQLite tables checked against its records.
+sofie = { workspace = true, features = ["capture", "sqlite"] }
+serde_json.workspace = true
+sofie-testing = { workspace = true, features = ["mail"] }
+tokio = { workspace = true, features = ["macros"] }
+
+[lints]
+workspace = true

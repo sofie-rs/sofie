@@ -1,0 +1,9 @@
+<Section title={t("identity.action.sign_in")}>
+  <Form id="sign-in" post={data.action}>
+    <Submit label={t("identity.action.sign_in")} />
+  </Form>
+  {#if data.passkey}<button type="button" data-sofie-passkey="get" data-options={data.passkey.options} data-post={data.passkey.post}>{t("identity.sign_in.passkey")}</button>{/if}
+  {#if data.oauth}{#each data.oauth.providers as provider}<form method="post" action={data.oauth.action}><input type="hidden" name="provider" value={provider.name}><button type="submit">{t("identity.sign_in.provider", provider = provider.label)}</button></form>{/each}{/if}
+  {#if data.by_link}<a href={data.by_link}>{t("identity.sign_in.by_link")}</a>{/if}
+  {#if data.other}<a href={data.other}>{t("identity.action.create_account")}</a>{/if}
+</Section>

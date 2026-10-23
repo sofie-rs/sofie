@@ -1,0 +1,265 @@
+[package]
+name = "sofie-framework"
+description = "The framework: one dependency for an app."
+edition.workspace = true
+rust-version.workspace = true
+version.workspace = true
+publish.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lib]
+name = "sofie"
+
+[features]
+default = ["engine", "postgres", "postgres-tls", "trusted-proxies"]
+# The database an app runs on: Postgres, or SQLite in one file (`DATABASE_URL=sqlite://app.db`).
+postgres = ["dep:sofie-postgres"]
+sqlite = ["dep:sofie-sqlite"]
+# Postgres over TLS as `sslmode` asks; without it a url asking for encryption is refused.
+postgres-tls = ["postgres", "sofie-postgres/tls"]
+engine = ["dep:sofie-engine", "sofie-http/engine"]
+chosen-screens = ["engine", "sofie-http/chosen-screens"]
+# Screens, notices and field errors in the language each request negotiates.
+i18n = ["engine", "sofie-http/i18n"]
+# `Grid`, `Card` and `Image`, for screens that are not records.
+layout = ["engine", "sofie-engine/layout"]
+# `<Markdown text={…} />` and `<Head …/>`: written text and a page's search and link-preview tags.
+content = ["engine", "sofie-engine/content"]
+otlp = ["sofie-telemetry/otlp"]
+# Scraped from `/metrics` with `SOFIE_METRICS_TOKEN`; exported with `otlp`.
+metrics = ["serving-settings", "sofie-http/metrics", "sofie-client?/metrics", "sofie-mail?/metrics", "sofie-cache?/metrics"]
+product-events = ["log-fields", "sofie-telemetry/product-events"]
+# Product events kept in `sofie.product_events`, read by `<app> report retention`.
+product-reports = [
+    "product-events",
+    "sofie-db/product-reports",
+    "sofie-postgres?/product-reports",
+    "sofie-http/product-events",
+]
+# Sampled by `SOFIE_BROWSER_SAMPLE`.
+browser-telemetry = ["engine", "serving-settings", "sofie-http/browser-telemetry"]
+# What `sofie dev` runs: span trees, live reload, mails read from their templates' source,
+# `serve --at`, `db fresh`, `db status`.
+development = [
+    "sofie-telemetry/development",
+    "sofie-http/development",
+    "sofie-core/development",
+    "sofie-db/fresh",
+    "sofie-db/migration-status",
+    "sofie-mail?/development",
+]
+# Svelte islands, compiled by the app's build script.
+islands = ["engine", "sofie-http/islands", "sofie-engine/islands"]
+# Client areas: an area's screens compiled into Svelte or React components by
+# the app's build script.
+clients = ["engine", "sofie-http/clients", "sofie-engine/clients"]
+# Debug builds show each page's span tree under it.
+toolbar = ["development", "engine", "sofie-http/toolbar"]
+# `#[span]` on an inner step of a handler.
+spans = ["sofie-macros/span"]
+# For tests that assert on telemetry.
+capture = ["sofie-telemetry/capture"]
+# `#[derive(Config)]` structs read from `<MODULE>_*` keys.
+config = ["sofie-macros/config"]
+children = ["sofie-db/children", "sofie-macros/children"]
+soft-delete = ["sofie-db/soft-delete"]
+# `Routes::group`: a child bound outside its parent is not found.
+groups = ["children", "sofie-http/groups"]
+# `Create` and `Update` derived for aggregates without a `factory.rs`.
+factories = ["sofie-macros/factories"]
+# For tests; sofie-testing turns it on.
+fixtures = ["sofie-values/fixtures", "sofie-macros/fixtures"]
+codes = ["sofie-db/codes"]
+flags = ["sofie-db/flags"]
+history = ["sofie-db/history", "sofie-http/history"]
+joins = ["sofie-db/joins", "sofie-macros/joins"]
+pagination = ["sofie-db/pagination"]
+publishing = ["sofie-db/publishing"]
+# `Prune`, taken by a scheduled job to delete records past their retention.
+retention = ["sofie-db/retention", "sofie-macros/retention"]
+# `.document(Media::Csv)` exporting a list as CSV, `CsvRows` importing one.
+csv = ["sofie-http/csv"]
+# `#[aggregate(behaviors(Searched))]` and `Searches::matching`: full-text search.
+search = ["sofie-db/search", "sofie-postgres?/search"]
+# Searched records kept in Meilisearch when `SOFIE_SEARCH=meilisearch`, indexed by the worker;
+# `<app> task sofie.search.reindex` indexes every one again.
+search-meilisearch = [
+    "search",
+    "jobs",
+    "tasks",
+    "dep:sofie-client",
+    "sofie-client/meilisearch",
+    "sofie-db/search-engine",
+]
+raw-sql = ["sofie-postgres?/raw-sql", "sofie-sqlite?/raw-sql"]
+# Raw SQL runs as the database role of its read model's module.
+module-roles = ["raw-sql", "sofie-postgres?/module-roles"]
+streams = ["sofie-db/streams"]
+# Attack detection; shared across instances with `SOFIE_SHIELD_SHARED=on`.
+shield = ["serving-settings", "sofie-http/shield", "sofie-postgres?/shield"]
+# Performance switches: measure before turning one on.
+mimalloc = ["dep:mimalloc"]
+compression = ["sofie-http/compression"]
+etag = ["sofie-http/etag"]
+# `.live("fragment")` refetches a fragment when a record its loader read changes.
+live = ["engine", "sofie-http/live", "sofie-postgres?/live"]
+# `.cached(time)` keeps a screen's loaded reply until a record it read changes.
+screen-cache = ["engine", "sofie-http/screen-cache", "sofie-postgres?/live"]
+idempotency = ["sofie-http/idempotency"]
+signed-links = ["sofie-http/signed-links"]
+steps = ["sofie-http/steps"]
+# Origins also from `SOFIE_CORS_ORIGINS`.
+cors = ["serving-settings", "sofie-http/cors"]
+# On by default: behind a load balancer every client is its address, held to one peer's share,
+# until `SOFIE_TRUSTED_PROXIES` names it.
+trusted-proxies = ["serving-settings", "sofie-http/trusted-proxies"]
+# HTTPS from `SOFIE_TLS_CERTIFICATE` and `SOFIE_TLS_KEY` (PEM files).
+tls = ["serving-settings", "sofie-http/tls"]
+# Internal: on with any feature whose settings `SOFIE_*` variables give.
+serving-settings = []
+webhooks = ["sofie-http/webhooks"]
+# Not `flags`, which names the `Active` and `Default` behaviors.
+feature-flags = ["dep:sofie-flags", "sofie-http/flags"]
+# `Permitted` areas: a permission per route, held through grants.
+permissions = ["sofie-http/permissions"]
+# Opaque bearer tokens; sofie-identity's `tokens` issues them.
+tokens = ["permissions", "sofie-http/tokens"]
+# Sessions recorded by sofie-identity's `sessions` (on by default there), listed and ended
+# from elsewhere; each instance caches them until Postgres tells it they changed.
+session-list = ["sofie-http/session-list", "sofie-postgres?/live"]
+# `Session::user_agent` and `Session::origin`, for sofie-identity's passkeys.
+client-headers = ["sofie-http/client-headers"]
+# `Session::begin_flow`, for sofie-identity's OAuth sign-in.
+flows = ["sofie-http/flows"]
+# List screens sorted, filtered and paged by their query.
+listing = ["pagination", "filter", "sofie-http/listing"]
+# `Routes::resource`: an aggregate's screens without template files.
+resources = ["listing", "factories", "sofie-http/resources", "sofie-macros/serialize"]
+# `App::menu`: each area's navigation from its modules' `menu.rs`.
+menu = ["engine", "sofie-http/menu"]
+# `Dep<dyn Trait>`, `#[contract]`, batch lookups and change events of `#[expose]` fields.
+contracts = [
+    "factories",
+    "sofie-db/contracts",
+    "sofie-macros/contracts",
+    "serde/derive",
+]
+# `#[gateway]` traits and vendor adapters, chosen at boot from the module's keys.
+client = ["config", "contracts", "dep:sofie-client", "sofie-macros/gateways"]
+# Modules split into apps of their own (`sofie split`), called over HTTP.
+remote-contracts = [
+    "client",
+    "sofie-client/remote-contracts",
+    "sofie-http/remote-contracts",
+    "sofie-macros/remote-contracts",
+    "sofie-postgres?/remote-contracts",
+]
+# Invalidated when an aggregate it depends on is written; shared with `SOFIE_CACHE_STORE`.
+cache = ["dep:sofie-cache", "sofie-cache/memory", "sofie-postgres?/cache"]
+cache-database = ["cache", "sofie-cache/database"]
+cache-redis = ["cache", "sofie-cache/redis"]
+jobs = ["sofie-db/jobs", "sofie-http/jobs"]
+# `LocalJobs`: jobs at a wall-clock time in an IANA zone, once, daily or weekly.
+local-time = ["jobs", "time", "sofie-db/local-time"]
+# In `SOFIE_STORAGE_ROOT`, or an S3 bucket with `storage-s3` and `SOFIE_STORAGE=s3`.
+storage = ["serving-settings", "dep:sofie-storage", "sofie-storage/local", "sofie-http/storage", "sofie-db/contracts"]
+storage-s3 = ["storage", "dep:sofie-client", "sofie-storage/s3"]
+uploads = ["engine", "storage", "sofie-http/uploads"]
+mail = ["jobs", "dep:sofie-mail"]
+# `sofie::mail::web`: one-click unsubscribe from bulk mail, and a provider's bounces and
+# complaints over webhooks, both suppressing addresses.
+mail-web = ["mail", "resources", "signed-links", "webhooks", "sofie-mail/web"]
+# Notifications over the inbox, mail and web push (`SOFIE_NOTIFY_VAPID_*`).
+notify = ["mail", "local-time", "dep:sofie-notify"]
+# Smaller copies of an image made by a `Resizer` the app brings, in a job taking `Dep<Storage>`.
+image-variants = ["storage", "sofie-storage/variants"]
+# Plans, entitlements and quotas; a provider from `SOFIE_BILLING_*`, heard through a webhook.
+billing = ["webhooks", "dep:sofie-billing", "sofie-http/entitlements"]
+# `#[task]` functions run by hand with `<app> task MODULE.NAME`.
+tasks = ["sofie-macros/tasks"]
+geo = ["sofie-values/geo"]
+measure = ["sofie-values/measure"]
+percentage = ["sofie-values/percentage"]
+person = ["sofie-values/person"]
+phone = ["sofie-values/phone"]
+time = ["sofie-values/time"]
+web = ["sofie-values/web"]
+# The operators a list screen filters a value by.
+filter = ["sofie-values/filter"]
+log-fields = ["sofie-values/log-fields", "sofie-telemetry/log-fields", "sofie-macros/log-fields"]
+
+[dependencies]
+sofie-auth.workspace = true
+sofie-billing = { workspace = true, optional = true }
+sofie-cache = { workspace = true, optional = true }
+sofie-client = { workspace = true, optional = true }
+sofie-core.workspace = true
+sofie-db.workspace = true
+sofie-engine = { workspace = true, optional = true }
+sofie-flags = { workspace = true, optional = true }
+sofie-http.workspace = true
+sofie-macros.workspace = true
+sofie-mail = { workspace = true, optional = true }
+sofie-notify = { workspace = true, optional = true }
+sofie-postgres = { workspace = true, optional = true }
+sofie-sqlite = { workspace = true, optional = true }
+sofie-storage = { workspace = true, optional = true }
+sofie-telemetry.workspace = true
+sofie-values.workspace = true
+mimalloc = { workspace = true, optional = true }
+serde.workspace = true
+serde_json.workspace = true
+tokio = { workspace = true, features = ["net", "rt-multi-thread", "signal", "sync"] }
+tracing.workspace = true
+
+[dev-dependencies]
+# An adapter's `Outgoing` in a test, as only the wiring builds one otherwise.
+sofie-client = { workspace = true, features = ["testing"] }
+# Its features' tests live in sofie-testing, which cannot turn them on itself.
+sofie-testing = { workspace = true, features = ["contracts", "flags"] }
+# Turns the opt-in features on in a workspace test run, for this crate's tests
+# and for crates whose tests cannot enable their own features.
+sofie = { workspace = true, features = [
+    "capture",
+    "client",
+    "contracts",
+    "feature-flags",
+    "fixtures",
+    "geo",
+    "idempotency",
+    "jobs",
+    "listing",
+    "log-fields",
+    "measure",
+    "percentage",
+    "permissions",
+    "image-variants",
+    "remote-contracts",
+    "resources",
+    "retention",
+    "search",
+    "search-meilisearch",
+    "shield",
+    "soft-delete",
+    "spans",
+    "sqlite",
+    "tasks",
+    "trusted-proxies",
+] }
+sofie-db = { workspace = true, features = ["fresh", "migration-status"] }
+sofie-identity = { workspace = true, features = ["permissions", "shield"] }
+sofie-http = { workspace = true, features = [
+    "chosen-screens",
+    "compression",
+    "i18n",
+    "parse",
+    "signed-links",
+    "steps",
+    "webhooks",
+] }
+sofie-postgres = { workspace = true, features = ["raw-sql", "shield"] }
+tokio = { workspace = true, features = ["macros", "sync", "time"] }
+
+[lints]
+workspace = true

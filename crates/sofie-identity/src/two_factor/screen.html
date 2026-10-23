@@ -1,0 +1,22 @@
+<Section id="two-factor" title="Two-step sign-in">
+  {#if data.enabled}
+    <p>Signing in asks for a code from your authenticator app after the password. Give a code to turn it off.</p>
+    <Form id="disable-two-factor" post="two-factor/disable" target="two-factor">
+      <Submit label="Turn off" />
+    </Form>
+  {/if}
+  {#if data.pending}
+    <p>Scan this code with your authenticator app:</p>
+    <svg width={data.pending.qr.pixels} height={data.pending.qr.pixels} role="img" aria-label="QR code of the key"><rect width="100%" height="100%" fill="#fff"></rect><path d={data.pending.qr.path} fill="#000"></path></svg>
+    <p>Or add this key to it by hand: <code>{data.pending.key}</code></p>
+    <p>Keep these recovery codes somewhere safe; each signs in once without the app. They are not shown again.</p>
+    <ul>{#each data.pending.recovery as code}<li><code>{code}</code></li>{/each}</ul>
+    <Form id="confirm-two-factor" post="two-factor/confirm" target="two-factor">
+      <Submit label="Turn on" />
+    </Form>
+  {/if}
+  {#if data.off}
+    <p>Signing in asks only for the password.</p>
+    <Action post="two-factor/start" label="Set up an authenticator app" target="two-factor" />
+  {/if}
+</Section>

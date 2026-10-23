@@ -1,0 +1,7 @@
+/target
+.DS_Store
+/bench/target
+/bench/out
+/bench/loco-shop/target
+/tools/web/node_modules
+.env

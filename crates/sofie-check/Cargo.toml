@@ -1,0 +1,26 @@
+[package]
+name = "sofie-check"
+description = "Structure checks (comment density, god types) and the `sofie check` rules over the app model."
+edition.workspace = true
+rust-version.workspace = true
+version.workspace = true
+publish.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[features]
+# The limits test, which runs `cargo tree` over the shop; run once at the end of a wave.
+slow-tests = []
+
+[dependencies]
+sofie-core.workspace = true
+sofie-engine = { workspace = true, features = ["analysis", "gates", "islands"] }
+sofie-model.workspace = true
+proc-macro2 = { workspace = true, features = ["span-locations"] }
+syn = { workspace = true, features = ["full"] }
+
+[dev-dependencies]
+sofie-model = { workspace = true, features = ["testing"] }
+
+[lints]
+workspace = true

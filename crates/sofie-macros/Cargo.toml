@@ -1,0 +1,48 @@
+[package]
+name = "sofie-macros"
+description = "The derives that describe an app's types to the framework."
+edition.workspace = true
+rust-version.workspace = true
+version.workspace = true
+publish.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lib]
+proc-macro = true
+
+# Derive support for the sofie-db features of the same names.
+[features]
+children = []
+joins = []
+# `#[derive(Config)]`, for sofie's `config`.
+config = []
+# Default `Create` and `Update` for aggregates without a `factory.rs`.
+factories = []
+# `Serialize` for aggregates, which resources show and contracts read.
+serialize = ["factories"]
+# Change events of exposed fields, mirrors and `#[contract]`.
+contracts = ["serialize", "syn/full", "syn/visit-mut"]
+# A remote client and server for every `#[contract]` trait, for split apps.
+remote-contracts = ["contracts"]
+# `#[gateway]` traits and adapters, for sofie-client.
+gateways = ["contracts"]
+# For tests: fixtures of inputs and enums, fakes of contracts and
+# `#[test_app]`, as sofie-testing uses them.
+fixtures = ["syn/full"]
+# `SensitiveFields` for aggregates with `#[sensitive]` fields, for sofie's `log-fields`.
+log-fields = []
+# `<Aggregate>Pruned`, the event a retention prune raises for the app's listeners.
+retention = []
+# `#[span]` on an inner step.
+span = ["syn/full"]
+# `#[task]`, run once by hand with `<app> task NAME`.
+tasks = ["syn/full"]
+
+[dependencies]
+proc-macro2.workspace = true
+quote.workspace = true
+syn.workspace = true
+
+[lints]
+workspace = true

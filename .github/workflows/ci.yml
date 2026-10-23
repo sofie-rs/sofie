@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    # The same Postgres as compose.yaml, at the address the tests default to.
+    services:
+      postgres:
+        image: postgres:18.6-alpine
+        env:
+          POSTGRES_USER: sofie
+          POSTGRES_PASSWORD: sofie
+          POSTGRES_DB: sofie
+        ports:
+          - 25432:5432
+        options: >-
+          --health-cmd "pg_isready -U sofie -d sofie"
+          --health-interval 2s
+          --health-timeout 2s
+          --health-retries 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fmt --all --check
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+      # A workspace build unifies features, so a feature set no member uses is checked alone.
+      - run: cargo check -p sofie-http --no-default-features
+      - run: cargo check -p sofie-framework --no-default-features --features sqlite
+      - run: cargo test --workspace
+      - run: cargo run --package sofie-cli --bin sofie -- check examples/shop
+      - run: cargo run --package sofie-cli --bin sofie -- check examples/islands

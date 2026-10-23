@@ -1,0 +1,219 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "shop",
+    "version": "unversioned"
+  },
+  "tags": [
+    {
+      "name": "web"
+    }
+  ],
+  "paths": {
+    "/orders": {
+      "get": {
+        "operationId": "order.web.list_orders",
+        "tags": [
+          "web"
+        ],
+        "summary": "The latest orders.",
+        "parameters": [
+          {
+            "name": "text",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "days",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The handler's data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/OrderRow"
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "A field is invalid"
+          }
+        }
+      }
+    },
+    "/orders/{order}/notes": {
+      "post": {
+        "operationId": "order.web.add_note",
+        "tags": [
+          "web"
+        ],
+        "parameters": [
+          {
+            "name": "order",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddNote"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The handler's data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Committed"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "A field is invalid"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Committed": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "version": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "version"
+        ]
+      },
+      "Money": {
+        "type": "object",
+        "properties": {
+          "minor": {
+            "type": "integer"
+          },
+          "amount": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "currency"
+        ]
+      },
+      "AddNote": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string"
+          },
+          "pinned": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "text",
+          "pinned"
+        ]
+      },
+      "OrderRow": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "$ref": "#/components/schemas/OrderStatus"
+          },
+          "status_to": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OrderStatus"
+            }
+          },
+          "total": {
+            "$ref": "#/components/schemas/Money"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "total",
+          "note"
+        ]
+      },
+      "OrderSearch": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string"
+          },
+          "days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "text"
+        ]
+      },
+      "OrderStatus": {
+        "type": "string",
+        "enum": [
+          "PENDING",
+          "PAID"
+        ]
+      }
+    }
+  }
+}

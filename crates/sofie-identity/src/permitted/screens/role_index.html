@@ -1,0 +1,1 @@
+<Section title="Roles">{#if can("sofie_identity.role.*.create")}<p><a href="{prefix}/roles/new">New role</a></p>{/if}<Table id="role-list" of={data.list} columns="name" as="row" sort="name" filter="name"><a href="{prefix}/roles/{row.id}">Show</a> {#if can("sofie_identity.role.*.update")}<a href="{prefix}/roles/{row.id}/edit">Edit</a> {/if}</Table></Section>

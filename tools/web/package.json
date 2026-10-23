@@ -1,0 +1,10 @@
+{
+  "name": "sofie-web",
+  "private": true,
+  "description": "The framework's web build: Svelte islands and client areas compiled by svelte and bundled by esbuild, one bundle per area. Build time only; nothing here reaches an app's binary except the bundles.",
+  "type": "module",
+  "dependencies": {
+    "esbuild": "0.28.2",
+    "svelte": "5.57.2"
+  }
+}

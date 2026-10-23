@@ -1,0 +1,1 @@
+-- The grant index was made under its final name on SQLite.

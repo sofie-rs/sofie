@@ -1,0 +1,25 @@
+[package]
+name = "sofie-core"
+description = "The value model, ids, time, encodings, the registration rules and the framework's error every crate shares."
+edition.workspace = true
+rust-version.workspace = true
+version.workspace = true
+publish.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[features]
+# `TestClock`, which a test moves by hand; sofie-testing turns it on.
+testing = []
+# `Clock::starting_at`, the system's time moved to another moment, for
+# `sofie dev --at`.
+development = []
+
+[dependencies]
+jiff = { workspace = true, features = ["tzdb-zoneinfo"] }
+ring.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[lints]
+workspace = true

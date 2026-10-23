@@ -1,0 +1,10 @@
+# Locks `migration-lock` refuses that are kept: an example's tables stay small
+# enough to index and check under a lock, and its applied migrations cannot change.
+
+[[table]]
+name = "order"
+reason = "An example's table stays small enough to lock."
+
+[[table]]
+name = "audit_entry"
+reason = "An example's table stays small enough to lock."

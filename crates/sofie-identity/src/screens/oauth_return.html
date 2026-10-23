@@ -1,0 +1,13 @@
+<Section title={t("identity.oauth.title")}>
+  {#if data.error}
+    <p>{t("identity.oauth.refused", error = data.error)}</p>
+    <a href={data.sign_in}>{t("identity.oauth.back")}</a>
+  {/if}
+  {#if data.code}
+    <form method="post" action={data.action} data-sofie-autosubmit="true">
+      <input type="hidden" name="code" value={data.code}>
+      <input type="hidden" name="state" value={data.state}>
+      <button type="submit">{t("identity.oauth.continue")}</button>
+    </form>
+  {/if}
+</Section>

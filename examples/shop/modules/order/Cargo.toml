@@ -1,0 +1,15 @@
+[package]
+name = "order"
+description = "Example module: customers place and cancel their own orders."
+edition.workspace = true
+rust-version.workspace = true
+version.workspace = true
+publish.workspace = true
+
+[dependencies]
+sofie = { workspace = true, default-features = false, features = ["engine"] }
+sofie-identity.workspace = true
+order-contract = { path = "contract" }
+
+[lints]
+workspace = true

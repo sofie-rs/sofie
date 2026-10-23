@@ -1,0 +1,29 @@
+[package]
+name = "sofie-flags"
+description = "Feature flags: declared as constants, stored in the database, cached in process and evaluated per request."
+edition.workspace = true
+rust-version.workspace = true
+version.workspace = true
+publish.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[features]
+# `Features::overridden`, for a debug build's toolbar.
+toolbar = []
+
+[dependencies]
+sofie-core.workspace = true
+sofie-db.workspace = true
+sofie-telemetry.workspace = true
+serde_json.workspace = true
+tokio = { workspace = true, features = ["time"] }
+tracing.workspace = true
+
+[dev-dependencies]
+sofie-postgres.workspace = true
+sofie-testing.workspace = true
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+
+[lints]
+workspace = true

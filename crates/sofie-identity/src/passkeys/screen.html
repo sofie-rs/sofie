@@ -1,0 +1,7 @@
+<Section id="passkeys" title="Passkeys">
+  <p>A passkey signs you in with your device's lock instead of a password.</p>
+  <Table id="passkey-list" of={data.passkeys} columns="created_at last_used_at" as="passkey">
+    <Action post="passkeys/{passkey.id}/remove" label="Remove" target="passkeys" />
+  </Table>
+  <button type="button" data-sofie-passkey="create" data-options={data.options} data-post="passkeys">Add a passkey</button>
+</Section>

@@ -1,0 +1,122 @@
+[workspace]
+resolver = "3"
+members = [
+    "crates/*",
+    "examples/shop/app",
+    "examples/shop/modules/*",
+    "examples/shop/modules/*/contract",
+    "examples/islands/app",
+    "examples/islands/modules/*",
+    "examples/clients/app",
+    "examples/clients/modules/*",
+    "examples/clients/modules/*/contract",
+]
+exclude = ["bench"]
+
+[workspace.package]
+edition = "2024"
+rust-version = "1.99"
+version = "0.0.0"
+publish = false
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/sofie-rs/sofie"
+
+[workspace.dependencies]
+sofie = { package = "sofie-framework", path = "crates/sofie" }
+sofie-auth = { path = "crates/sofie-auth" }
+sofie-billing = { path = "crates/sofie-billing" }
+sofie-cache = { path = "crates/sofie-cache" }
+sofie-client = { path = "crates/sofie-client" }
+sofie-content = { path = "crates/sofie-content" }
+sofie-check = { path = "crates/sofie-check" }
+sofie-cli = { path = "crates/sofie-cli" }
+sofie-core = { path = "crates/sofie-core" }
+sofie-db = { path = "crates/sofie-db" }
+sofie-engine = { path = "crates/sofie-engine" }
+sofie-flags = { path = "crates/sofie-flags" }
+sofie-identity = { path = "crates/sofie-identity" }
+sofie-http = { path = "crates/sofie-http", default-features = false }
+sofie-macros = { path = "crates/sofie-macros" }
+sofie-mail = { path = "crates/sofie-mail" }
+sofie-notify = { path = "crates/sofie-notify" }
+sofie-model = { path = "crates/sofie-model" }
+sofie-postgres = { path = "crates/sofie-postgres", default-features = false }
+sofie-sqlite = { path = "crates/sofie-sqlite" }
+sofie-storage = { path = "crates/sofie-storage" }
+sofie-telemetry = { path = "crates/sofie-telemetry" }
+sofie-tenancy = { path = "crates/sofie-tenancy" }
+sofie-testing = { path = "crates/sofie-testing" }
+sofie-values = { path = "crates/sofie-values" }
+
+# Argon2id in the PHC string format; salts come from our own random source, so no `getrandom`.
+argon2 = { version = "0.6.0", default-features = false, features = ["alloc", "password-hash"] }
+brotli = { version = "=9.0.0", default-features = false, features = ["std"] }
+bytes = "1.12.1"
+deadpool-postgres = "0.14.2"
+flate2 = "=1.1.10"
+futures-core = { version = "0.3.34", default-features = false }
+http = "1.5.0"
+http-body-util = "0.1.5"
+hyper = { version = "1.12.0", features = ["http1", "http2", "server"] }
+hyper-util = { version = "0.1.21", features = ["tokio", "server-auto", "server-graceful"] }
+jiff = { version = "0.2.38", default-features = false, features = ["std", "perf-inline"] }
+matchit = "0.9.2"
+memchr = "2.8.3"
+mimalloc = { version = "=0.1.52", default-features = false }
+proc-macro2 = "1.0.107"
+quote = "1.0.47"
+ring = "0.17.14"
+# SQLite compiled into the binary, so an app needs no database server; `cache` keeps
+# statements prepared across calls (brings `hashlink`).
+rusqlite = { version = "=0.40.2", default-features = false, features = ["bundled", "cache", "column_decltype"] }
+rustls = { version = "=0.23.45", default-features = false, features = ["ring", "std", "tls12"] }
+serde = "1.0.229"
+serde_json = "1.0.151"
+syn = "3.0.7"
+tokio = { version = "1.53.2", features = ["rt"] }
+tokio-postgres = "0.7.18"
+tokio-rustls = { version = "=0.26.6", default-features = false, features = ["ring", "tls12"] }
+tracing = { version = "0.1.44", default-features = false, features = ["std"] }
+tracing-core = { version = "0.1.36", default-features = false, features = ["std"] }
+# NFC for emails and passwords: one address or password typed composed or decomposed is one.
+unicode-normalization = { version = "0.1.25", default-features = false }
+webpki-roots = "=1.0.9"
+
+# With debug info, macOS keeps every build's object files in target/debug/deps
+# (thousands per edit), and its scan of each new binary slows with that
+# directory. A panic still names its file and line without it.
+[profile.dev]
+debug = false
+
+# Argon2id fills 19 MiB twice per password, and PBKDF2 (still read for old
+# hashes) runs 600 000 rounds; unoptimized either makes every sign-in in a
+# debug build and a test take seconds.
+[profile.dev.package.ring]
+opt-level = 3
+
+[profile.dev.package.argon2]
+opt-level = 3
+
+[profile.dev.package.blake2]
+opt-level = 3
+
+# What `sofie build` and the Dockerfile build with (structure.md, "Build and
+# deploy"): about half the binary and less CPU per request, for a link about
+# twice as long. `release` keeps Cargo's defaults for building while working.
+# bench/run.sh sets Cargo's defaults for both apps it compares.
+[profile.dist]
+inherits = "release"
+lto = "fat"
+codegen-units = 1
+strip = "symbols"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"
+# Handlers are `async fn` by contract, whether or not their body awaits.
+unused_async = "allow"

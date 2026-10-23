@@ -1,0 +1,1 @@
+<Section id="record" title="Role"><dl><dt>Name</dt><dd>{data.record.name}</dd></dl><p><a href="{prefix}/roles">Roles</a> {#if can("sofie_identity.role.*.update")}<a href="{prefix}/roles/{data.record.id}/edit">Edit</a>{/if}</p></Section>{#if data.history}<Section title="History"><Table id="history" of={data.history} columns="change fields actor action at" /></Section>{/if}

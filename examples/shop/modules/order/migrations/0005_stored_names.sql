@@ -1,0 +1,4 @@
+ALTER TABLE "order" ADD CHECK (
+    status IN ('PENDING', 'PAID', 'SHIPPED', 'CANCELLED', 'REFUNDED', 'EXPIRED')
+);
+ALTER TABLE audit_entry ADD CHECK (action IN ('PLACED', 'CANCELLED'));

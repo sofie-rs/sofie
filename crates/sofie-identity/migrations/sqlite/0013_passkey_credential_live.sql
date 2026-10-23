@@ -1,0 +1,1 @@
+-- The credential index was made for live passkeys only on SQLite.

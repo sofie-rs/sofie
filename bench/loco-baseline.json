@@ -1,0 +1,36 @@
+{
+  "measured": "Loco twin (bench/loco-shop, loco-rs 1.2.0) in bench/results.md of 2026-10-10 22:49 UTC, quick mode: 200 orders per user, 5 s per scenario, audit rows counted 3 s after the run. Build times from `run.sh --full` on 2026-10-14 (equal release profile, clean and after touching a handler).",
+  "loco": {
+    "code_total": 1834,
+    "framework_lines_in_tree": 18313,
+    "tree_crates": 444,
+    "tree_rust_lines": 2204449,
+    "binary_mb": 32.6,
+    "build_clean_s": 95.1,
+    "build_incremental_s": 14.6,
+    "list_json_rps": 6026,
+    "page_html_rps": 5747,
+    "list_json_p99_ms": 15.65,
+    "page_html_p99_ms": 16.63,
+    "rss_mb": 34,
+    "startup_ms": 93,
+    "place_form_rps": 4280,
+    "audited_10s": 613
+  },
+  "limits": [
+    { "key": "code_total", "label": "App code lines", "at_most": 0.20, "static": true },
+    { "key": "tree_crates", "label": "Crates in the app's dependency tree", "at_most": 0.30, "static": true },
+    { "key": "tree_rust_lines", "label": "Rust lines of those crates", "at_most": 0.40, "static": true },
+    { "key": "binary_mb", "label": "Release binary (MB)", "at_most": 0.25, "static": false },
+    { "key": "build_clean_s", "label": "Clean release build (s)", "at_most": 0.25, "static": false },
+    { "key": "build_incremental_s", "label": "Release rebuild after touching a handler (s)", "at_most": 0.20, "static": false },
+    { "key": "list_json_rps", "label": "JSON order list: requests/s", "at_least": 3, "static": false },
+    { "key": "page_html_rps", "label": "HTML order page: requests/s", "at_least": 3, "static": false },
+    { "key": "list_json_p99_ms", "label": "JSON order list: p99 (ms)", "at_most": 0.50, "static": false },
+    { "key": "page_html_p99_ms", "label": "HTML order page: p99 (ms)", "at_most": 0.50, "static": false },
+    { "key": "rss_mb", "label": "RSS after the runs (MB)", "at_most": 0.60, "static": false },
+    { "key": "startup_ms", "label": "Start to first successful request (ms)", "at_most": 0.80, "static": false },
+    { "key": "place_form_rps", "label": "Place order (form post): requests/s", "at_least": 1, "static": false },
+    { "key": "audited_10s", "label": "Audit rows written after the order run", "at_least": 1, "static": false }
+  ]
+}

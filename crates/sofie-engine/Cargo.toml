@@ -1,0 +1,69 @@
+[package]
+name = "sofie-engine"
+description = "Screens: the template parser and renderer, and the component catalog."
+edition.workspace = true
+rust-version.workspace = true
+version.workspace = true
+publish.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+sofie-core.workspace = true
+sofie-values.workspace = true
+memchr.workspace = true
+serde_json.workspace = true
+
+[features]
+# The engine's scripts and stylesheet compressed with Brotli and gzip by the
+# build script and embedded beside the originals.
+compression = ["dep:brotli", "dep:flate2"]
+# Template text parsed: `Template::parse`, and `Template::compile` writing
+# the program `Template::load` reads. A built app loads its screens
+# compiled by its build script and leaves the parser out.
+parse = []
+# What a build script compiles screens with: every feature a template may
+# be written with, so a screen compiles whatever the app enables.
+compile = ["parse", "content", "gates", "i18n", "islands", "layout", "listing"]
+# Client areas: a page shell holding the first screen as JSON and the area's
+# bundle, and what a screen's envelope describes.
+clients = []
+# Screens compiled into Svelte or React components by an app's build script.
+client-compile = ["parse", "clients"]
+# What `sofie check` reads of a template: the data paths it binds and the
+# element ids a fragment render finds. No app needs them.
+analysis = ["parse"]
+# Translations, the viewer's language and its formats: `t(…)`, `Badge`,
+# `lang/<language>.toml`. Off by default, so an app speaking one language
+# compiles none of it.
+i18n = ["sofie-values/time", "sofie-values/web"]
+# `Grid`, `Card` and `Image`, for pages that are not records.
+layout = []
+# `<Markdown text={…} />`, rendered by the engine without raw HTML, and
+# `<Head …/>`, a page's description, canonical URL and link-preview tags.
+content = []
+# `can("…")` and `enabled("…")` conditions, answered per request by the
+# viewer's permissions and flags.
+gates = []
+# Islands: `<Island name="…" props={…} />`, a page loading its area's
+# bundle, and the props as JSON the page cannot run.
+islands = []
+# The development client, which reloads a page when the server restarts or
+# a template changes and loads rebuilt islands again; debug builds only.
+development = []
+# A `Table` over one page of a list: sort links, filters and paging,
+# each answered by the table's fragment.
+listing = []
+
+[build-dependencies]
+brotli = { workspace = true, optional = true }
+flate2 = { workspace = true, optional = true }
+
+[dev-dependencies]
+brotli.workspace = true
+# The tests compile and parse their templates.
+sofie-engine = { path = ".", features = ["content", "parse"] }
+flate2.workspace = true
+
+[lints]
+workspace = true

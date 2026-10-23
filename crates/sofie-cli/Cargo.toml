@@ -1,0 +1,50 @@
+[package]
+name = "sofie-cli"
+description = "The `sofie` command: gen, check and the tools reading the app model."
+edition.workspace = true
+rust-version.workspace = true
+version.workspace = true
+publish.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "sofie"
+path = "src/main.rs"
+
+# The commands that write what the app model shows; none is part of an
+# app's runtime.
+[features]
+default = ["docs", "openapi", "typescript", "mcp"]
+# `sofie docs`: `docs/gen/` with request flows, which `sofie check` holds to the code.
+docs = []
+# `sofie openapi`: an OpenAPI document of the JSON endpoints.
+openapi = []
+# `sofie typescript`: TypeScript types of the JSON endpoints (`sofie bench`'s
+# journey client carries them either way).
+typescript = []
+# `sofie mcp`: the model, the generators and cargo as tools for coding agents;
+# a default, as the AGENTS.md of every app points agents to it.
+mcp = ["docs"]
+# Tests that copy the shop and run cargo on it; run once at the end of a wave.
+slow-tests = []
+
+[dependencies]
+sofie-check.workspace = true
+sofie-core.workspace = true
+sofie-engine = { workspace = true, features = ["analysis", "client-compile", "compile"] }
+sofie-model.workspace = true
+# Valid and refused samples of each value, for `sofie fuzz` and `sofie seed`.
+sofie-values = { workspace = true, features = ["fixtures", "time"] }
+proc-macro2.workspace = true
+quote.workspace = true
+serde_json.workspace = true
+syn = { workspace = true, features = ["full", "visit"] }
+tokio = { workspace = true, features = ["signal"] }
+
+[dev-dependencies]
+sofie-model = { workspace = true, features = ["testing"] }
+tokio = { workspace = true, features = ["time"] }
+
+[lints]
+workspace = true

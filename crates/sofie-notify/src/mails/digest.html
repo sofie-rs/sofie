@@ -1,0 +1,5 @@
+{#each data.notices as notice}
+<h2>{notice.title}</h2>
+<p>{notice.body}</p>
+{#if notice.link}<p><a href={notice.link}>Open</a></p>{/if}
+{/each}

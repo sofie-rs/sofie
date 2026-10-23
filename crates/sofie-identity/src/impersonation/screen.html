@@ -1,0 +1,7 @@
+<Section id="impersonation" title="Impersonation">
+  <p>Sign in as a member to see what they see. The member sees it among their sessions, it ends by itself after half an hour, and each one is kept here with its reason.</p>
+  <Form id="impersonate" post="impersonation">
+    <Submit label="Sign in as this member" />
+  </Form>
+  <Table id="impersonations" of={data.impersonations} columns="impersonator member area reason created_at ended_at" />
+</Section>

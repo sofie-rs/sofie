@@ -1,0 +1,170 @@
+[package]
+name = "sofie-http"
+description = "The HTTP server, areas, routes and the handler model."
+edition.workspace = true
+rust-version.workspace = true
+version.workspace = true
+publish.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[features]
+default = ["engine"]
+# A debug build's 500 carries its internal error in `x-sofie-test-error`, which sofie-testing
+# shows; a release build never does.
+testing = []
+# Screens, htmx notices and the engine's assets; a JSON-only API leaves it out.
+engine = ["dep:sofie-engine", "dep:sofie-values"]
+# Screens from template text, parsed at boot (`screens_from_sources`,
+# `Screens::add_source`); a built app loads its screens compiled by its
+# build script.
+parse = ["engine", "sofie-engine/parse"]
+# `Screen::render`: a handler choosing its screen as it runs.
+chosen-screens = ["engine"]
+# Screens and notices in the language each request negotiates, from the
+# app's translations; see `Screens::translate`.
+i18n = ["engine", "gates", "sofie-engine/i18n"]
+# Each further feature is a route modifier or app hook that not every app
+# needs; an app enables the ones it uses.
+# `.idempotent()` actions, answered once per `Idempotency-Key`.
+idempotency = ["sofie-db/idempotency"]
+# `.signed()` routes and the `SignedUrls` that sign links to them.
+signed-links = []
+# `App::trusted_proxies`: the client address a proxy forwards; without
+# it the client is the connection's peer.
+trusted-proxies = []
+# `App::step` and `App::step_all`: an app's own checks on requests and
+# headers on answers, per area or app-wide.
+steps = []
+# `App::cors`: cross-origin calls per area, preflights answered by the
+# framework, origins also from `SOFIE_CORS_ORIGINS`.
+cors = []
+# `Routes::webhook`: verified deliveries, answered once per delivery id.
+webhooks = ["idempotency"]
+# Feature flags: `.feature(…)` routes, `Features` and `Gates::features`.
+flags = ["gates", "dep:sofie-flags"]
+# `Permitted` areas: a permission per route, held through grants.
+permissions = ["gates"]
+# `Gates::entitlements`: `.entitled(…)` routes and menu entries and
+# `entitled(…)` in screens, held as a principal's plan grants them.
+entitlements = ["gates"]
+# `App::gates`, which flags, permissions and entitlements decide through;
+# turned on by any of them, not on its own. Screens ask them with `can(…)` and `enabled(…)`.
+gates = ["sofie-engine?/gates"]
+# `Listing` and `Listed`: a list screen's page, order and filters, from its
+# query, which a `Table` links through.
+listing = ["engine", "gates", "sofie-db/listing", "sofie-engine/listing", "sofie-values/filter"]
+# `Routes::resource`: an aggregate's screens with no template file.
+resources = ["gates", "listing", "parse", "sofie-db/resources"]
+# With `resources`, a show screen lists the record's history.
+history = ["sofie-db/history"]
+# `Routes::group`: routes under a parent's path; a child bound outside its
+# parent is not found.
+groups = ["gates", "sofie-db/children"]
+# `App::menu`: each area's navigation from its modules' menu entries.
+menu = ["engine", "gates"]
+# `Area::TOKENS`: an area accepts `Authorization: Bearer` beside its session
+# cookie, its scopes narrowing a `Permitted` area's grants.
+tokens = ["permissions"]
+# `AreaMembers::session_record`: every cookie's session is asked of a store,
+# so one can be listed and ended from elsewhere; answers are cached per
+# instance until the store's sessions change, here or on another instance.
+session-list = ["client-headers", "sofie-db/live"]
+# `Session::user_agent` and `Session::origin`: what the client says of itself.
+client-headers = []
+# `Session::begin_flow` and `flow`: a short-lived cookie tying a flow through
+# another site, such as an OAuth sign-in, to the browser that began it.
+flows = []
+# Attacks told apart by behaviour: slowed down, blocked and reported per
+# caller, sign-in locked per account (`Serving::shield`, `SignIns`).
+shield = ["sofie-db/shield"]
+# Request and handler durations, the database's metrics and `/metrics`,
+# read with the app's metrics token.
+metrics = ["sofie-telemetry/metrics", "sofie-db/metrics"]
+# The engine's client sends Web Vitals, errors, navigations and long tasks
+# to `/_sofie/telemetry`.
+browser-telemetry = ["engine"]
+# `Routes::island` and `<Island …/>`: Svelte components mounted with their
+# loader's data, each area's bundle served and loaded on its pages.
+islands = ["engine", "sofie-engine/islands"]
+# Client areas: screens compiled into Svelte or React components, served as a
+# page shell with the first screen's envelope and answering later navigations
+# with `application/vnd.sofie.screen+json`.
+clients = ["engine", "gates", "sofie-engine/clients"]
+# `sofie dev`: debug builds reload a page when the server restarts or a
+# template changes, and load rebuilt islands again (`/_sofie/dev/…`); release
+# builds leave it out.
+development = ["engine", "parse", "sofie-engine/development"]
+# Debug builds show each page's span tree under it, with forms to act as
+# another principal, override flags and move the clock for one browser;
+# release builds leave it out.
+toolbar = ["engine", "sofie-telemetry/development", "sofie-flags?/toolbar", "sofie-core/development"]
+# Text answers of 1 KiB or more compressed with Brotli or gzip as the client
+# accepts, and the engine's assets sent as compressed at build time.
+compression = ["dep:brotli", "dep:flate2", "sofie-engine?/compression"]
+# `PageRoute::live`: an open screen refetches its fragments when a record its
+# loader read changes, told by a server-sent event stream per area.
+live = ["engine", "sofie-db/live"]
+# `PageRoute::cached`: a screen's loaded reply kept per path, query and reach
+# until a record it read changes on any instance, or its time runs out.
+screen-cache = ["engine", "sofie-db/live"]
+# `Routes::queue`: a route queueing a `#[job]` action with the request's input.
+jobs = ["sofie-db/jobs"]
+# `ETag`s from the rows a loader read and `304` to a held one without
+# rendering; such answers are `private, no-cache` instead of `no-store`.
+# Off with `development`, whose templates change on disk without a read.
+etag = ["sofie-db/etag"]
+# A split app serving its contracts, lookups and event feed to the apps it
+# left (`Served::serve`), and every handler acting for its principal in the
+# contract calls it makes.
+remote-contracts = ["dep:serde", "sofie-db/remote-contracts"]
+# `Serving::storage`: a `Storage` handlers take, its signed `/_sofie/files/`
+# links answered (streamed) before routing.
+storage = ["dep:sofie-storage", "tokio/sync"]
+# `multipart/form-data` forms, each file streamed into the storage as an
+# `Upload` input field, within `.body_limit(…)` and `.file_limit(…)`.
+uploads = ["engine", "storage", "dep:serde", "serde/derive"]
+# Product events a request raises name its principal, for reports kept in the database.
+product-events = ["sofie-telemetry/product-events"]
+# `.document(Media::Csv)` answering a list of records as CSV, and `CsvRows` reading one into inputs.
+csv = []
+# `Serving::tls`: HTTPS on the app's own address, HTTP/2 negotiated by ALPN.
+tls = ["dep:rustls", "dep:tokio-rustls"]
+
+[dependencies]
+brotli = { workspace = true, optional = true }
+bytes.workspace = true
+flate2 = { workspace = true, optional = true }
+sofie-auth.workspace = true
+sofie-core.workspace = true
+sofie-db.workspace = true
+sofie-engine = { workspace = true, optional = true }
+sofie-flags = { workspace = true, optional = true }
+sofie-storage = { workspace = true, optional = true }
+sofie-telemetry.workspace = true
+sofie-values = { workspace = true, optional = true }
+http.workspace = true
+http-body-util.workspace = true
+hyper.workspace = true
+hyper-util.workspace = true
+matchit.workspace = true
+rustls = { workspace = true, optional = true }
+serde = { workspace = true, optional = true }
+serde_json.workspace = true
+tokio = { workspace = true, features = ["net", "sync", "time"] }
+tokio-rustls = { workspace = true, optional = true }
+tracing.workspace = true
+
+[dev-dependencies]
+# So `tests/clients.rs`, `etag.rs`, `cors.rs`, `live.rs`, `middleware.rs`, `session_cache.rs`,
+# `tls.rs` and `uploads.rs` run in every test run; the tests parse their screens.
+sofie-http = { path = ".", default-features = false, features = ["clients", "cors", "csv", "etag", "live", "parse", "session-list", "steps", "tls", "uploads"] }
+rustls.workspace = true
+sofie-storage = { workspace = true, features = ["local"] }
+sofie-telemetry = { workspace = true, features = ["capture", "product-events"] }
+sofie-testing.workspace = true
+tokio = { workspace = true, features = ["io-util", "macros", "sync", "test-util"] }
+tokio-rustls.workspace = true
+
+[lints]
+workspace = true

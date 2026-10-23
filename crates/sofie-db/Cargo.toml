@@ -1,0 +1,102 @@
+[package]
+name = "sofie-db"
+description = "The handler model (inputs, events, replies), aggregates, read models, the query builder, the unit of work, migrations, the worker and the database seam."
+edition.workspace = true
+rust-version.workspace = true
+version.workspace = true
+publish.workspace = true
+license.workspace = true
+repository.workspace = true
+
+# Each feature is a part of the ORM that not every app needs; an app enables
+# the ones its aggregates and read models use.
+[features]
+children = []
+# The `SoftDelete` behavior: deleted records kept, hidden from reads unless
+# they ask with `with_trashed()`.
+soft-delete = []
+codes = ["dep:unicode-normalization"]
+flags = []
+history = []
+# Work answered once per key: idempotent requests and webhook deliveries.
+idempotency = []
+# `Query::paginate`: one page of records, and whether another follows.
+pagination = []
+# Sorting and filtering by a field a request names, for list screens.
+listing = ["pagination", "sofie-values/filter"]
+# What resources do to any aggregate: delete it softly, or read the DTO of
+# the fields it exposes.
+resources = ["listing", "contracts"]
+# Modules reaching each other: `Dep` and `Extensions` arguments, batch
+# lookups, change events of exposed fields, mirrors.
+contracts = []
+# Split apps: each app's events kept in a feed others pull by cursor
+# (`Feeds::attach`), and a contract's implementation read
+# back for its server (`provided`).
+remote-contracts = ["contracts", "serde/derive"]
+# Actions queued as jobs by handlers (`Jobs`, `Queued`), now or at an instant.
+jobs = ["contracts"]
+# Jobs at a wall-clock time in an IANA zone, once, daily or weekly (`LocalJobs`).
+local-time = ["jobs", "sofie-values/time"]
+# `Read::sql`: raw SQL, read-only, for what the builder cannot write.
+raw-sql = []
+# Raw SQL runs as the database role of its read model's module, which the
+# module's role migration (`sofie gen`) creates, so it reaches no other module.
+module-roles = ["raw-sql"]
+# Migrations building an index `CONCURRENTLY`, each alone in its file, run
+# outside a transaction under the migrations lock, as `sofie check` asks of an
+# index on a table an earlier migration created.
+concurrent-indexes = []
+# `Schema::fresh`: every module's schema dropped and migrated again, for a
+# development database.
+fresh = []
+# `Schema::migration_status`: each migration applied, pending, edited after
+# being applied or missing as a file, for `db status`.
+migration-status = []
+# `Query::stream`: every matching record, in batches.
+streams = []
+joins = []
+publishing = []
+# Every row a task reads, fingerprinted for `ETag`s (`track_reads`).
+etag = []
+# Committed changes told to open screens (`Db::changes`), here and through
+# the database's notifications, and the tables a task read (`track_topics`).
+live = []
+# The shield's blocks shared between instances (`SharedBlocks`).
+shield = []
+# What a cache needs of the database: hooks run with the records each
+# commit wrote (`CommitHook`) and the payloads notified on `sofie_cache`.
+cache = []
+# Statement durations, busy connections, message lag and outcomes, recorded
+# through sofie-telemetry's metrics.
+metrics = ["sofie-telemetry/metrics"]
+# `Prune`: a scheduled job deleting records past their retention, in batches.
+retention = []
+# `Searched`: full-text search over the fields whose values are searched by their words.
+search = []
+# `Searched` aggregates kept in a search engine (`install_search`): indexed by
+# jobs after each commit, matched by the engine's ids.
+search-engine = ["search", "jobs"]
+# Product events written to `sofie.product_events` and read back as cohorts.
+product-reports = ["retention", "sofie-telemetry/product-events"]
+# `keep_raised` and `raised`: each event a commit raised, kept in memory for test assertions.
+testing = []
+
+[dependencies]
+sofie-auth.workspace = true
+sofie-core.workspace = true
+sofie-telemetry.workspace = true
+sofie-values.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio = { workspace = true, features = ["sync", "time"] }
+tracing.workspace = true
+unicode-normalization = { workspace = true, optional = true }
+
+[dev-dependencies]
+# The unit tests' aggregate keeps its deleted records, and they read the raised log.
+sofie-db = { workspace = true, features = ["soft-delete", "testing"] }
+tokio = { workspace = true, features = ["macros", "test-util"] }
+
+[lints]
+workspace = true

@@ -1,0 +1,36 @@
+[package]
+name = "sofie-billing"
+description = "Plans granting entitlements, limits and quotas; subscriptions and purchases kept in step with a payment provider."
+edition.workspace = true
+rust-version.workspace = true
+version.workspace = true
+publish.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+sofie-client.workspace = true
+sofie-core.workspace = true
+sofie-db = { workspace = true, features = ["contracts", "idempotency"] }
+sofie-http = { workspace = true, features = ["entitlements", "webhooks"] }
+jiff.workspace = true
+ring.workspace = true
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+sofie-core = { workspace = true, features = ["testing"] }
+sofie-http = { workspace = true, features = ["parse"] }
+# Its SQLite tables and quota counting, checked on SQLite.
+sofie-sqlite.workspace = true
+sofie-testing.workspace = true
+bytes.workspace = true
+http.workspace = true
+http-body-util.workspace = true
+hyper = { workspace = true, features = ["server"] }
+hyper-util.workspace = true
+tokio = { workspace = true, features = ["macros", "net", "rt-multi-thread", "sync"] }
+
+[lints]
+workspace = true

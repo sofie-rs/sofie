@@ -1,0 +1,49 @@
+[package]
+name = "sofie-testing"
+description = "The test harness: a database per test, and the app served on it."
+edition.workspace = true
+rust-version.workspace = true
+version.workspace = true
+publish.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[features]
+# `start_with_flags`, and `#[test_app]` for a wiring with flags:
+# the app and its worker share one `Flags`.
+flags = ["dep:sofie-flags"]
+# `TestApp::assert_lookup`: a contract's batch lookup.
+contracts = ["sofie-db/contracts"]
+# `TestApp::mails`: what the app's mail jobs sent, through a fake transport.
+mail = ["dep:sofie-mail", "sofie/mail"]
+
+[dependencies]
+bytes.workspace = true
+# A test build of an app chooses no gateway adapter and so reaches no vendor:
+# its tests give each gateway a fake (`TestApp::fake`).
+# Without `postgres-tls`, so sofie-postgres's tests can build without it.
+sofie = { workspace = true, default-features = false, features = ["engine", "fixtures", "postgres"] }
+sofie-auth.workspace = true
+sofie-core = { workspace = true, features = ["testing"] }
+sofie-db = { workspace = true, features = ["testing"] }
+sofie-flags = { workspace = true, optional = true }
+sofie-http = { workspace = true, features = ["testing"] }
+sofie-macros = { workspace = true, features = ["fixtures"] }
+sofie-mail = { workspace = true, optional = true, features = ["testing"] }
+sofie-postgres.workspace = true
+sofie-values = { workspace = true, features = ["fixtures"] }
+http.workspace = true
+http-body-util.workspace = true
+hyper-util = { workspace = true, features = ["client-legacy"] }
+serde.workspace = true
+serde_json.workspace = true
+tokio = { workspace = true, features = ["net", "sync", "time"] }
+tokio-postgres.workspace = true
+
+[dev-dependencies]
+# The harness's own tests derive aggregates and contracts, as an app does.
+sofie = { workspace = true, features = ["contracts", "factories", "feature-flags", "fixtures"] }
+tokio = { workspace = true, features = ["io-util", "macros"] }
+
+[lints]
+workspace = true

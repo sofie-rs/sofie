@@ -1,0 +1,1 @@
+-- SQLite has no database roles.

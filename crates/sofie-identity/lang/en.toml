@@ -1,0 +1,56 @@
+# The source language. A field's label is its name, humanized, unless a file names it.
+
+[identity.action]
+sign_in = "Sign in"
+mail_link = "Mail me a link"
+create_account = "Create an account"
+confirm = "Confirm"
+
+[identity.sign_in]
+passkey = "Sign in with a passkey"
+provider = "Sign in with {provider}"
+by_link = "Mail me a sign-in link"
+
+[identity.sign_up]
+submit = "Create account"
+
+[identity.sign_in_link]
+title = "Sign in by mail"
+intro = "Give the address you signed up with. If it has an account here, a link to sign in is mailed to it."
+with_password = "Sign in with a password"
+
+[identity.verification]
+title = "Confirm your email address"
+intro = "Give the address you signed up with, and a new link to confirm it is mailed to it."
+
+[identity.forgot_password]
+title = "Reset your password"
+intro = "Give the address you signed up with. If it has an account here, a link to choose a new password is mailed to it."
+
+[identity.link_sent]
+title = "Check your mail"
+intro = "If an account with that address belongs here, a link is on its way to it. It works once, within an hour."
+
+[identity.oauth]
+title = "Signing in"
+refused = "The provider did not sign you in: {error}"
+back = "Back to signing in"
+continue = "Continue"
+
+[identity.reset_password]
+title = "Choose a new password"
+submit = "Save the password"
+
+[identity.second_factor]
+title = "Two-step sign-in"
+intro = "Enter the code your authenticator app shows, or one of your recovery codes."
+
+[identity.join]
+title = "Sign in to join"
+intro = "You already have an account. Sign in with it to join here too."
+submit = "Sign in and join"
+
+[identity.join_mail]
+intro = "Someone tried to sign up here with this address, which already has an account."
+sign_in = "Sign in with that account to join"
+ignore = "The link works once, within an hour. If it was not you, ignore this mail: nothing changed."

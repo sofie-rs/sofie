@@ -1,0 +1,1 @@
+-- The link purposes were all made with the table on SQLite.

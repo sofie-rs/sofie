@@ -1,0 +1,65 @@
+# The engine's own texts. An app declaring a language not shipped here
+# translates these keys in its own module's file.
+
+[table]
+empty = "No entries"
+filter = "Filter"
+previous = "Previous"
+next = "Next"
+
+[notice]
+correct_field = "Please correct the highlighted field."
+correct_fields = "Please correct the {count} highlighted fields."
+unreachable = "The server could not be reached. Try again."
+failed = "Something went wrong. Try again."
+passkey_refused = "The passkey was not accepted. Try again."
+passkey_unsupported = "This browser cannot use passkeys."
+passkey_unused = "The passkey was not used. Try again."
+
+[field]
+currency = "Currency"
+
+[validation]
+required = "is required"
+invalid = "is not valid"
+unknown = "is not accepted"
+unique = "is already taken"
+min_length = "must be at least {min} characters"
+max_length = "must be at most {max} characters"
+min = "must be at least {min}"
+max = "must be at most {max}"
+move = "cannot move from {from} to {to}"
+email.invalid = "must be an email address such as name@example.com"
+money.invalid = "must be an amount such as 149.90"
+currency.invalid = "must be a currency code such as EUR"
+date.invalid = "must be a day such as 2026-10-11"
+instant.invalid = "must be a time with an offset, such as 2026-10-11T09:30:00Z"
+instant.repeated = "{wall_clock} happens twice in {zone}; give its offset: {earlier} or {later}"
+instant.out_of_range = "{wall_clock} in {zone} is out of range"
+local_date_time.invalid = "must be a date and time such as 2026-11-01T09:30"
+time_zone.invalid = "must be a time zone such as Europe/Istanbul"
+time_of_day.invalid = "must be a time such as 09:30"
+locale.invalid = "must be a language such as en or tr-TR"
+url.invalid = "must be a web address starting with https://"
+slug.invalid = "must be lowercase letters, digits and dashes"
+phone_number.invalid = "must be a phone number such as +90 212 555 01 01"
+person_name.invalid = "must be a name"
+percentage.invalid = "must be a percentage such as 12.5"
+one_of = "must be one of: {values}"
+range = "`{value}` is not a range `low..high`"
+kind.whole_number = "must be a whole number"
+kind.number = "must be a number"
+kind.true_or_false = "must be true or false"
+kind.id = "must be an id"
+kind.date = "must be a date"
+kind.date_time = "must be a date and time"
+kind.text = "is not valid"
+
+[enum.weekday]
+monday = "Monday"
+tuesday = "Tuesday"
+wednesday = "Wednesday"
+thursday = "Thursday"
+friday = "Friday"
+saturday = "Saturday"
+sunday = "Sunday"

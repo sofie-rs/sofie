@@ -1,0 +1,11 @@
+<Section title="Your orders">
+  <Form id="place-order" post="/account/orders" target="orders">
+    <Submit label="Place order" />
+  </Form>
+  <Table id="orders" of={data} columns="id status total" as="order">
+    <Action post="/account/orders/{order.id}/cancel" label="Cancel" target="orders" when={order.status_to.CANCELLED} />
+  </Table>
+  <Form id="sign-out" post="/account/sign-out">
+    <Submit label="Sign out" />
+  </Form>
+</Section>

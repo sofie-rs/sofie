@@ -1,0 +1,59 @@
+[label]
+email = "E-Mail"
+password = "Passwort"
+new_password = "Neues Passwort"
+
+[identity.action]
+sign_in = "Anmelden"
+mail_link = "Link per E-Mail senden"
+create_account = "Konto erstellen"
+confirm = "Bestätigen"
+
+[identity.sign_in]
+passkey = "Mit Passkey anmelden"
+provider = "Mit {provider} anmelden"
+by_link = "Anmeldelink per E-Mail senden"
+
+[identity.sign_up]
+submit = "Konto erstellen"
+
+[identity.sign_in_link]
+title = "Per E-Mail anmelden"
+intro = "Geben Sie die Adresse an, mit der Sie sich registriert haben. Gehört sie zu einem Konto hier, wird ein Anmeldelink an sie gesendet."
+with_password = "Mit Passwort anmelden"
+
+[identity.verification]
+title = "E-Mail-Adresse bestätigen"
+intro = "Geben Sie die Adresse an, mit der Sie sich registriert haben; ein neuer Bestätigungslink wird an sie gesendet."
+
+[identity.forgot_password]
+title = "Passwort zurücksetzen"
+intro = "Geben Sie die Adresse an, mit der Sie sich registriert haben. Gehört sie zu einem Konto hier, wird ein Link zum Festlegen eines neuen Passworts an sie gesendet."
+
+[identity.link_sent]
+title = "Prüfen Sie Ihre E-Mails"
+intro = "Gehört ein Konto mit dieser Adresse hierher, ist ein Link an sie unterwegs. Er funktioniert einmal, innerhalb einer Stunde."
+
+[identity.oauth]
+title = "Anmeldung"
+refused = "Der Anbieter hat Sie nicht angemeldet: {error}"
+back = "Zurück zur Anmeldung"
+continue = "Weiter"
+
+[identity.reset_password]
+title = "Neues Passwort wählen"
+submit = "Passwort speichern"
+
+[identity.second_factor]
+title = "Anmeldung in zwei Schritten"
+intro = "Geben Sie den Code aus Ihrer Authenticator-App oder einen Ihrer Wiederherstellungscodes ein."
+
+[identity.join]
+title = "Anmelden und beitreten"
+intro = "Sie haben bereits ein Konto. Melden Sie sich damit an, um auch hier beizutreten."
+submit = "Anmelden und beitreten"
+
+[identity.join_mail]
+intro = "Jemand wollte sich hier mit dieser Adresse registrieren, zu der bereits ein Konto gehört."
+sign_in = "Mit diesem Konto anmelden und beitreten"
+ignore = "Der Link funktioniert einmal, innerhalb einer Stunde. Waren Sie es nicht, ignorieren Sie diese E-Mail: Es hat sich nichts geändert."

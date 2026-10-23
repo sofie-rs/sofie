@@ -1,0 +1,91 @@
+[package]
+name = "sofie-identity"
+description = "Accounts, their area memberships, and signing up, in and out: the identity an app opts into."
+edition.workspace = true
+rust-version.workspace = true
+version.workspace = true
+publish.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[features]
+# On by default: with `sessions` off, sessions live only in their cookies, so signing out,
+# "sign out everywhere else", a password reset and removing a membership end nothing open
+# elsewhere, and a request answered after sign-out re-seals its cookie.
+default = ["sessions"]
+# `Permitted` areas' roles and the grants they hold.
+permissions = ["sofie/permissions", "sofie/soft-delete"]
+permitted-screens = ["permissions", "sofie/resources", "sofie/groups"]
+permitted-flags = ["permitted-screens", "sofie/feature-flags"]
+
+# Kept as digests and revoked softly.
+tokens = ["permissions", "sofie/tokens"]
+token-screens = ["tokens", "sofie/resources"]
+
+# Each sign-in recorded, asked on every request (cached per instance until it changes)
+# and ended from elsewhere; pruned once no cookie can outlive it.
+sessions = ["sofie/retention", "sofie/session-list"]
+# `sessions::routes`: an account's sessions listed to it and ended from there.
+session-screens = ["sessions", "sofie/resources"]
+
+# Locks an attacked account and tells its owner by `SignInLocked`.
+shield = ["sofie/shield"]
+permitted-shield = ["permitted-screens", "shield"]
+
+# Through a single-use link mailed to the account's address.
+password-reset = ["links"]
+# `MemberArea::VERIFIED_EMAIL` signs in only confirmed accounts.
+email-verification = ["links"]
+# `TestMember::member`: an account signed up to an area, for an app's tests.
+testing = ["dep:sofie-testing"]
+
+# Signing in without a password, through a link mailed to the account's address.
+sign-in-links = ["links"]
+# A second step after the password: a code from an authenticator app (RFC 6238) or a
+# recovery code; set up on `two_factor::routes` within ten minutes of signing in.
+totp = ["account-links", "sessions", "sofie/resources"]
+# Passkeys (WebAuthn): added on `passkeys::routes` within ten minutes of signing in, then
+# offered on the sign-in page.
+passkeys = ["sessions", "sofie/client-headers", "sofie/resources", "sofie/signed-links", "sofie/soft-delete"]
+# Sign-in and sign-up through OAuth and OpenID Connect providers (`oauth::install`),
+# connected to an account on `oauth::routes` within ten minutes of signing in.
+oauth = ["dep:sofie-client", "sessions", "sofie/contracts", "sofie/flows", "sofie/log-fields", "sofie/resources", "sofie/signed-links", "sofie/soft-delete"]
+# Data export (`account_data::PersonalData` adds a module's records) and account closing,
+# which anonymizes and raises `AccountClosed`; on `account_data::routes`.
+account-data = ["sofie/contracts", "sofie/resources"]
+# A closing account's notifications erased and its digest stopped
+# (`account_data::Notifications`, registered by the app).
+notify = ["account-data", "sofie/notify"]
+# Signing in as a member, for a permitted principal holding its permission; each use
+# recorded with its reason (`impersonation::routes`, `impersonation::stop_routes`).
+impersonation = ["permissions", "sessions", "sofie/resources"]
+# Internal: what each mails a signed link with.
+links = ["account-links", "sofie/mail"]
+# Internal: single-use links an account follows, signed.
+account-links = ["sofie/signed-links"]
+
+[dependencies]
+# The app chooses its database and whether Postgres takes TLS; sign-in pages need screens.
+sofie = { workspace = true, default-features = false, features = ["engine"] }
+argon2.workspace = true
+ring.workspace = true
+sofie-client = { workspace = true, optional = true }
+sofie-testing = { workspace = true, optional = true }
+tokio.workspace = true
+unicode-normalization.workspace = true
+
+[build-dependencies]
+sofie-engine = { workspace = true, features = ["compile"] }
+
+[dev-dependencies]
+# Menu, history and contracts shown by the screens' tests; spans give route names; its
+# SQLite tables checked against its records; product events forgotten on closing.
+sofie = { workspace = true, features = ["capture", "contracts", "history", "menu", "product-reports", "sqlite", "tasks"] }
+# Its own optional features, so their tests run in every test run.
+sofie-identity = { path = ".", features = ["email-verification", "password-reset", "account-data", "impersonation", "oauth", "passkeys", "permitted-shield", "session-screens", "sign-in-links", "testing", "tokens", "totp"] }
+sofie-testing = { workspace = true, features = ["mail"] }
+serde_json.workspace = true
+tokio = { workspace = true, features = ["macros", "net"] }
+
+[lints]
+workspace = true

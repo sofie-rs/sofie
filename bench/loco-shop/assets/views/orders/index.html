@@ -1,0 +1,32 @@
+{% extends "layout.html" %}
+{% block title %}Orders{% endblock title %}
+{% block content %}
+<header>
+  <p>Signed in as {{ user }}</p>
+  <form method="post" action="/sign-out"><button>Sign out</button></form>
+</header>
+<h1>Orders</h1>
+{% for error in errors %}<p role="alert">{{ error }}</p>{% endfor %}
+<form method="post" action="/orders">
+  <label>Email <input name="email" type="email" required></label>
+  <label>Total <input name="amount" inputmode="decimal" required></label>
+  <label>Currency <input name="currency" value="EUR" maxlength="3" required></label>
+  <button>Place order</button>
+</form>
+<table>
+  <thead><tr><th>Id</th><th>Status</th><th>Total</th><th>Placed</th><th></th></tr></thead>
+  <tbody>
+  {% for order in orders %}
+    <tr>
+      <td>{{ order.id }}</td>
+      <td>{{ order.status }}</td>
+      <td>{{ order.total_display }}</td>
+      <td>{{ order.placed_at }}</td>
+      <td>{% if order.can_cancel %}<form method="post" action="/orders/{{ order.id }}/cancel"><button>Cancel</button></form>{% endif %}</td>
+    </tr>
+  {% else %}
+    <tr><td colspan="5">No orders yet.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock content %}

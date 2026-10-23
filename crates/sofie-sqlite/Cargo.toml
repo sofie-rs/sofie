@@ -1,0 +1,29 @@
+[package]
+name = "sofie-sqlite"
+description = "The database seam implemented for SQLite, built into the binary."
+edition.workspace = true
+rust-version.workspace = true
+version.workspace = true
+publish.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[features]
+# Raw SQL with writes refused; see sofie-db.
+raw-sql = ["sofie-db/raw-sql"]
+
+[dependencies]
+# `functions`: `sofie_lower`, as SQLite lowers ASCII letters only.
+rusqlite = { workspace = true, features = ["functions"] }
+sofie-core.workspace = true
+sofie-db.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+sofie-core = { workspace = true, features = ["testing"] }
+sofie-db = { workspace = true, features = ["children", "codes", "contracts", "fresh", "jobs", "live", "local-time", "retention", "search", "soft-delete"] }
+sofie-values = { workspace = true, features = ["time"] }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "time"] }
+
+[lints]
+workspace = true

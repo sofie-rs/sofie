@@ -1,0 +1,7 @@
+<Section title={t("identity.verification.title")}>
+  <p>{t("identity.verification.intro")}</p>
+  <Form id="ask-verification" post={data.action}>
+    <Submit label={t("identity.action.mail_link")} />
+  </Form>
+  {#if data.other}<a href={data.other}>{t("identity.action.sign_in")}</a>{/if}
+</Section>

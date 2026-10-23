@@ -1,0 +1,8 @@
+<Section id="connections" title="Connected accounts">
+  <Table id="identities" of={data.connected} columns="provider email created_at" as="identity">
+    <Action post="connections/{identity.id}/remove" label="Disconnect" target="connections" />
+  </Table>
+  {#each data.providers as provider}
+    <form method="post" action="connections"><input type="hidden" name="provider" value={provider.name}><button type="submit">Connect {provider.label}</button></form>
+  {/each}
+</Section>

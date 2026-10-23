@@ -1,0 +1,53 @@
+[package]
+name = "sofie-telemetry"
+description = "The tracing setup: logs, trace context and, behind `otlp`, OTLP/HTTP export."
+edition.workspace = true
+rust-version.workspace = true
+version.workspace = true
+publish.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[features]
+# The spans and events a test caused.
+capture = []
+metrics = ["dep:tokio"]
+# `info!(order.total, "…")`: values logged as fields, masked when sensitive.
+log-fields = ["dep:sofie-values", "sofie-values/log-fields"]
+product-events = ["log-fields"]
+# Each request's span tree, for debug builds and the toolbar.
+development = []
+otlp = [
+    "dep:bytes",
+    "dep:http",
+    "dep:http-body-util",
+    "dep:hyper",
+    "dep:hyper-util",
+    "dep:rustls",
+    "dep:tokio",
+    "dep:tokio-rustls",
+    "dep:webpki-roots",
+]
+
+[dependencies]
+sofie-core.workspace = true
+sofie-values = { workspace = true, optional = true }
+bytes = { workspace = true, optional = true }
+http = { workspace = true, optional = true }
+http-body-util = { workspace = true, optional = true }
+hyper = { workspace = true, optional = true, features = ["client"] }
+hyper-util = { workspace = true, optional = true }
+jiff.workspace = true
+rustls = { workspace = true, optional = true }
+tokio = { workspace = true, optional = true, features = ["net", "sync", "time"] }
+tokio-rustls = { workspace = true, optional = true }
+tracing.workspace = true
+tracing-core.workspace = true
+unicode-normalization.workspace = true
+webpki-roots = { workspace = true, optional = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt"] }
+
+[lints]
+workspace = true

@@ -17,6 +17,8 @@ exclude = ["bench"]
 edition = "2024"
 rust-version = "1.99"
 version = "0.1.0"
+# Inherited only by crates `sofie new` writes inside the examples; the framework crates publish.
+publish = false
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/sofie-rs/sofie"
 

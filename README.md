@@ -5,8 +5,8 @@ a known place and role, the framework reads the whole app at build time and
 derives the wiring, endpoints, screens, permissions, telemetry, documentation
 and checks from it, so an app writes only its own logic.
 
-> **Status: proof of concept.** APIs change without notice and nothing is
-> published on crates.io yet. Do not build on it for production.
+> **Status: proof of concept.** Published on crates.io as 0.1.0; APIs change
+> without notice. Do not build on it for production.
 
 Documentation: [sofie-rs.github.io/sofie.rs](https://sofie-rs.github.io/sofie.rs/).
 
@@ -26,12 +26,11 @@ Documentation: [sofie-rs.github.io/sofie.rs](https://sofie-rs.github.io/sofie.rs
 
 ## Starting an app
 
-Requires Rust 1.99 and a local Postgres. Until the crates are published, the
-CLI installs from this repository, and a new app depends on the framework at
-the commit the CLI was built from.
+Requires Rust 1.99 and a local Postgres. A new app depends on the framework
+version the CLI was published as.
 
 ```sh
-cargo install --git https://github.com/sofie-rs/sofie sofie-cli
+cargo install sofie-cli
 sofie new app shop
 cd shop
 cp .env.example .env

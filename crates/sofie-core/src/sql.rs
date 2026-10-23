@@ -162,8 +162,7 @@ pub trait Cast: Sized {
     }
 }
 
-/// One row's columns, read in order. A driver implements it over its own wire format, so a
-/// column is read once, straight into its target, and text is borrowed until a target keeps it.
+/// One row's columns in order, each read once straight into its target, text borrowed meanwhile.
 pub trait ColumnReader {
     fn remaining(&self) -> usize;
 

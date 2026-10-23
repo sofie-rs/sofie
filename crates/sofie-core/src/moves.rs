@@ -45,7 +45,6 @@ pub fn targets<T: Cast>(value: &T) -> Option<&'static Targets> {
     T::MOVES.and_then(|moves| moves(value))
 }
 
-/// `Cast::refuse_unlisted_move` of a value holding at most one state, by `Cast::MOVES`.
 pub fn refuse_unlisted<T: Cast>(field: &str, stored: &T, current: &T) -> Result<()> {
     let Some(targets) = targets(stored) else {
         return Ok(());

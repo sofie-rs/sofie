@@ -36,8 +36,7 @@ pub(crate) fn equals(
     )
 }
 
-/// Floats compare by their bits, so a NaN is not changed by being loaded and `-0.0` is
-/// written over `0.0`.
+/// By bits, so a loaded NaN reads as unchanged and `-0.0` is written over `0.0`.
 pub(crate) fn same_value(old: &SqlValue, new: &SqlValue) -> bool {
     match (old, new) {
         (SqlValue::Float(old), SqlValue::Float(new)) => old.to_bits() == new.to_bits(),

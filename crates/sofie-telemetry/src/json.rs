@@ -2,8 +2,7 @@ use crate::fields::{FieldValue, Fields, push_formatted};
 use crate::line::PendingLine;
 use crate::timestamp::push_timestamp;
 
-/// Recorded fields are nested under `fields`, so one named `level` or `name`
-/// cannot overwrite the reserved key a pipeline reads.
+/// Recorded fields nest under `fields`, so one named `level` cannot overwrite the reserved key.
 pub(crate) fn push_record(line: &mut String, record: &PendingLine) {
     line.push_str("{\"timestamp\":\"");
     push_timestamp(line, record.time);

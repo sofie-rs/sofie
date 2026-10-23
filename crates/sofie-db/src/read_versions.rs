@@ -16,8 +16,7 @@ struct Reads {
     untracked: bool,
 }
 
-/// `seed` keys the fingerprint by what else the answer depends on; `None` when the answer
-/// also depends on something without a version here.
+/// `seed` keys the fingerprint by the answer's other inputs; `None` when one has no version.
 pub async fn track_reads<F: Future>(seed: u64, future: F) -> (F::Output, Option<u64>) {
     let mut hasher = DefaultHasher::new();
     seed.hash(&mut hasher);
@@ -33,8 +32,7 @@ pub async fn track_reads<F: Future>(seed: u64, future: F) -> (F::Output, Option<
         .await
 }
 
-/// Every row read so far in this task, each aggregate's with its id and version; `None` outside
-/// `track_reads` or after `read_untracked`.
+/// Every row read so far in this task; `None` outside `track_reads` or after `read_untracked`.
 #[must_use]
 pub fn reads_so_far() -> Option<u64> {
     READS

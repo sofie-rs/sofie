@@ -5,9 +5,8 @@ use crate::{Plan, Read, Step, query_values};
 const SCHEMA: &str = "sofie";
 const TABLE: &str = "forgotten_principals";
 
-/// What the framework itself keeps of a principal, such as product events, erased in the
-/// plan's commit. The principal stays recorded for [`forgotten`] and [`unless_forgotten`]; a
-/// module erasing rows of its own plans this first, so no write racing it outlives them.
+/// Erases the framework's own rows of a principal, such as product events, and records it for
+/// [`unless_forgotten`]; planned first, so no write racing the erasure outlives it.
 pub fn forget_principal(plan: &mut Plan<'_>, principal: Uuid) {
     remember(plan, principal);
     #[cfg(feature = "product-reports")]
@@ -23,8 +22,7 @@ pub async fn forgotten(read: &Read, principal: Uuid) -> Result<bool> {
     Ok(!rows.is_empty())
 }
 
-/// A commit writing for a principal read as not forgotten fails as a conflict if an erasure
-/// committed since; the retry reads it forgotten.
+/// The commit conflicts if the principal was forgotten since it was read; the retry sees it.
 pub fn unless_forgotten(plan: &mut Plan<'_>, principal: Uuid) {
     act_as_framework(plan);
     lock(plan, plan.dialect().shared_key_lock(), principal);

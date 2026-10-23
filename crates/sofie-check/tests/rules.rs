@@ -259,6 +259,7 @@ fn a_vendor_sdk_pulling_in_an_http_client_and_sockets_in_the_app_are_found() {
     assert_eq!(
         outgoing,
         [
+            (main.as_path(), 2),
             (
                 fixture.root().join("modules/payment/Cargo.toml").as_path(),
                 4
@@ -267,7 +268,6 @@ fn a_vendor_sdk_pulling_in_an_http_client_and_sockets_in_the_app_are_found() {
                 fixture.root().join("modules/payment/src/lib.rs").as_path(),
                 1
             ),
-            (main.as_path(), 2),
         ]
     );
     let pulled_in = findings

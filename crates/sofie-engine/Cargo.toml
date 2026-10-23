@@ -4,7 +4,6 @@ description = "Screens: the template parser and renderer, and the component cata
 edition.workspace = true
 rust-version.workspace = true
 version.workspace = true
-publish.workspace = true
 license.workspace = true
 repository.workspace = true
 

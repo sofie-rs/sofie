@@ -4,7 +4,6 @@ description = "The database seam implemented for SQLite, built into the binary."
 edition.workspace = true
 rust-version.workspace = true
 version.workspace = true
-publish.workspace = true
 license.workspace = true
 repository.workspace = true
 
@@ -20,9 +19,9 @@ sofie-db.workspace = true
 serde_json.workspace = true
 
 [dev-dependencies]
-sofie-core = { workspace = true, features = ["testing"] }
-sofie-db = { workspace = true, features = ["children", "codes", "contracts", "fresh", "jobs", "live", "local-time", "retention", "search", "soft-delete"] }
-sofie-values = { workspace = true, features = ["time"] }
+sofie-core = { path = "../sofie-core", features = ["testing"] }
+sofie-db = { path = "../sofie-db", features = ["children", "codes", "contracts", "fresh", "jobs", "live", "local-time", "retention", "search", "soft-delete"] }
+sofie-values = { path = "../sofie-values", features = ["time"] }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread", "time"] }
 
 [lints]

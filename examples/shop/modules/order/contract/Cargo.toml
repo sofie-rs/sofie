@@ -4,7 +4,7 @@ description = "What other modules may use of the order module, and the Customer 
 edition.workspace = true
 rust-version.workspace = true
 version.workspace = true
-publish.workspace = true
+publish = false
 
 [dependencies]
 sofie = { workspace = true, default-features = false }

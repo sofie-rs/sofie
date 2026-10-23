@@ -4,7 +4,6 @@ description = "Plans granting entitlements, limits and quotas; subscriptions and
 edition.workspace = true
 rust-version.workspace = true
 version.workspace = true
-publish.workspace = true
 license.workspace = true
 repository.workspace = true
 
@@ -20,11 +19,11 @@ serde_json.workspace = true
 tracing.workspace = true
 
 [dev-dependencies]
-sofie-core = { workspace = true, features = ["testing"] }
-sofie-http = { workspace = true, features = ["parse"] }
+sofie-core = { path = "../sofie-core", features = ["testing"] }
+sofie-http = { path = "../sofie-http", default-features = false, features = ["parse"] }
 # Its SQLite tables and quota counting, checked on SQLite.
-sofie-sqlite.workspace = true
-sofie-testing.workspace = true
+sofie-sqlite = { path = "../sofie-sqlite" }
+sofie-testing = { path = "../sofie-testing" }
 bytes.workspace = true
 http.workspace = true
 http-body-util.workspace = true

@@ -4,7 +4,6 @@ description = "The values the framework ships: money, email and the like."
 edition.workspace = true
 rust-version.workspace = true
 version.workspace = true
-publish.workspace = true
 license.workspace = true
 repository.workspace = true
 

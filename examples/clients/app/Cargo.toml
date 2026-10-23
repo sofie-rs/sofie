@@ -4,7 +4,7 @@ description = "Example app: the same screens compiled into a Svelte area and a R
 edition.workspace = true
 rust-version.workspace = true
 version.workspace = true
-publish.workspace = true
+publish = false
 
 [dependencies]
 notes = { path = "../modules/notes" }

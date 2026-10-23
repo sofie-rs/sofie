@@ -4,7 +4,6 @@ description = "The HTTP server, areas, routes and the handler model."
 edition.workspace = true
 rust-version.workspace = true
 version.workspace = true
-publish.workspace = true
 license.workspace = true
 repository.workspace = true
 
@@ -160,9 +159,9 @@ tracing.workspace = true
 # `tls.rs` and `uploads.rs` run in every test run; the tests parse their screens.
 sofie-http = { path = ".", default-features = false, features = ["clients", "cors", "csv", "etag", "live", "parse", "session-list", "steps", "tls", "uploads"] }
 rustls.workspace = true
-sofie-storage = { workspace = true, features = ["local"] }
-sofie-telemetry = { workspace = true, features = ["capture", "product-events"] }
-sofie-testing.workspace = true
+sofie-storage = { path = "../sofie-storage", features = ["local"] }
+sofie-telemetry = { path = "../sofie-telemetry", features = ["capture", "product-events"] }
+sofie-testing = { path = "../sofie-testing" }
 tokio = { workspace = true, features = ["io-util", "macros", "sync", "test-util"] }
 tokio-rustls.workspace = true
 

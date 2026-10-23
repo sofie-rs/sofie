@@ -4,7 +4,7 @@ description = "Example app: Svelte islands, typed props and `sofie dev`."
 edition.workspace = true
 rust-version.workspace = true
 version.workspace = true
-publish.workspace = true
+publish = false
 
 [dependencies]
 board = { path = "../modules/board" }

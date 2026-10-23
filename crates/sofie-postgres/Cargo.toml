@@ -4,7 +4,6 @@ description = "The database seam implemented for Postgres."
 edition.workspace = true
 rust-version.workspace = true
 version.workspace = true
-publish.workspace = true
 license.workspace = true
 repository.workspace = true
 
@@ -46,10 +45,10 @@ webpki-roots = { workspace = true, optional = true }
 [dev-dependencies]
 # So `tests/product_events.rs` runs in every test run.
 sofie-postgres = { path = ".", default-features = false, features = ["product-reports"] }
-sofie-telemetry = { workspace = true, features = ["capture", "product-events"] }
-sofie-db = { workspace = true, features = ["cache", "children", "codes", "contracts", "flags", "history", "joins", "listing", "migration-status", "pagination", "publishing", "retention", "search-engine", "soft-delete", "streams"] }
-sofie-values.workspace = true
-sofie-testing.workspace = true
+sofie-telemetry = { path = "../sofie-telemetry", features = ["capture", "product-events"] }
+sofie-db = { path = "../sofie-db", features = ["cache", "children", "codes", "contracts", "flags", "history", "joins", "listing", "migration-status", "pagination", "publishing", "retention", "search-engine", "soft-delete", "streams"] }
+sofie-values = { path = "../sofie-values" }
+sofie-testing = { path = "../sofie-testing" }
 serde.workspace = true
 tokio = { workspace = true, features = ["macros"] }
 

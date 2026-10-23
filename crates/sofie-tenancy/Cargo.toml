@@ -4,7 +4,6 @@ description = "Organizations that own records, their members and roles, and invi
 edition.workspace = true
 rust-version.workspace = true
 version.workspace = true
-publish.workspace = true
 license.workspace = true
 repository.workspace = true
 
@@ -26,9 +25,9 @@ sofie-engine = { workspace = true, features = ["compile"] }
 # Its own seats and account closing tests run in every test run.
 sofie-tenancy = { path = ".", features = ["account-data", "billing"] }
 # Spans give route names; its SQLite tables checked against its records.
-sofie = { workspace = true, features = ["capture", "sqlite"] }
+sofie = { package = "sofie-framework", path = "../sofie", features = ["capture", "sqlite"] }
 serde_json.workspace = true
-sofie-testing = { workspace = true, features = ["mail"] }
+sofie-testing = { path = "../sofie-testing", features = ["mail"] }
 tokio = { workspace = true, features = ["macros"] }
 
 [lints]

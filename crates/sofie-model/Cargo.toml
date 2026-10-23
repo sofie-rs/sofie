@@ -4,7 +4,6 @@ description = "The app model: modules, areas and routes, read from source withou
 edition.workspace = true
 rust-version.workspace = true
 version.workspace = true
-publish.workspace = true
 license.workspace = true
 repository.workspace = true
 
@@ -19,7 +18,7 @@ sofie-core.workspace = true
 syn = { workspace = true, features = ["full", "visit"] }
 
 [dev-dependencies]
-sofie-model = { workspace = true, features = ["testing"] }
+sofie-model = { path = ".", features = ["testing"] }
 
 [lints]
 workspace = true

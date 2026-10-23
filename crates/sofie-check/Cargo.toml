@@ -4,7 +4,6 @@ description = "Structure checks (comment density, god types) and the `sofie chec
 edition.workspace = true
 rust-version.workspace = true
 version.workspace = true
-publish.workspace = true
 license.workspace = true
 repository.workspace = true
 
@@ -20,7 +19,7 @@ proc-macro2 = { workspace = true, features = ["span-locations"] }
 syn = { workspace = true, features = ["full"] }
 
 [dev-dependencies]
-sofie-model = { workspace = true, features = ["testing"] }
+sofie-model = { path = "../sofie-model", features = ["testing"] }
 
 [lints]
 workspace = true

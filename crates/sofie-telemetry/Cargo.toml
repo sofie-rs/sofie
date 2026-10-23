@@ -4,7 +4,6 @@ description = "The tracing setup: logs, trace context and, behind `otlp`, OTLP/H
 edition.workspace = true
 rust-version.workspace = true
 version.workspace = true
-publish.workspace = true
 license.workspace = true
 repository.workspace = true
 

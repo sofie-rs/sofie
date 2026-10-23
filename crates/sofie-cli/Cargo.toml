@@ -4,7 +4,6 @@ description = "The `sofie` command: gen, check and the tools reading the app mod
 edition.workspace = true
 rust-version.workspace = true
 version.workspace = true
-publish.workspace = true
 license.workspace = true
 repository.workspace = true
 
@@ -43,7 +42,7 @@ syn = { workspace = true, features = ["full", "visit"] }
 tokio = { workspace = true, features = ["signal"] }
 
 [dev-dependencies]
-sofie-model = { workspace = true, features = ["testing"] }
+sofie-model = { path = "../sofie-model", features = ["testing"] }
 tokio = { workspace = true, features = ["time"] }
 
 [lints]

@@ -4,7 +4,7 @@ description = "Example module: a note edited in a Svelte island."
 edition.workspace = true
 rust-version.workspace = true
 version.workspace = true
-publish.workspace = true
+publish = false
 
 [dependencies]
 sofie = { workspace = true, features = ["islands"] }

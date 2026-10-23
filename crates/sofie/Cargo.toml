@@ -4,7 +4,6 @@ description = "The framework: one dependency for an app."
 edition.workspace = true
 rust-version.workspace = true
 version.workspace = true
-publish.workspace = true
 license.workspace = true
 repository.workspace = true
 
@@ -215,12 +214,12 @@ tracing.workspace = true
 
 [dev-dependencies]
 # An adapter's `Outgoing` in a test, as only the wiring builds one otherwise.
-sofie-client = { workspace = true, features = ["testing"] }
+sofie-client = { path = "../sofie-client", features = ["testing"] }
 # Its features' tests live in sofie-testing, which cannot turn them on itself.
-sofie-testing = { workspace = true, features = ["contracts", "flags"] }
+sofie-testing = { path = "../sofie-testing", features = ["contracts", "flags"] }
 # Turns the opt-in features on in a workspace test run, for this crate's tests
 # and for crates whose tests cannot enable their own features.
-sofie = { workspace = true, features = [
+sofie = { package = "sofie-framework", path = "../sofie", features = [
     "capture",
     "client",
     "contracts",
@@ -247,9 +246,9 @@ sofie = { workspace = true, features = [
     "tasks",
     "trusted-proxies",
 ] }
-sofie-db = { workspace = true, features = ["fresh", "migration-status"] }
-sofie-identity = { workspace = true, features = ["permissions", "shield"] }
-sofie-http = { workspace = true, features = [
+sofie-db = { path = "../sofie-db", features = ["fresh", "migration-status"] }
+sofie-identity = { path = "../sofie-identity", features = ["permissions", "shield"] }
+sofie-http = { path = "../sofie-http", default-features = false, features = [
     "chosen-screens",
     "compression",
     "i18n",
@@ -258,7 +257,7 @@ sofie-http = { workspace = true, features = [
     "steps",
     "webhooks",
 ] }
-sofie-postgres = { workspace = true, features = ["raw-sql", "shield"] }
+sofie-postgres = { path = "../sofie-postgres", default-features = false, features = ["raw-sql", "shield"] }
 tokio = { workspace = true, features = ["macros", "sync", "time"] }
 
 [lints]

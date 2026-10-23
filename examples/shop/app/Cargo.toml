@@ -7,7 +7,7 @@ description = "Example app built on the framework."
 edition.workspace = true
 rust-version.workspace = true
 version.workspace = true
-publish.workspace = true
+publish = false
 
 [dependencies]
 # No `postgres-tls`: the database is reached inside the shop's network, in plain text.

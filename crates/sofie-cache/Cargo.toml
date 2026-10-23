@@ -4,7 +4,6 @@ description = "A cache with explicit expiry, invalidated by key and by aggregate
 edition.workspace = true
 rust-version.workspace = true
 version.workspace = true
-publish.workspace = true
 license.workspace = true
 repository.workspace = true
 
@@ -29,12 +28,12 @@ tracing.workspace = true
 webpki-roots = { workspace = true, optional = true }
 
 [dev-dependencies]
-sofie-cache = { workspace = true, features = ["database", "memory", "metrics", "redis"] }
+sofie-cache = { path = ".", features = ["database", "memory", "metrics", "redis"] }
 # Its counting driver must pass the cache's notifications on.
-sofie-db = { workspace = true, features = ["etag", "metrics"] }
-sofie-postgres = { workspace = true, features = ["cache"] }
-sofie-sqlite.workspace = true
-sofie-testing.workspace = true
+sofie-db = { path = "../sofie-db", features = ["etag", "metrics"] }
+sofie-postgres = { path = "../sofie-postgres", default-features = false, features = ["cache"] }
+sofie-sqlite = { path = "../sofie-sqlite" }
+sofie-testing = { path = "../sofie-testing" }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread", "test-util"] }
 
 [lints]

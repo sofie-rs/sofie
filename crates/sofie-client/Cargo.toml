@@ -4,7 +4,6 @@ description = "The one way out: outgoing requests of gateway adapters, traced, b
 edition.workspace = true
 rust-version.workspace = true
 version.workspace = true
-publish.workspace = true
 license.workspace = true
 repository.workspace = true
 
@@ -36,9 +35,9 @@ tracing.workspace = true
 webpki-roots.workspace = true
 
 [dev-dependencies]
-sofie-client = { workspace = true, features = ["meilisearch", "testing"] }
-sofie-db = { workspace = true, features = ["etag"] }
-sofie-telemetry = { workspace = true, features = ["capture"] }
+sofie-client = { path = ".", features = ["meilisearch", "testing"] }
+sofie-db = { path = "../sofie-db", features = ["etag"] }
+sofie-telemetry = { path = "../sofie-telemetry", features = ["capture"] }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 
 [lints]

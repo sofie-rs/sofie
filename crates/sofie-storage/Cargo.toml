@@ -4,7 +4,6 @@ description = "Files kept under keys the framework generates: a local directory 
 edition.workspace = true
 rust-version.workspace = true
 version.workspace = true
-publish.workspace = true
 license.workspace = true
 repository.workspace = true
 
@@ -28,9 +27,9 @@ tracing.workspace = true
 [dev-dependencies]
 # So `tests/variants.rs` runs in every test run.
 sofie-storage = { path = ".", features = ["local", "variants"] }
-sofie-auth.workspace = true
-sofie-client.workspace = true
-sofie-core = { workspace = true, features = ["testing"] }
+sofie-auth = { path = "../sofie-auth" }
+sofie-client = { path = "../sofie-client" }
+sofie-core = { path = "../sofie-core", features = ["testing"] }
 http.workspace = true
 http-body-util.workspace = true
 hyper.workspace = true

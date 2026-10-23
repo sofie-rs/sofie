@@ -4,7 +4,6 @@ description = "The handler model (inputs, events, replies), aggregates, read mod
 edition.workspace = true
 rust-version.workspace = true
 version.workspace = true
-publish.workspace = true
 license.workspace = true
 repository.workspace = true
 
@@ -95,7 +94,7 @@ unicode-normalization = { workspace = true, optional = true }
 
 [dev-dependencies]
 # The unit tests' aggregate keeps its deleted records, and they read the raised log.
-sofie-db = { workspace = true, features = ["soft-delete", "testing"] }
+sofie-db = { path = ".", features = ["soft-delete", "testing"] }
 tokio = { workspace = true, features = ["macros", "test-util"] }
 
 [lints]

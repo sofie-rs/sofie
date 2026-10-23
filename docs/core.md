@@ -25,14 +25,15 @@ Rust.
 
 ## The database is the only infrastructure
 
-The core needs one database and nothing else. Postgres is the only one
-supported today; every database-specific feature below sits behind the
+The core needs one database and nothing else. Postgres is the main one, and
+SQLite (`sofie-sqlite`, sofie's `sqlite` feature) serves an app running as one
+instance; every database-specific feature below sits behind the
 [database seam](#the-database-seam), so another database is an added
 implementation, not a rewrite.
 
 | Need | How |
 |---|---|
-| Data | Each module's tables, in its own schema (a Postgres schema today) |
+| Data | Each module's tables, in its own schema (a Postgres schema; on SQLite, tables named after the module) |
 | Events, jobs, schedules | One `sofie.messages` table: once a worker is published, a commit writes, in one statement, one job per listener its process heard for each event it raises (unique on event and listener, each due when its event was), and nothing for an event no listener hears; an event committed before then is queued itself and fanned out to the process's listeners by the first worker hearing it, running inline as their lone listener only when the process has one and it is that worker's, its outcome and the event's deletion committed together, becoming the listener's job only if it fails; a job runs once per claim. Claimed with `FOR UPDATE SKIP LOCKED` under a lease whose attempt count fences late finishes, a fixed number in flight (`SOFIE_WORKER_BATCH`, 2), all polled on the worker's task, another claimed as soon as one finishes; a job's outcome and the deletion of its row commit together, so its effect happens once. Leases run on the database's clock and are renewed every third of the lease while the job runs; a job runs at most four minutes, below the five-minute lease, and a panicking job fails like any other. A fault, conflict or unavailability is retried with backoff; `NotFound`, `Moved`, `BadRequest`, `Invalid` and `Rule` are dead at once. A message that runs out of attempts stays, dead, out of claiming, and one whose worker died during its last attempt is claimed once more only to be buried. Schedules run at most once a second and at least once in 1000 years. Woken by `LISTEN/NOTIFY`, with a poll fallback whenever listening fails. One worker loop, in `sofie-db`, serves all three |
 | Single-runner schedules | `sofie.schedules`: firing a due schedule and enqueuing its job is one atomic statement, so one instance runs it; no lock is held. The statement answers the schedule's next time, and a worker does not ask again before then |
 | Cache (`cache`, opt-in) | sofie-cache: in process by default; `sofie.cache`, an unlogged table, with `cache-database`; Redis with `cache-redis`. Entries depending on an aggregate are dropped after each commit writing it; other instances' memory copies are dropped through `pg_notify('sofie_cache', …)`, one per 5 ms burst of commits with their drops merged, or Redis pub/sub |
@@ -94,6 +95,7 @@ sofie-core                              value model, errors, ids, clock, encodin
   ├── sofie-storage                     opt-in: files under generated keys, local or S3 (sofie-auth, sofie-client optional)
   └── sofie-db                          handler model, ORM, unit of work, messages, the seam's traits (uses sofie-auth, -values, -telemetry)
         ├── sofie-postgres              the seam's Postgres implementation
+        ├── sofie-sqlite                the seam's SQLite implementation, built into the binary
         ├── sofie-client                the only way out: outgoing HTTP for gateways and contracts
         ├── sofie-flags                 flags and settings
         ├── sofie-cache                 opt-in: cache over memory, the database or Redis
@@ -105,6 +107,7 @@ sofie-core                              value model, errors, ids, clock, encodin
               └── sofie-notify          opt-in: inbox, mail and web push per principal's choices (uses sofie-mail)
 sofie                                   facade: re-exports, features choose the crates
   ├── sofie-identity                    opt-in module: accounts, memberships, passwords, sign-up, in and out
+  ├── sofie-content                     opt-in module: markdown pages, slugs, publishing, link previews, sitemap
   │     └── sofie-tenancy               opt-in module: organizations owning records, members, roles, invitations
   └── sofie-testing                     the test harness; sofie-identity's `testing` feature builds on it
 sofie-check ── sofie-core, sofie-engine, sofie-model   the rules `sofie check` and an app's build script run
@@ -127,10 +130,12 @@ sofie-cli                               sofie new, gen, check, fix, docs, openap
 | `sofie-flags` | Feature flags: `Feature` and `Variants` constants, rules in `sofie.flags`, held in process and refreshed on the messages channel's wake-ups (or every 30 s), `Features` per request, `gated` jobs; runtime settings in `sofie.settings`, held in the same snapshot and read through `sofie::RuntimeSettings` | An app without flags: it is behind `sofie`'s `feature-flags` |
 | `sofie-cache` | `Cache` with typed `Key`s, explicit expiry, single-flight `get_or_compute` and drops by aggregate change, over a bounded memory tier, `sofie.cache` (feature `database`) or Redis through its own RESP client (feature `redis`) | Every app that caches nothing: it is behind `sofie`'s `cache`, `cache-database`, `cache-redis` |
 | `sofie-storage` | `Storage` over a `Store`: files under generated `StorageKey`s, streamed in and out, signed download links; a local directory (feature `local`) or an S3-compatible bucket signed with SigV4 through sofie-client (feature `s3`) | Every app that keeps no files: it is behind `sofie`'s `storage`, `storage-s3`, `uploads` |
+| `sofie-sqlite` | The database seam for SQLite: one file, statements on one connection, `BEGIN IMMEDIATE` transactions, polling instead of `LISTEN` | Every app on Postgres: it is behind `sofie`'s `sqlite` |
 | `sofie-mail` | Mail rendered from templates and sent by a job over SMTP, to the log or a test's outbox | Every app that sends no mail: it is behind `sofie`'s `mail` |
 | `sofie` | Re-exports everything an app uses, with features: `default = ["engine", "postgres", "postgres-tls", "trusted-proxies"]` | — |
 | `sofie-identity` | A module on the facade: accounts, memberships per area, `Password` and `PasswordHash` (Argon2id in the PHC string format; older PBKDF2 hashes still verify and are rehashed at sign-in), sign-up, in and out; it checks membership itself before signing in, and creates it in the sign-up commit. `remove_membership` removes one and ends the account's sessions in that area in the same commit. Signing up answers alike for a new and a taken address and signs nobody in. Its `testing` feature adds `TestMember` (`TestPrincipal::<A>::member(&app)`) and `signed_up`, which sign up and then in | An app with its own identity |
-| `sofie-tenancy` | A module on the facade and sofie-identity: organizations as owners (an organization area's principal is `OrganizationId`), members with an owner, admin or member role, invitations mailed as signed links, and with `billing` members held to the plan's seats | Every app without organizations |
+| `sofie-tenancy` | A module on the facade and sofie-identity: organizations as owners (an organization area is an `OrganizationArea`, whose principal is `Organization` and which names its `HOME`), members with an owner, admin or member role, invitations mailed as signed links, and with `billing` members held to the plan's seats | Every app without organizations |
+| `sofie-content` | A module on the facade: markdown pages with slugs (previous ones answered with a 301), publishing, search, link-preview tags and a sitemap | Every app without written pages |
 | `sofie-cli` | The `sofie` command | Not in any binary |
 
 An app depends on `sofie` alone and turns features off rather than wiring crates
@@ -138,8 +143,8 @@ by hand. The same app can build a web binary and a worker binary from one
 codebase by features.
 
 What not every app needs is a feature of its crate, forwarded by `sofie` and off
-by default, so the framework compiled into an app stays small (held to 75% of
-Loco's lines by `cargo test -p sofie-check --features slow-tests --test limits`): `idempotency`
+by default, so the framework compiled into an app stays small (its lines are
+measured against Loco's by `bench/run.sh` and reported, though held to no limit): `idempotency`
 (`.idempotent()` actions), `webhooks` (`Routes::webhook`), `signed-links`
 (`.signed()` routes and `SignedUrls`), `steps` (`App::step`,
 `App::step_all`), `cors` (`App::cors`, `SOFIE_CORS_ORIGINS`), `tls`
@@ -304,16 +309,13 @@ pub struct Order {
     #[owner]
     account: AccountId,
     status: OrderStatus,
-    #[currency_from(currency)]
     total: Money,
-    currency: Currency,
 }
 
 impl Order {
     pub fn cancel(&mut self, reason: CancelReason) -> Result<()> {
         self.status = self.status.to(OrderStatus::Cancelled)?;
-        self.meta.raise(OrderCancelled { order: self.id(), reason });
-        Ok(())
+        self.meta.raise(OrderCancelled { order: self.id().uuid(), reason })
     }
 }
 ```
@@ -361,13 +363,18 @@ The ORM splits along the line DDD already draws: **aggregates** for writing,
 Only a description, as data:
 
 ```rust
-pub trait Aggregate: Sized + Send + 'static {
-    const TABLE: Table;                     // schema and name
-    const FIELDS: &'static [Field];         // column(s), SQL type, nullability, constraints, owner, sensitivity
-    const BEHAVIORS: &'static [&'static dyn Behavior];   // beyond Versioned: timestamps, soft delete…
+pub trait Aggregate: Sized + Send + Sync + 'static {
+    const NAME: &'static str;               // the table, in its module's schema
+    const MODULE: &'static str;
+    const FIELDS: &'static [Field];         // column(s), SQL type, nullability, constraints
+    const OWNER: Option<&'static str> = None;
+    const BEHAVIORS: &'static [&'static dyn Behavior] = &[];   // timestamps, soft delete…
+    const UNIQUE: &'static [&'static str] = &[];
+    const SENSITIVE: &'static [&'static str] = &[];
+    fn meta(&self) -> &Meta;
+    fn meta_mut(&mut self) -> &mut Meta;
     fn encode(&self, out: &mut Vec<SqlValue>);
     fn decode(meta: Meta, row: &mut dyn ColumnReader) -> Result<Self>;
-    fn meta(&self) -> &Meta;
 }
 ```
 
@@ -379,7 +386,7 @@ that read these descriptions.
 #### Writing: aggregates are loaded whole
 
 ```rust
-let order = Order::find(&db, id).await?;                       // children included
+let order = Order::find(&read, id).await?;                     // children included
 let mut stale = Order::query().scope(stale_pending).stream(&read)?;   // for jobs
 while let Some(order) = stale.next().await? { … }
 ```
@@ -438,7 +445,7 @@ pub struct OrderRow {
     customer_name: Option<String>,
 }
 
-let page = OrderRow::query(&db)
+let page = OrderRow::query()
     .scope(due)
     .where_(Order::TOTAL.gt(minimum))
     .order_by(Order::CREATED_AT.desc())
@@ -1096,7 +1103,7 @@ The `sofie-mail` crate, behind the `sofie` facade's `mail` feature, off by defau
   (`SOFIE_MAIL_PREVIEW_DIR`, `off` to stop) to open in a browser.
   Tests use sofie-testing's `mail` feature: a fake transport, read with
   `sofie_testing::sent_mails(&app)` after `app.drain()`.
-- **Bulk mail and suppressions.** `Mail::bulk("news")` marks a mail of a list:
+- **Bulk mail and suppressions.** `Mail::new(…)?.bulk("news")?` marks a mail of a list:
   one recipient, sent with `List-Unsubscribe` and `List-Unsubscribe-Post`
   (RFC 8058), its link sealed per recipient with the app's keys (sofie's
   `signed-links`). `sofie.mail_suppressions` holds what an address no longer
@@ -1318,7 +1325,7 @@ compiled by the app's build script, loaded at boot and rendered by the engine.
 
 ```html
 <!-- src/areas/console/screens/orders.html -->
-<Table of={orders} columns="account status total created_at" />
+<Table id="orders" of={orders} columns="account status total created_at" />
 ```
 
 - **Runtime rendering, one path.** Templates are parsed into a program of

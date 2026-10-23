@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Checks the limits against Loco that need no build: app code lines, framework
-# lines compiled into the shop, and the crates and Rust lines of its
-# dependency tree, counted exactly as bench/run.sh counts them. Exits non-zero
-# when one is broken. Run by crates/sofie-check/tests/limits.rs.
+# Checks the limits against Loco that need no build: app code lines and the
+# crates and Rust lines of the shop's dependency tree, counted exactly as
+# bench/run.sh counts them; framework lines are measured, not limited. Exits
+# non-zero when one is broken. Run by crates/sofie-check/tests/limits.rs.
 set -euo pipefail
 
 BENCH=$(cd "$(dirname "$0")" && pwd)

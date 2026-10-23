@@ -108,7 +108,7 @@ words and no synonyms.
 | **Product event** | A business moment (`order.placed`) counted in full, never sampled, for product analytics beside the technical signals. | A domain event, which other modules react to |
 | **Flow** | The chain a piece of work follows, derived from declarations: entry point → action → aggregate methods → events → listeners → further actions and gateway calls. | A process, which is written; a flow is only drawn |
 | **Generated code** | What `sofie gen` writes: the app's wiring, contracts' exported DTOs and route builders, and non-Rust output. Lives in `app/src/wiring.rs`, each module's `src/wiring.rs` and under `gen/`, committed, never edited, verified by `sofie gen --check`. | A derive's expansion, which is never written to disk |
-| **Database seam** | The traits in `sofie-db` (`Driver`, `Dialect`, `Catalog`) that hold everything one database does differently. Postgres is the only implementation today. | — |
+| **Database seam** | The traits in `sofie-db` (`Driver`, `Dialect`, `Catalog`) that hold everything one database does differently. Postgres and SQLite implement them. | — |
 
 ## Layout
 
@@ -197,7 +197,7 @@ framework owns. No frontend framework's release can break an app.
 
 ```html
 <!-- modules/order/src/areas/console/screens/orders.html -->
-<Table of={orders} columns="account status total created_at" />
+<Table id="orders" of={orders} columns="account status total created_at" />
 
 <!-- modules/content/src/areas/web/screens/home.html -->
 <Section title={t("home.title")}>
@@ -573,7 +573,7 @@ pub async fn due_orders(read: Read, minimum: Money, page: Page) -> Result<Pagina
         .await
 }
 
-fn due(query: Query<Order>) -> Query<Order> {
+fn due(query: Query<OrderRow>) -> Query<OrderRow> {
     query.where_(Order::STATUS.eq(OrderStatus::Pending))
 }
 
@@ -609,9 +609,9 @@ pub async fn cancel_order(mut order: Order, reason: CancelReason) -> Result<Orde
   and an edited one is refused; `<app> db status` reports each migration
   applied, pending, edited or missing as a file, and `sofie db fresh` rebuilds
   a database on this machine from its migrations.
-- **Postgres today, others later.** Every database-specific feature is behind
-  the [database seam](core.md#the-database-seam); application code never names
-  the driver.
+- **Postgres, or SQLite for one instance.** Every database-specific feature is
+  behind the [database seam](core.md#the-database-seam); application code never
+  names the driver.
 
 ## Messages and contracts
 
@@ -822,7 +822,7 @@ the migration:
 
 ```rust
 pub trait Cast: Sized {
-    const COLUMNS: &'static [Column];
+    const COLUMNS: &'static [ColumnSpec];
     fn decode(row: &mut dyn ColumnReader) -> Result<Self>;
     fn encode(&self, out: &mut Vec<SqlValue>);
 }
@@ -1007,9 +1007,8 @@ is written by hand: every entry point already passes through the framework's
 handler adapter, store, worker and gateway and contract wrappers, so those open
 the spans, record the metrics and carry the context. Telemetry is
 exported over OpenTelemetry (OTLP) and configured with the standard `OTEL_*`
-variables. The exporter speaks plain HTTP, without TLS, by design: the
-collector runs beside the app, on its host or network, never across the
-internet.
+variables. The collector is expected beside the app, on its host or network,
+reached over plain HTTP; an `https://` endpoint is sent over TLS (rustls).
 
 ### One trace per piece of work
 
@@ -1613,21 +1612,25 @@ it, and `sofie feature` changes the app's features:
   repository) and with `path` answers that file's `git diff -M HEAD`, or a new
   file's text; generate tools `new_module`,
   `new_migration`, `new_aggregate`, `new_event`, `new_listener`, `new_task`,
-  `new_route`, `new_menu_entry`,
-  `scaffold_screen`, `scaffold_tests` (also taking `all`), `gen`, `fix` and
-  `feature` (the CLI commands below), each followed by `sofie gen` (and `sofie docs` for an app
+  `new_route`, `new_menu_entry`, `new_search`, `new_plan`, `new_mail`,
+  `new_area`, `new_account_screen`, `new_impersonation`, `new_tenancy`,
+  `scaffold_screen`, `scaffold_tests` (also taking `all`), `gen`, `fix`,
+  `feature` and `split` (the CLI commands below), and `edit_screen`, which
+  replaces one exact text of a screen template, each followed by `sofie gen` (and `sofie docs` for an app
   keeping docs) and `sofie check`, and each with `dry_run`, which runs them on
   a scratch copy of the app's Cargo workspace and reports the files they
   would create, change or remove, comparing the copy before and after the
   run, so a change made to the app meanwhile (as `sofie dev` regenerating
-  it) cannot hide one; run tools `build` and `test`, which run
+  it) cannot hide one; run tools `build`, `test` and `lint` (`cargo fmt` and
+  clippy, formatting with `write`), which run
   `cargo --offline --message-format short` over the app's packages and
   answer only diagnostics, failures and result lines; `test` answers the
   passed, failed and ignored counts first, every failure in full, and the
   passed and ignored tests by file: every name in files git sees changed
   (the status `changes` reads), counts elsewhere, and every name under a
   `filter`, and fails when its
-  `filter` matched no test; cut at 16 KiB;
+  `filter` matched no test; cut at 16 KiB; `fuzz` and `seed`, the CLI
+  commands of the same names, run against a local database;
   `db_status`, which builds the development binary as `sofie dev` does and
   answers `<app> db status` run with the app's `.env`, cut at 16 KiB, and
   fails when a migration is edited or missing; `task`, which builds it the
@@ -2887,7 +2890,7 @@ to route calls with literal paths; anything else is a generation error.
 | The database holds every field constraint and enum of the schema | `sofie check` (`schema-constraint`): a CHECK per constrained or enum column, every variant name listed, a unique index per `#[unique]` field, read from the migrations' SQL; every behavior's columns (`version`, `created_at`, …) on a table the migrations make (`behavior-column`) |
 | No type grows into a god type | `sofie check`, for an app that sets `[package.metadata.sofie] structure-ceilings = true` (off by default): every type of the app's crates under the framework's own ratchet ceiling |
 | Comments stay sparse | `sofie check`, for an app that opts in with `structure-ceilings = true`: comment lines at most 2.86% of code lines per crate of the app (3 lines free); lowered after pruning passes, never raised |
-| The framework stays small and fast against Loco | `bench/loco-baseline.json` holds Loco's numbers and every ceiling: sofie-check's `limits` test holds app code, framework lines, crates and dependency lines without building; `bench/run.sh --full` fails on binary size, build times, throughput, p99, memory, startup and audit rows |
+| The framework stays small and fast against Loco | `bench/loco-baseline.json` holds Loco's numbers and every ceiling: sofie-check's `limits` test holds app code, crates and dependency lines without building, and framework lines are measured and reported; `bench/run.sh --full` fails on binary size, build times, throughput, p99, memory, startup and audit rows |
 | No dead code accumulates | `sofie check` and the workspace's structure test: a `pub` item nothing names outside its definition (a `pub use` or a doc comment is not a use; trait impl items, `main` and tests are not counted) and a `[dependencies]` entry the crate's sources never name are findings, unless `dead-code-allow.toml` lists them with a reason; allowed items still count toward a ceiling of 2% of a crate's `pub` items, which is only lowered |
 | Translations are complete | `sofie check`: key parity across languages |
 | Screens use only catalog components and islands | The template parser accepts nothing else |

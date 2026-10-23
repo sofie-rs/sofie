@@ -203,9 +203,8 @@ app code ≤ 20%, crates in the dependency tree ≤ 30% and their Rust lines ≤
 ≤ 25%, incremental build ≤ 20%, read requests/s ≥ 3×, read p99 ≤ 50%, RSS ≤
 60%, startup ≤ 80%, write requests/s ≥ 1× and audit rows ≥ 1×. A limit is only
 ever tightened; Loco's numbers change only by measuring the twin again.
-Framework lines compiled into the app are still measured and reported, but
-held to no limit: the user removed it on 2026-10-12, since the framework does
-more than Loco and will outgrow it.
+Framework lines compiled into the app are measured and reported, but held to
+no limit, since the framework does more than Loco and will outgrow it.
 
 - `bench/limits.sh` checks the first four without building, counting as
   `run.sh` does; `cargo test -p sofie-check --features slow-tests --test limits` runs it.

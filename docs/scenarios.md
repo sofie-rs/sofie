@@ -135,7 +135,8 @@ pub async fn expire_order(order: &mut Order) -> Result<()> {
 
 The framework runs the query, enqueues one job per id and runs the action per
 order in its own unit of work, with its own retries and its own span. Only one
-instance fires a schedule, through a Postgres advisory lock.
+instance fires a schedule: firing it and enqueuing its job is one atomic
+statement on `sofie.schedules`, and no lock is held.
 → [D7](#d7-scheduled-per-item-actions)
 
 ## 6. A file upload
@@ -250,13 +251,13 @@ every area its tier allows, which is all of them.
 
 ### D1. Dependencies by signature
 
-A handler receives what its signature asks for, resolved by type in generated
-code: a bound aggregate (`&Order`, or `&mut Order` in an action, tracked by the
-unit of work), the input (any other deserializable argument), the principal,
-`&Read`, its module's config, `&impl SomeContract`, `&impl SomeGateway`, the
-clock, settings and features. An argument of any other type is a generation
-error naming it. A module implements its own contract in `src/contract.rs`.
-Generics are monomorphized, so there is no dynamic dispatch.
+A handler receives what its signature asks for, resolved by type: a bound
+aggregate (`Order`, owned, and tracked by the unit of work in an action), the
+input (any other deserializable argument), the principal, `Read`, its module's
+config, a contract or gateway as `Dep<dyn SomeContract>`, the clock, settings
+and features. An argument of any other type does not compile. A module
+implements its own contract in `src/contract.rs`. Contracts and gateways are
+trait objects chosen at boot, so dispatch is dynamic only at those boundaries.
 
 ### D2. Identity owns areas
 

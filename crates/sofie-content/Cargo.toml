@@ -6,6 +6,7 @@ rust-version.workspace = true
 version.workspace = true
 license.workspace = true
 repository.workspace = true
+homepage.workspace = true
 
 [features]
 # `admin_routes`: pages listed, written, published and withdrawn in an area of the app.

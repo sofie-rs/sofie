@@ -6,6 +6,7 @@ rust-version.workspace = true
 version.workspace = true
 license.workspace = true
 repository.workspace = true
+homepage.workspace = true
 
 [features]
 # On by default: with `sessions` off, sessions live only in their cookies, so signing out,

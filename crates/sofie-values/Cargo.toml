@@ -6,6 +6,7 @@ rust-version.workspace = true
 version.workspace = true
 license.workspace = true
 repository.workspace = true
+homepage.workspace = true
 
 # The core set (Money, Currency, Email, Secret) is always built;
 # each group of further values is opt-in, so an app compiles only what it uses.

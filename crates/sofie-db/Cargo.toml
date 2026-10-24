@@ -6,6 +6,7 @@ rust-version.workspace = true
 version.workspace = true
 license.workspace = true
 repository.workspace = true
+homepage.workspace = true
 
 # Each feature is a part of the ORM that not every app needs; an app enables
 # the ones its aggregates and read models use.

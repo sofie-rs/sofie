@@ -21,6 +21,7 @@ version = "0.1.0"
 publish = false
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/sofie-rs/sofie"
+homepage = "https://sofie.rs"
 
 [workspace.dependencies]
 sofie = { package = "sofie-framework", version = "0.1.0", path = "crates/sofie" }

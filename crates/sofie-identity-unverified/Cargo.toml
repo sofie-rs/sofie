@@ -7,6 +7,7 @@ version.workspace = true
 publish = false
 license.workspace = true
 repository.workspace = true
+homepage.workspace = true
 
 # Only `cargo test -p sofie-identity-unverified` leaves `email-verification` off: a workspace
 # run unifies the features of every crate it builds. The tests hold on either path.

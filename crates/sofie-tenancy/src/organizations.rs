@@ -5,11 +5,11 @@
 use std::collections::HashMap;
 use std::time::Duration;
 
-use sofie::db::{Context, Db, Resolve, Uuid, in_select};
+use sofie::db::{Uuid, in_select};
 use sofie::http::{Admitter, ListedRoute, Query, Routes, Shipped, SignInRight, SignedUrls};
 use sofie::prelude::*;
 
-use sofie_identity::{Account, AccountId, MemberArea, SignedIn, sign_in_for};
+use sofie_identity::{Account, AccountId, MemberArea, SignedIn, Unscoped, sign_in_for};
 
 use crate::invitation::{Invitation, NOT_OPEN};
 use crate::organization::{
@@ -91,14 +91,6 @@ pub fn routes<M: MemberArea, O: OrganizationArea>(routes: &mut Routes<M>) {
 
 pub(crate) fn invitation_path<M: MemberArea>(invitation: Id<Invitation>) -> String {
     format!("{}/invitations?invitation={}", M::PREFIX, invitation.uuid())
-}
-
-pub(crate) struct Unscoped(pub(crate) Db);
-
-impl<C: Context> Resolve<C> for Unscoped {
-    fn resolve(context: &mut C) -> impl Future<Output = Result<Self>> + Send {
-        std::future::ready(Ok(Self(context.db().clone())))
-    }
 }
 
 #[derive(ReadModel)]

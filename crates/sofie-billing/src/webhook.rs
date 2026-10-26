@@ -66,7 +66,10 @@ async fn subscription_changed(
     let Some(status) = change.status else {
         return Ok(Received::Nothing);
     };
-    let plan = plan_of(&billing.catalog, &change.price);
+    let catalog = &billing.catalog;
+    let plan = priced(catalog, &change.price, "plan", |name| {
+        catalog.plans.plan(name).map(crate::Plan::name)
+    });
     let now = billing.now();
     let Some(mut subscription) = billing.subscription(change.subscriber).await? else {
         if status == crate::Status::Canceled {
@@ -115,7 +118,9 @@ async fn purchased(
     provider: &'static str,
     change: &PurchaseChange,
 ) -> Result<Received> {
-    let product = match product_of(&billing.catalog, &change.price) {
+    let catalog = &billing.catalog;
+    let found = |name: &str| catalog.plans.product(name).map(crate::Product::name);
+    let product = match priced(catalog, &change.price, "product", found) {
         Ok(product) => product,
         Err(error) => {
             unpriced(change.subscriber, &change.price, &error, "kept no purchase");
@@ -145,30 +150,19 @@ fn unpriced(subscriber: Subscriber, price: &str, error: &sofie_core::Error, outc
     );
 }
 
-fn product_of<'c>(catalog: &'c Catalog, price: &str) -> Result<&'c str> {
+/// What `price` names in the catalog, as a `kind` `found` tells by name.
+fn priced(
+    catalog: &Catalog,
+    price: &str,
+    kind: &str,
+    found: impl FnOnce(&str) -> Option<&'static str>,
+) -> Result<&'static str> {
     let name = catalog.setup.name_of(price)?;
-    catalog
-        .plans
-        .product(name)
-        .map(crate::Product::name)
-        .ok_or_else(|| {
-            sofie_core::Error::internal_message(format!(
-                "price `{price}` names `{name}`, which is not a product"
-            ))
-        })
-}
-
-fn plan_of<'c>(catalog: &'c Catalog, price: &str) -> Result<&'c str> {
-    let name = catalog.setup.name_of(price)?;
-    catalog
-        .plans
-        .plan(name)
-        .map(crate::Plan::name)
-        .ok_or_else(|| {
-            sofie_core::Error::internal_message(format!(
-                "price `{price}` names `{name}`, which is not a plan"
-            ))
-        })
+    found(name).ok_or_else(|| {
+        sofie_core::Error::internal_message(format!(
+            "price `{price}` names `{name}`, which is not a {kind}"
+        ))
+    })
 }
 
 impl Outcome for Received {

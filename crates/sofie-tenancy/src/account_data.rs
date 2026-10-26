@@ -34,7 +34,7 @@ impl PersonalData for OrganizationMemberships {
                 held.iter()
                     .map(|member| json!({
                         "organization": member.organization().uuid(),
-                        "role": role_name(member.role()),
+                        "role": member.role().name(),
                     }))
                     .collect::<Vec<_>>()
             ))
@@ -115,14 +115,6 @@ async fn last_owner_of(read: &Read, organizations: Vec<OrganizationId>) -> Resul
          first.",
         names.join(", ")
     )))
-}
-
-fn role_name(role: OrganizationRole) -> &'static str {
-    match role {
-        OrganizationRole::Owner => "owner",
-        OrganizationRole::Admin => "admin",
-        OrganizationRole::Member => "member",
-    }
 }
 
 /// Written as a statement: the closing commits within the account's reach, which the

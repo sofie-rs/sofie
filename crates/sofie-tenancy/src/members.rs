@@ -10,7 +10,7 @@ use sofie::mail::{Address, Mail, Mailer, Template};
 use sofie::prelude::*;
 use sofie::serde_json::json;
 
-use sofie_identity::{Account, AccountId, MemberArea};
+use sofie_identity::{Account, AccountId, MemberArea, Unscoped};
 
 use crate::acting::Acting;
 use crate::invitation::{self, Invitation, VALID_FOR};
@@ -18,7 +18,7 @@ use crate::organization::{
     Demoted, Held, Invited, Kept, Organization, OrganizationArea, OrganizationId,
     OrganizationMember, OrganizationRole, membership,
 };
-use crate::organizations::{AccountEmail, Unscoped, invitation_path};
+use crate::organizations::{AccountEmail, invitation_path};
 
 const INVITATION_MAIL: Template = Template::new(
     "sofie_tenancy/invitation",

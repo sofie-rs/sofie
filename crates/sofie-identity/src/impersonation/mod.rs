@@ -5,7 +5,7 @@
 use std::time::Duration;
 
 use sofie::core::Instant;
-use sofie::db::{Context, Db, Outcome, Plan, Resolve, Stamp, Uuid};
+use sofie::db::{Outcome, Plan, Resolve, Stamp, Uuid};
 use sofie::http::{
     Area, CurrentSession, NeedsPermission, Permission, Permissions, RequestContext, Routes, Shipped,
 };
@@ -14,7 +14,7 @@ use sofie::prelude::*;
 use crate::account::Account;
 use crate::membership::{self, held};
 use crate::signing_in::{SignedIn, sign_in};
-use crate::{AccountId, MemberArea, account_of};
+use crate::{AccountId, MemberArea, Unscoped, account_of};
 
 const READ: Permission = Permission::new("sofie_identity.impersonation.*.read");
 const CREATE: Permission = Permission::new("sofie_identity.impersonation.*.create");
@@ -380,14 +380,6 @@ pub(crate) async fn sessions_started_by(read: &Read, impersonator: AccountId) ->
         .into_iter()
         .map(|impersonation| impersonation.session)
         .collect())
-}
-
-pub(crate) struct Unscoped(Db);
-
-impl<C: Context> Resolve<C> for Unscoped {
-    fn resolve(context: &mut C) -> impl Future<Output = Result<Self>> + Send {
-        std::future::ready(Ok(Self(context.db().clone())))
-    }
 }
 
 async fn of_session(read: &Read, session: Option<Uuid>) -> Result<Option<Impersonation>> {

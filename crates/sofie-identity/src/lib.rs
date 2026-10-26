@@ -56,6 +56,16 @@ pub use signing_in::{SignedIn, sign_in_for};
 
 pub type AccountId = sofie::db::Id<Account>;
 
+/// The whole database, for records beyond the request's reach, such as other accounts'.
+#[doc(hidden)]
+pub struct Unscoped(pub sofie::db::Db);
+
+impl<C: sofie::db::Context> sofie::db::Resolve<C> for Unscoped {
+    fn resolve(context: &mut C) -> impl Future<Output = sofie::core::Result<Self>> + Send {
+        std::future::ready(Ok(Self(context.db().clone())))
+    }
+}
+
 const NAME: &str = "sofie_identity";
 
 macro_rules! screen {

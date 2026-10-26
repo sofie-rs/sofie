@@ -6,6 +6,7 @@ use sofie_core::{Error, Timestamp, Uuid};
 use crate::answer::{self, Response};
 use crate::pipeline::Asked;
 use crate::routes::RouteRules;
+use crate::session::Sessions;
 use crate::throttle::{Limiter, Requester};
 
 #[derive(Default)]
@@ -32,6 +33,25 @@ pub(crate) struct Visit<'r> {
     pub(crate) now: Timestamp,
     #[cfg(feature = "signed-links")]
     pub(crate) keys: &'r sofie_auth::SigningKeys,
+}
+
+impl<'r> Visit<'r> {
+    pub(crate) fn new(
+        asked: Asked<'r>,
+        principal: Option<Uuid>,
+        now: Timestamp,
+        sessions: &'r Sessions,
+    ) -> Self {
+        #[cfg(not(feature = "signed-links"))]
+        let _ = sessions;
+        Self {
+            asked,
+            principal,
+            now,
+            #[cfg(feature = "signed-links")]
+            keys: &sessions.keys,
+        }
+    }
 }
 
 impl Admission {

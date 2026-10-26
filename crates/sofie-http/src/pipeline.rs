@@ -287,7 +287,11 @@ impl Pipeline {
         refuse(self.shield.refusal(asked, session.principal()))?;
         // Another area's cookie, which anyone can get by signing up there, keys no budget here.
         let budgeted = session.principal_in(target.audience.name);
-        refuse(target.admission.refusal(self.visit(asked, budgeted, now)))?;
+        refuse(
+            target
+                .admission
+                .refusal(Visit::new(asked, budgeted, now, &self.sessions)),
+        )?;
         #[cfg(feature = "gates")]
         let gates = self.gates.open(target, &session, &self.db, caller).await?;
         let response = match target.audience.reach(&session) {
@@ -314,25 +318,6 @@ impl Pipeline {
         Ok((response, session.principal()))
     }
 
-    #[cfg_attr(
-        not(feature = "signed-links"),
-        expect(clippy::unused_self, reason = "only a signed link needs the keys")
-    )]
-    pub(crate) fn visit<'r>(
-        &'r self,
-        asked: Asked<'r>,
-        principal: Option<Uuid>,
-        now: Timestamp,
-    ) -> Visit<'r> {
-        Visit {
-            asked,
-            principal,
-            now,
-            #[cfg(feature = "signed-links")]
-            keys: &self.sessions.keys,
-        }
-    }
-
     /// Admitted already: its throttle and signature are checked before anything is looked up.
     pub(crate) async fn guarded(
         &self,
@@ -353,7 +338,7 @@ impl Pipeline {
         ))]
         let principal = found.session.principal();
         #[cfg(any(feature = "steps", feature = "idempotency"))]
-        let visit = self.visit(asked, principal, found.now);
+        let visit = Visit::new(asked, principal, found.now, &self.sessions);
         #[cfg(feature = "steps")]
         refuse(crate::step::refusal(&self.steps, &target.admission.area.steps, visit).await)?;
         let received = self.received(asked, target, body).await?;

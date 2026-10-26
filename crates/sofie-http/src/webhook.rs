@@ -98,7 +98,11 @@ pub(crate) async fn deliver(
         return Err(Box::new(refusal));
     }
     let now = pipeline.db.clock().now().timestamp();
-    if let Some(refusal) = target.admission.refusal(pipeline.visit(asked, None, now)) {
+    if let Some(refusal) =
+        target
+            .admission
+            .refusal(Visit::new(asked, None, now, &pipeline.sessions))
+    {
         return Err(Box::new(refusal));
     }
     let found = crate::pipeline::Found {

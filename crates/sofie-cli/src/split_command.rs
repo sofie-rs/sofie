@@ -8,14 +8,16 @@ use sofie_model::naming::{contract_package, relative_path};
 use sofie_model::{App, Crate, Module};
 
 use crate::env_example::remote_prefix;
-use crate::gen_command::{GenError, GenMode, GenOutcome, io_error, read_existing, regenerated};
+use crate::gen_command::{
+    GenError, GenMode, GenOutcome, gen_app, io_error, read_existing, regenerated,
+};
 use crate::new_command::edits::with_feature_on;
 use crate::new_command::{
     app_sources, checked_name, dependency_line_start, find_module, refuse_existing, write_all,
 };
 use crate::source_edits::{
-    DEPENDENCIES, Journal, path_dependency, read, toml_escaped, toml_section, toml_table,
-    with_dependency_line,
+    DEPENDENCIES, DEV_DEPENDENCIES, Journal, path_dependency, read, toml_escaped, toml_section,
+    toml_table, with_dependency_line,
 };
 use crate::wiring::{crossing_traits, exposed_aggregates};
 
@@ -97,7 +99,9 @@ pub fn split_module(root: &Path, module: &str) -> Result<Split, GenError> {
 }
 
 /// Every step through the journal, so a failure, `sofie gen`'s findings on
-/// either app among them, undoes the split.
+/// either app among them, undoes the split. The new app's generated code goes
+/// with its directory; the old app's is written outside the journal, so its
+/// findings are looked for before anything is written there.
 fn carry_out(journal: &mut Journal, plan: &SplitPlan) -> Result<Vec<GenOutcome>, GenError> {
     move_module(journal, plan)?;
     leave_app(journal, plan)?;
@@ -105,6 +109,7 @@ fn carry_out(journal: &mut Journal, plan: &SplitPlan) -> Result<Vec<GenOutcome>,
     add_members(journal, plan)?;
     write_proxy_table(journal, plan)?;
     let mut generated = regenerated(&plan.to, GenMode::Write)?;
+    gen_app(&plan.root, GenMode::Check)?;
     generated.extend(regenerated(&plan.root, GenMode::Write)?);
     Ok(generated)
 }
@@ -457,15 +462,14 @@ fn normalized(path: &Path) -> PathBuf {
     parts.iter().collect()
 }
 
+/// Every table's path into the module, a dev-dependency's too, follows it; the app it
+/// leaves then drops its own dependency on the module.
 fn leave_app(journal: &mut Journal, plan: &SplitPlan) -> Result<(), GenError> {
-    let old_contract = plan.from.join("contract");
     let new_contract = plan.moved_module().join("contract");
     for manifest in staying_manifests(plan)? {
         let directory = manifest_parent(&manifest);
         let text = edit_paths(&read(&manifest)?, |written| {
-            (normalized(&directory.join(written)) == old_contract)
-                .then(|| relative_path(&directory, &new_contract))
-                .flatten()
+            followed_move(&directory, written, &plan.from, &plan.moved_module())
         });
         journal.write(&manifest, text)?;
     }
@@ -488,6 +492,12 @@ fn leave_app(journal: &mut Journal, plan: &SplitPlan) -> Result<(), GenError> {
     text = with_metadata(&text, "remote", std::slice::from_ref(&plan.module));
     text = with_metadata(&text, "serves", &plan.calls_back);
     journal.write(&app_manifest, text)
+}
+
+fn followed_move(directory: &Path, written: &str, from: &Path, to: &Path) -> Option<String> {
+    let target = normalized(&directory.join(written));
+    let within = target.strip_prefix(from).ok()?;
+    relative_path(directory, &to.join(within))
 }
 
 /// The app's and every earlier split's: any of them may reach the moved contract.
@@ -682,7 +692,15 @@ fn quoted(names: &[String]) -> String {
 }
 
 fn without_dependency(text: &str, package: &str) -> String {
-    let Some((start, end)) = toml_section(text, DEPENDENCIES) else {
+    [DEPENDENCIES, DEV_DEPENDENCIES]
+        .iter()
+        .fold(text.to_owned(), |text, table| {
+            without_dependency_in(&text, table, package)
+        })
+}
+
+fn without_dependency_in(text: &str, table: &str, package: &str) -> String {
+    let Some((start, end)) = toml_section(text, table) else {
         return text.to_owned();
     };
     let kept: String = text[start..end]
@@ -786,6 +804,34 @@ mod tests {
             "[workspace]\ndefault-members = [\"app\"]\nmembers = ["
         );
         assert_eq!(members_list("[package]\nmembers = [\"app\"]\n"), None);
+    }
+
+    #[test]
+    fn a_path_into_the_moved_module_follows_it() {
+        let directory = Path::new("/shop/modules/billing");
+        let from = Path::new("/shop/modules/order");
+        let to = Path::new("/shop/split/order/modules/order");
+
+        assert_eq!(
+            followed_move(directory, "../order", from, to).as_deref(),
+            Some("../../split/order/modules/order")
+        );
+        assert_eq!(
+            followed_move(directory, "../order/contract", from, to).as_deref(),
+            Some("../../split/order/modules/order/contract")
+        );
+        assert_eq!(followed_move(directory, "../order-audit", from, to), None);
+    }
+
+    #[test]
+    fn the_app_left_drops_the_module_from_its_dev_dependencies_too() {
+        let text = "[dependencies]\norder = { path = \"../modules/order\" }\n\n\
+                    [dev-dependencies]\norder.path = \"../modules/order\"\nserde = \"1\"\n";
+
+        assert_eq!(
+            without_dependency(text, "order"),
+            "[dependencies]\n\n[dev-dependencies]\nserde = \"1\"\n"
+        );
     }
 
     #[test]

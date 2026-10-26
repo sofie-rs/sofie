@@ -97,7 +97,8 @@ pub(crate) async fn deliver(
     if let Some(refusal) = pipeline.shield.refusal(asked, None) {
         return Err(Box::new(refusal));
     }
-    if let Some(refusal) = target.admission.refusal(pipeline.visit(asked, None)) {
+    let now = pipeline.db.clock().now().timestamp();
+    if let Some(refusal) = target.admission.refusal(pipeline.visit(asked, None, now)) {
         return Err(Box::new(refusal));
     }
     let found = crate::pipeline::Found {
@@ -105,6 +106,7 @@ pub(crate) async fn deliver(
         parameters,
         session: crate::session::RequestSession::default(),
         reach: sofie_db::Reach::All,
+        now,
         #[cfg(feature = "gates")]
         gates: crate::gate::RequestGates::default(),
     };

@@ -11,7 +11,7 @@ use http::request::Parts;
 use http::{Method, StatusCode};
 use http_body_util::{BodyExt, Full, LengthLimitError, Limited};
 use hyper::body::Incoming;
-use sofie_core::{Error, Uuid};
+use sofie_core::{Error, Timestamp, Uuid};
 use sofie_db::{Db, Reach};
 use tracing::Instrument;
 
@@ -287,7 +287,7 @@ impl Pipeline {
         refuse(self.shield.refusal(asked, session.principal()))?;
         // Another area's cookie, which anyone can get by signing up there, keys no budget here.
         let budgeted = session.principal_in(target.audience.name);
-        refuse(target.admission.refusal(self.visit(asked, budgeted)))?;
+        refuse(target.admission.refusal(self.visit(asked, budgeted, now)))?;
         #[cfg(feature = "gates")]
         let gates = self.gates.open(target, &session, &self.db, caller).await?;
         let response = match target.audience.reach(&session) {
@@ -297,6 +297,7 @@ impl Pipeline {
                     parameters,
                     session: session.clone(),
                     reach,
+                    now,
                     #[cfg(feature = "gates")]
                     gates,
                 };
@@ -312,11 +313,20 @@ impl Pipeline {
         Ok((response, session.principal()))
     }
 
-    pub(crate) fn visit<'r>(&'r self, asked: Asked<'r>, principal: Option<Uuid>) -> Visit<'r> {
+    #[cfg_attr(
+        not(feature = "signed-links"),
+        expect(clippy::unused_self, reason = "only a signed link needs the keys")
+    )]
+    pub(crate) fn visit<'r>(
+        &'r self,
+        asked: Asked<'r>,
+        principal: Option<Uuid>,
+        now: Timestamp,
+    ) -> Visit<'r> {
         Visit {
             asked,
             principal,
-            now: self.db.clock().now().timestamp(),
+            now,
             #[cfg(feature = "signed-links")]
             keys: &self.sessions.keys,
         }
@@ -342,7 +352,7 @@ impl Pipeline {
         ))]
         let principal = found.session.principal();
         #[cfg(any(feature = "steps", feature = "idempotency"))]
-        let visit = self.visit(asked, principal);
+        let visit = self.visit(asked, principal, found.now);
         #[cfg(feature = "steps")]
         refuse(crate::step::refusal(&self.steps, &target.admission.area.steps, visit).await)?;
         let received = self.received(asked, target, body).await?;
@@ -409,7 +419,7 @@ impl Pipeline {
             target,
             #[cfg(feature = "gates")]
             &found.gates,
-            self.db.clock().now().timestamp(),
+            found.now,
         )
         .tagged(answer);
         #[cfg(feature = "uploads")]
@@ -515,6 +525,8 @@ pub(crate) struct Found<'r> {
     pub(crate) parameters: Vec<(String, String)>,
     pub(crate) session: RequestSession,
     pub(crate) reach: Reach,
+    /// Read once, so every check on the request sees the same instant.
+    pub(crate) now: Timestamp,
     #[cfg(feature = "gates")]
     pub(crate) gates: crate::gate::RequestGates,
 }

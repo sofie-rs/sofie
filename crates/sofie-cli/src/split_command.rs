@@ -593,17 +593,34 @@ fn add_members(journal: &mut Journal, plan: &SplitPlan) -> Result<(), GenError> 
             )
         })
         .concat();
-    let Some(start) = text.find("members = [") else {
+    let Some(at) = members_list(&text) else {
         return Err(GenError::Usage(format!(
             "{} lists no `members = [`; add the new app's crates to the workspace by hand",
             manifest.display()
         )));
     };
-    let at = start + "members = [".len();
     journal.write(
         &manifest,
         format!("{}{members}{}", &text[..at], &text[at..]),
     )
+}
+
+/// Just after the `[` of `[workspace]`'s `members`, not of `default-members`.
+fn members_list(text: &str) -> Option<usize> {
+    let (start, end) = toml_section(text, "[workspace]")?;
+    let mut offset = start;
+    for line in text[start..end].split_inclusive('\n') {
+        let opened = line
+            .trim_start()
+            .strip_prefix("members")
+            .and_then(|rest| rest.trim_start().strip_prefix('='))
+            .and_then(|rest| rest.trim_start().strip_prefix('['));
+        if let Some(rest) = opened {
+            return Some(offset + line.len() - rest.len());
+        }
+        offset += line.len();
+    }
+    None
 }
 
 fn workspace_member(plan: &SplitPlan, app: &Path, member: &str) -> String {
@@ -756,6 +773,19 @@ mod tests {
              [dependencies]\nsofie = { workspace = true, features = [\"remote-contracts\"] }\n\
              order-contract = { path = \"../modules/order/contract\" }\n\n[lints]\nworkspace = true\n"
         );
+    }
+
+    #[test]
+    fn new_members_join_members_not_default_members() {
+        let text = "[workspace]\ndefault-members = [\"app\"]\nmembers = [\"app\"]\n";
+
+        let at = members_list(text).unwrap();
+
+        assert_eq!(
+            &text[..at],
+            "[workspace]\ndefault-members = [\"app\"]\nmembers = ["
+        );
+        assert_eq!(members_list("[package]\nmembers = [\"app\"]\n"), None);
     }
 
     #[test]

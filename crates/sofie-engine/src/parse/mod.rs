@@ -387,6 +387,9 @@ impl<'s> Parser<'s> {
         if kind == Kind::Action {
             self.scope.record_action(&props, position);
         }
+        if kind == Kind::Table {
+            self.scope.record_table_columns(&props);
+        }
         #[cfg(feature = "islands")]
         if kind == Kind::Island {
             self.scope.mark_island(&props);

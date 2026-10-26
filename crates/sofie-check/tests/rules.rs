@@ -1653,6 +1653,26 @@ fn an_action_s_posted_fields_must_name_fields_of_the_row() {
     assert_contains(&findings[0].message, "`data[…].nope`");
 }
 
+#[test]
+fn a_table_s_columns_must_name_fields_of_the_row() {
+    let fixture = Fixture::new();
+    let routes = vec![screen("/orders", "orders", "queries::list_orders", 1)];
+    let orders = "<Table id=\"a\" of={data} columns=\"id status\" />\n\
+        <Table id=\"b\" of={data} columns=\"id stock\" />\n";
+    let mut module = fixture.module_with_screens(routes, &[("orders", orders)]);
+    module.code.read_models.push(order_row());
+    module.code.functions = vec![function("queries::list_orders", "Vec<OrderRow>", &[])];
+
+    let findings = check(&fixture.app(vec![module]));
+
+    assert_eq!(
+        rule_lines(&findings),
+        [("screen-binding", 2)],
+        "{findings:?}"
+    );
+    assert_contains(&findings[0].message, "`data[…].stock`");
+}
+
 /// A loader taking `Listing<T>` answers `Listed<T>`, which a `Table` pages, sorts and filters.
 #[test]
 fn a_listed_answer_binds_its_rows_and_page_fields() {

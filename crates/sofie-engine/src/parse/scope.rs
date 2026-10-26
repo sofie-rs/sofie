@@ -64,6 +64,11 @@ impl Scope {
         self.recorder.record_action(props, position);
     }
 
+    pub(super) fn record_table_columns(&mut self, props: &[Attribute]) {
+        #[cfg(feature = "analysis")]
+        self.recorder.record_table_columns(props);
+    }
+
     pub(super) fn record_table_link(&mut self, props: &[Attribute], position: Position) {
         #[cfg(feature = "analysis")]
         self.recorder.record_table_link(props, position);

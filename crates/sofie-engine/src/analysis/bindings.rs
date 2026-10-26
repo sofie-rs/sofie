@@ -132,6 +132,29 @@ impl Recorder {
         });
     }
 
+    /// Each column is a field of a row of `of`, so it is bound like `{row.column}`.
+    pub(crate) fn record_table_columns(&mut self, props: &[Attribute]) {
+        let attribute = |name: &str| props.iter().find(|attribute| attribute.name == name);
+        let (Some(rows), Some(columns)) = (attribute("of"), attribute("columns")) else {
+            return;
+        };
+        let (Some(row), Expression::Authored(names)) =
+            (self.slots.items_of(&rows.value), &columns.value)
+        else {
+            return;
+        };
+        for name in names.split_whitespace() {
+            let mut steps = row.clone();
+            steps.push(Step::Field(name.to_owned()));
+            self.bindings.push(Binding {
+                steps,
+                line: columns.position.line,
+                column: columns.position.column,
+                island: None,
+            });
+        }
+    }
+
     pub(crate) fn record_table_link(&mut self, props: &[Attribute], position: Position) {
         if let Some(link) = props.iter().find(|attribute| attribute.name == "link") {
             self.links.push(TableLink {
@@ -240,6 +263,7 @@ mod tests {
                 "orders",
                 "orders.[].id",
                 "lines",
+                "lines.[].name",
                 "lines.[].id",
                 "lines.[].status_to.PAID",
             ]
@@ -252,7 +276,10 @@ mod tests {
             <Action post=\"/slots/book\" label=\"Book\" with={{slot: slot.id, by: data.user}} />\
             </Table>";
 
-        assert_eq!(paths(source), ["slots", "slots.[].id", "user"]);
+        assert_eq!(
+            paths(source),
+            ["slots", "slots.[].time", "slots.[].id", "user"]
+        );
     }
 
     #[test]

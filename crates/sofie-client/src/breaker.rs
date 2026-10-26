@@ -17,6 +17,14 @@ pub(crate) fn refused_open(error: &Error) -> bool {
     matches!(error, Error::Unavailable(message) if message.starts_with(OPEN))
 }
 
+/// How a call got through, which decides whether its success may close an open circuit: one
+/// let through before the circuit opened can succeed after, and is no probe.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Passage {
+    Closed,
+    Probe,
+}
+
 #[derive(Default)]
 pub(crate) struct Breakers {
     circuits: Mutex<HashMap<String, Circuit>>,
@@ -30,22 +38,22 @@ struct Circuit {
 impl Breakers {
     /// Only the first caller probes; the rest wait another period, so an abandoned probe cannot
     /// hold it half open.
-    pub(crate) fn permit(&self, host: &str, now: Instant) -> Result<(), Duration> {
+    pub(crate) fn permit(&self, host: &str, now: Instant) -> Result<Passage, Duration> {
         let mut circuits = self.circuits();
         let Some(circuit) = circuits.get_mut(host) else {
-            return Ok(());
+            return Ok(Passage::Closed);
         };
         match circuit.open_until {
             Some(until) if now < until => Err(until - now),
             Some(_) => {
                 circuit.open_until = Some(now + OPEN_FOR);
-                Ok(())
+                Ok(Passage::Probe)
             }
-            None => Ok(()),
+            None => Ok(Passage::Closed),
         }
     }
 
-    pub(crate) fn admit(&self, host: &str) -> sofie_core::Result<()> {
+    pub(crate) fn admit(&self, host: &str) -> sofie_core::Result<Passage> {
         self.permit(host, Instant::now()).map_err(|open_for| {
             Error::Unavailable(format!(
                 "{OPEN} `{host}` is open after repeated failures; it is tried again in {} s",
@@ -54,10 +62,15 @@ impl Breakers {
         })
     }
 
-    pub(crate) fn record(&self, host: &str, succeeded: bool, now: Instant) {
+    pub(crate) fn record(&self, host: &str, passage: Passage, succeeded: bool, now: Instant) {
         let mut circuits = self.circuits();
         if succeeded {
-            circuits.remove(host);
+            let is_open = circuits
+                .get(host)
+                .is_some_and(|circuit| circuit.open_until.is_some());
+            if passage == Passage::Probe || !is_open {
+                circuits.remove(host);
+            }
             return;
         }
         if circuits.len() >= MAX_TRACKED && !circuits.contains_key(host) {
@@ -91,16 +104,20 @@ mod tests {
         let start = Instant::now();
         for _ in 0..FAILURES_TO_OPEN {
             assert!(breakers.permit("vendor.test", start).is_ok());
-            breakers.record("vendor.test", false, start);
+            breakers.record("vendor.test", Passage::Closed, false, start);
         }
 
         assert_eq!(breakers.permit("vendor.test", start), Err(OPEN_FOR));
         assert!(breakers.permit("other.test", start).is_ok());
 
         let later = start + OPEN_FOR;
-        assert!(breakers.permit("vendor.test", later).is_ok(), "one probe");
+        assert_eq!(
+            breakers.permit("vendor.test", later),
+            Ok(Passage::Probe),
+            "one probe"
+        );
         assert!(breakers.permit("vendor.test", later).is_err(), "only one");
-        breakers.record("vendor.test", true, later);
+        breakers.record("vendor.test", Passage::Probe, true, later);
         assert!(breakers.permit("vendor.test", later).is_ok());
     }
 
@@ -109,17 +126,31 @@ mod tests {
         let breakers = Breakers::default();
         let start = Instant::now();
         for _ in 0..FAILURES_TO_OPEN {
-            breakers.record("vendor.test", false, start);
+            breakers.record("vendor.test", Passage::Closed, false, start);
         }
         let later = start + OPEN_FOR;
 
         assert!(breakers.permit("vendor.test", later).is_ok());
-        breakers.record("vendor.test", false, later);
+        breakers.record("vendor.test", Passage::Probe, false, later);
 
         assert!(
             breakers
                 .permit("vendor.test", later + OPEN_FOR / 2)
                 .is_err()
         );
+    }
+
+    #[test]
+    fn a_success_let_through_before_the_circuit_opened_leaves_it_open() {
+        let breakers = Breakers::default();
+        let start = Instant::now();
+        let stale = breakers.permit("vendor.test", start).unwrap();
+        for _ in 0..FAILURES_TO_OPEN {
+            breakers.record("vendor.test", Passage::Closed, false, start);
+        }
+
+        breakers.record("vendor.test", stale, true, start);
+
+        assert_eq!(breakers.permit("vendor.test", start), Err(OPEN_FOR));
     }
 }

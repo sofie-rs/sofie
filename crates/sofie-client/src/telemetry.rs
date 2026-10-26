@@ -67,7 +67,7 @@ async fn bounded<T>(
     work: impl Future<Output = Result<T>>,
 ) -> Result<T> {
     let vendor = shared.vendor;
-    shared.operations.admit(vendor)?;
+    let passage = shared.operations.admit(vendor)?;
     let total = shared.limits.total;
     let result = tokio::time::timeout(total, work).await.unwrap_or_else(|_| {
         Err(Error::Unavailable(format!(
@@ -77,8 +77,14 @@ async fn bounded<T>(
     });
     match &result {
         Err(error) if breaker::refused_open(error) => {}
-        Err(Error::Unavailable(_)) => shared.operations.record(vendor, false, Instant::now()),
-        _ => shared.operations.record(vendor, true, Instant::now()),
+        Err(Error::Unavailable(_)) => {
+            shared
+                .operations
+                .record(vendor, passage, false, Instant::now());
+        }
+        _ => shared
+            .operations
+            .record(vendor, passage, true, Instant::now()),
     }
     result
 }

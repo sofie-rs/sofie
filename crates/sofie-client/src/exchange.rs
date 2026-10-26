@@ -93,7 +93,7 @@ impl Exchange<'_> {
             Reach::Untrusted => &self.shared.untrusted_hosts,
         };
         let circuit = format!("{}:{}", target.host, target.port);
-        breakers.admit(&circuit)?;
+        let passage = breakers.admit(&circuit)?;
         let result = tokio::time::timeout_at(deadline, self.retried(target))
             .await
             .unwrap_or_else(|_| {
@@ -109,7 +109,7 @@ impl Exchange<'_> {
             Err(Failure::Refused(_)) => None,
         };
         if let Some(succeeded) = succeeded {
-            breakers.record(&circuit, succeeded, Instant::now());
+            breakers.record(&circuit, passage, succeeded, Instant::now());
         }
         result.map_err(Failure::into_error)
     }

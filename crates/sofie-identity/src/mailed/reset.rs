@@ -30,10 +30,7 @@ pub(super) fn routes<A: MemberArea>(routes: &mut Routes<Web>) {
 }
 
 #[cfg(feature = "sessions")]
-type Ended = (
-    Vec<crate::sessions::AccountSession>,
-    crate::sessions::Impersonations,
-);
+type Ended = crate::sessions::Ended;
 #[cfg(not(feature = "sessions"))]
 type Ended = ();
 

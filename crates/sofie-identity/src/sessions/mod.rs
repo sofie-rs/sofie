@@ -257,7 +257,7 @@ pub(crate) async fn ending_all(
     account: AccountId,
     keep: Option<Uuid>,
     now: Instant,
-) -> Result<(Vec<AccountSession>, Impersonations)> {
+) -> Result<Ended> {
     #[cfg_attr(not(feature = "impersonation"), expect(unused_mut))]
     let mut owned = AccountSession::ACCOUNT.eq(account);
     #[cfg(feature = "impersonation")]
@@ -269,19 +269,12 @@ pub(crate) async fn ending_all(
     if let Some(keep) = keep {
         which = which.where_(AccountSession::SESSION.ne(keep));
     }
-    let sessions = ending(read, which, now).await?;
-    let impersonations = impersonations_in(read, &sessions, now).await?;
-    Ok((sessions, impersonations))
+    ending(read, which, now).await
 }
 
 /// Each of the account's live sessions in `area`, ended: for a membership of it removed,
 /// committed with the removal.
-pub async fn ending_in(
-    read: &Read,
-    account: AccountId,
-    area: &str,
-    now: Instant,
-) -> Result<Vec<AccountSession>> {
+pub async fn ending_in(read: &Read, account: AccountId, area: &str, now: Instant) -> Result<Ended> {
     let which = AccountSession::query()
         .where_(AccountSession::ACCOUNT.eq(account))
         .where_(AccountSession::AREA.eq(area.to_owned()));
@@ -297,7 +290,7 @@ pub async fn ending_as(
     area: &str,
     principal: Uuid,
     now: Instant,
-) -> Result<Vec<AccountSession>> {
+) -> Result<Ended> {
     let signed_in = AccountSession::PRINCIPAL.is_null();
     let which = AccountSession::query()
         .where_(AccountSession::ACCOUNT.in_(accounts.iter().copied()))
@@ -306,19 +299,37 @@ pub async fn ending_as(
     ending(read, which, now).await
 }
 
-async fn ending(
-    read: &Read,
-    which: Query<AccountSession>,
-    now: Instant,
-) -> Result<Vec<AccountSession>> {
-    let mut live = which
+/// Sessions ended, with the impersonations in them.
+pub struct Ended {
+    sessions: Vec<AccountSession>,
+    impersonations: Impersonations,
+}
+
+impl sofie::db::Outcome for Ended {
+    fn plan(&self, plan: &mut sofie::db::Plan<'_>) -> Result<()> {
+        self.sessions.plan(plan)?;
+        self.impersonations.plan(plan)
+    }
+
+    fn committed(&mut self, stamp: sofie::db::Stamp) {
+        self.sessions.committed(stamp);
+        self.impersonations.committed(stamp);
+    }
+}
+
+async fn ending(read: &Read, which: Query<AccountSession>, now: Instant) -> Result<Ended> {
+    let mut sessions = which
         .where_(AccountSession::ENDED_AT.is_null())
         .all(read)
         .await?;
-    for record in &mut live {
+    for record in &mut sessions {
         record.end(now);
     }
-    Ok(live)
+    let impersonations = impersonations_in(read, &sessions, now).await?;
+    Ok(Ended {
+        sessions,
+        impersonations,
+    })
 }
 
 #[cfg(feature = "account-data")]

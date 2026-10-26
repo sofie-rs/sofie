@@ -91,7 +91,7 @@ impl sofie::http::AreaMembers for Memberships {
 pub struct MembershipRemoved {
     membership: Membership,
     #[cfg(feature = "sessions")]
-    ended: Vec<crate::sessions::AccountSession>,
+    ended: crate::sessions::Ended,
 }
 
 /// Read and committed beyond the request's reach, as an area's principal seldom owns its

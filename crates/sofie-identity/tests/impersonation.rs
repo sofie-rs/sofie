@@ -480,6 +480,29 @@ async fn an_impersonator_ending_its_other_sessions_ends_the_impersonations_it_st
 }
 
 #[tokio::test]
+async fn removing_a_membership_ends_an_impersonation_in_its_area_on_the_record() {
+    let app = started().await;
+    let (grace, staff) = support::joined::<Console>(&app, "grace@example.com").await;
+    let (ada, _) = support::joined::<Member>(&app, "ada@example.com").await;
+    grant_impersonation(&app, grace).await;
+    impersonate(&app, &staff, "ada@example.com")
+        .await
+        .assert_ok();
+
+    let mut removed = sofie_identity::remove_membership(
+        &app.db().read(),
+        ada,
+        Member::NAME,
+        app.db().clock().now(),
+    )
+    .await
+    .unwrap();
+    app.db().commit(&mut removed).await.unwrap();
+
+    assert_eq!(assert_raised::<ImpersonationEnded>(&app).len(), 1);
+}
+
+#[tokio::test]
 async fn stopping_after_the_impersonators_own_session_ended_only_signs_out() {
     let app = started().await;
     let (grace, staff) = support::joined::<Console>(&app, "grace@example.com").await;

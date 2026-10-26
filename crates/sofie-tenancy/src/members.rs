@@ -410,7 +410,7 @@ async fn ending_for<O: OrganizationArea>(
     organization: OrganizationId,
     accounts: &[AccountId],
     now: Instant,
-) -> Result<Vec<sofie_identity::sessions::AccountSession>> {
+) -> Result<sofie_identity::sessions::Ended> {
     sofie_identity::sessions::ending_as(
         &unscoped.0.read(),
         accounts,

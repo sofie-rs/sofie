@@ -4,7 +4,10 @@ pub mod account_data;
 #[cfg(feature = "account-links")]
 #[cfg_attr(
     not(any(feature = "links", feature = "totp")),
-    expect(dead_code, reason = "an internal feature, used through `links` and `totp`")
+    expect(
+        dead_code,
+        reason = "an internal feature, used through `links` and `totp`"
+    )
 )]
 mod account_link;
 mod actions;
@@ -19,7 +22,10 @@ mod lock;
         feature = "email-verification",
         feature = "sign-in-links"
     )),
-    expect(dead_code, reason = "an internal feature, used through the mailed links")
+    expect(
+        dead_code,
+        reason = "an internal feature, used through the mailed links"
+    )
 )]
 mod mailed;
 mod membership;

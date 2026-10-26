@@ -42,7 +42,10 @@ impl Account {
             feature = "oauth",
             feature = "permissions"
         )),
-        expect(dead_code, reason = "with `links` alone, only the unused mailed links call it")
+        expect(
+            dead_code,
+            reason = "with `links` alone, only the unused mailed links call it"
+        )
     )]
     pub(crate) async fn stored(read: &Read, id: crate::AccountId) -> Result<Self> {
         Self::query()

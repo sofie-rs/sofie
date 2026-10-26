@@ -994,7 +994,10 @@ fn hung_up_mcp(shell_prefix: &str) -> (std::process::ExitStatus, bool) {
     assert!(sent.success());
     let answered_after = ping().is_ok_and(|answer| answer.contains("\"result\""));
     drop(ping);
-    drop(stdin);
+    // The ping can be answered before the hangup lands; closing stdin then would end it cleanly.
+    if !shell_prefix.is_empty() {
+        drop(stdin);
+    }
     (mcp.wait().unwrap(), answered_after)
 }
 

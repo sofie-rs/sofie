@@ -2,6 +2,10 @@ mod account;
 #[cfg(feature = "account-data")]
 pub mod account_data;
 #[cfg(feature = "account-links")]
+#[cfg_attr(
+    not(any(feature = "links", feature = "totp")),
+    expect(dead_code, reason = "an internal feature, used through `links` and `totp`")
+)]
 mod account_link;
 mod actions;
 #[cfg(feature = "impersonation")]
@@ -9,6 +13,14 @@ pub mod impersonation;
 #[cfg(feature = "shield")]
 mod lock;
 #[cfg(feature = "links")]
+#[cfg_attr(
+    not(any(
+        feature = "password-reset",
+        feature = "email-verification",
+        feature = "sign-in-links"
+    )),
+    expect(dead_code, reason = "an internal feature, used through the mailed links")
+)]
 mod mailed;
 mod membership;
 #[cfg(any(feature = "shield", feature = "links"))]

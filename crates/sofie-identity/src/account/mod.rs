@@ -30,6 +30,20 @@ impl Account {
         feature = "oauth",
         feature = "permissions"
     ))]
+    #[cfg_attr(
+        not(any(
+            feature = "password-reset",
+            feature = "email-verification",
+            feature = "sign-in-links",
+            feature = "totp",
+            feature = "passkeys",
+            feature = "account-data",
+            feature = "impersonation",
+            feature = "oauth",
+            feature = "permissions"
+        )),
+        expect(dead_code, reason = "with `links` alone, only the unused mailed links call it")
+    )]
     pub(crate) async fn stored(read: &Read, id: crate::AccountId) -> Result<Self> {
         Self::query()
             .where_(Self::ID.eq(id))

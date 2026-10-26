@@ -12,6 +12,10 @@ pub struct FormPage {
 
 impl FormPage {
     #[cfg(feature = "account-links")]
+    #[cfg_attr(
+        not(any(feature = "links", feature = "totp")),
+        expect(dead_code, reason = "used by account links, whose users are `links` and `totp`")
+    )]
     pub(crate) fn new(action: String, other: Option<&'static str>) -> Self {
         Self {
             action,

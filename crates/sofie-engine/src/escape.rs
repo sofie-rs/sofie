@@ -66,21 +66,35 @@ fn is_safe_url(url: &str) -> bool {
 /// `<`, `>`, `&`, U+2028 and U+2029 are `\u`-escaped, so no text can close the element.
 #[cfg(any(feature = "islands", feature = "clients"))]
 pub(crate) fn push_script_json(html: &mut String, props: &serde_json::Value) {
-    for character in props.to_string().chars() {
-        match character {
-            '<' => html.push_str("\\u003c"),
-            '>' => html.push_str("\\u003e"),
-            '&' => html.push_str("\\u0026"),
-            '\u{2028}' => html.push_str("\\u2028"),
-            '\u{2029}' => html.push_str("\\u2029"),
-            other => html.push(other),
-        }
+    let json = props.to_string();
+    let mut run_start = 0;
+    for (index, character) in json.char_indices() {
+        let replacement = match character {
+            '<' => "\\u003c",
+            '>' => "\\u003e",
+            '&' => "\\u0026",
+            '\u{2028}' => "\\u2028",
+            '\u{2029}' => "\\u2029",
+            _ => continue,
+        };
+        html.push_str(json.get(run_start..index).unwrap_or_default());
+        html.push_str(replacement);
+        run_start = index + character.len_utf8();
     }
+    html.push_str(json.get(run_start..).unwrap_or_default());
 }
 
 #[cfg(test)]
 mod tests {
     use super::{is_safe_url, push_escaped};
+
+    #[cfg(any(feature = "islands", feature = "clients"))]
+    #[test]
+    fn script_json_escapes_what_could_end_the_element_and_keeps_the_rest() {
+        let mut html = String::from("x");
+        super::push_script_json(&mut html, &serde_json::json!("é</script>\u{2028}ü&"));
+        assert_eq!(html, "x\"é\\u003c/script\\u003e\\u2028ü\\u0026\"");
+    }
 
     #[test]
     fn escapes_the_five_html_characters() {

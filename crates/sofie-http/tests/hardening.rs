@@ -112,6 +112,21 @@ async fn an_area_limit_counts_every_route_of_the_area() {
 }
 
 #[tokio::test]
+async fn a_request_its_route_refuses_spends_nothing_of_the_area_limit() {
+    let clock = clock();
+    let server = TestServer::start(app(&clock).throttle::<Web>(Rate::per_hour(3))).await;
+
+    let unsigned = server.get("/download?file=report").await;
+    for _ in 0..3 {
+        server.get("/search").await;
+    }
+    let after = server.get("/hello").await;
+
+    assert_eq!(unsigned.status, StatusCode::FORBIDDEN);
+    assert_eq!(after.status, StatusCode::NO_CONTENT);
+}
+
+#[tokio::test]
 async fn a_signed_route_opens_only_through_a_live_signed_link() {
     let clock = clock();
     let server = TestServer::start(app(&clock)).await;

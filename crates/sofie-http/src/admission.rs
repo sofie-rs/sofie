@@ -43,20 +43,22 @@ impl Admission {
         }
     }
 
-    /// Before the body is read; the area's steps run after.
+    /// Before the body is read; the area's steps run after. The area's shared budget is spent
+    /// last, so a request this route refuses costs the caller's other routes nothing.
     pub(crate) fn refusal(&self, visit: Visit<'_>) -> Option<Response> {
         let requester = Requester::of(visit.principal, visit.asked.client);
-        let limiters = [self.area.throttle.as_ref(), self.throttle.as_ref()];
-        for limiter in limiters.into_iter().flatten() {
-            if let Err(wait) = limiter.admit(requester, visit.now) {
-                return Some(too_many_requests(wait, visit.asked));
-            }
+        let throttled = |limiter: Option<&Limiter>| {
+            let wait = limiter?.admit(requester, visit.now).err()?;
+            Some(too_many_requests(wait, visit.asked))
+        };
+        if let Some(refusal) = throttled(self.throttle.as_ref()) {
+            return Some(refusal);
         }
         #[cfg(feature = "signed-links")]
         if self.rules.signed && !crate::signed::is_signed_request(visit) {
             return Some(crate::signed::unsigned(visit.asked.caller));
         }
-        None
+        throttled(self.area.throttle.as_ref())
     }
 }
 

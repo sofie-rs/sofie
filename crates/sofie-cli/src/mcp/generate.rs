@@ -59,8 +59,9 @@ fn generate(root: &Path, original: &Path, generator: &Generator) -> ToolOutput {
         Ok(report) => report,
         Err(error) => return ToolOutput::from_error(root, &error),
     };
-    // `new_module` ends in its own `sofie gen`, already in its report.
-    if !matches!(generator, Generator::NewModule(_)) {
+    // `new_module` ends in its own `sofie gen`, already in its report, and `fix_app` runs
+    // one whenever its checks find only stale generated code.
+    if !matches!(generator, Generator::NewModule(_) | Generator::Fix) {
         match regenerate(root) {
             Ok(written) if written.is_empty() => {
                 text.push_str("sofie gen: everything up to date\n");

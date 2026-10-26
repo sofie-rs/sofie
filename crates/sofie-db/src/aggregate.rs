@@ -165,7 +165,7 @@ impl Field {
             let field = &fields[index];
             let mut spec = 0;
             while spec < field.columns.len() {
-                if names_column(field.name, field.columns[spec].suffix, column) {
+                if sofie_core::same_column(field.name, field.columns[spec].suffix, column, "") {
                     return true;
                 }
                 spec += 1;
@@ -174,26 +174,6 @@ impl Field {
         }
         false
     }
-}
-
-const fn names_column(name: &str, suffix: &str, column: &str) -> bool {
-    let (name, suffix, column) = (name.as_bytes(), suffix.as_bytes(), column.as_bytes());
-    if name.len() + suffix.len() != column.len() {
-        return false;
-    }
-    let mut index = 0;
-    while index < column.len() {
-        let byte = if index < name.len() {
-            name[index]
-        } else {
-            suffix[index - name.len()]
-        };
-        if byte != column[index] {
-            return false;
-        }
-        index += 1;
-    }
-    true
 }
 
 /// Autoref specialization: `(&&TextOf::<T>(PhantomData)).read(text)` reads JSON text (a string,

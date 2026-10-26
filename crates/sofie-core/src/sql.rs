@@ -121,7 +121,10 @@ const fn names_column(name: &str, columns: &[ColumnSpec], other: &str, suffix: &
     false
 }
 
-const fn same_column(left: &str, left_suffix: &str, right: &str, right_suffix: &str) -> bool {
+/// Whether `left` and `left_suffix` name the same column as `right` and `right_suffix`.
+#[doc(hidden)]
+#[must_use]
+pub const fn same_column(left: &str, left_suffix: &str, right: &str, right_suffix: &str) -> bool {
     let length = left.len() + left_suffix.len();
     if length != right.len() + right_suffix.len() {
         return false;

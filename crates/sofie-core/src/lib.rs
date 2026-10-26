@@ -40,7 +40,8 @@ pub use local_database::is_local_database;
 pub use plural::plural;
 pub use show::{Show, Shown};
 pub use sql::{
-    Cast, ColumnReader, ColumnSpec, Ordered, RowReader, SqlType, SqlValue, stores_earlier_column,
+    Cast, ColumnReader, ColumnSpec, Ordered, RowReader, SqlType, SqlValue, same_column,
+    stores_earlier_column,
 };
 #[cfg(feature = "testing")]
 pub use test_clock::TestClock;

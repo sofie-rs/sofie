@@ -89,6 +89,7 @@ async fn the_framework_tables_are_migrations_of_module_sofie_applied_first() {
             "0021_notify_digest_items_sent.sql",
             "0022_forgotten_principals.sql",
             "0023_product_events_principal.sql",
+            "0024_forgotten_principals_at.sql",
         ]
         .map(|name| vec![
             SqlValue::Text("sofie".to_owned()),

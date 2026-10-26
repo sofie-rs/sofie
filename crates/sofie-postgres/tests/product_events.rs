@@ -233,3 +233,26 @@ async fn the_forgotten_principals_find_their_events_by_an_index() {
         )]]
     );
 }
+
+#[tokio::test]
+async fn the_sweep_finds_the_last_day_s_forgotten_principals_by_an_index() {
+    let migrated = migrated().await;
+
+    let indexed = query_values(
+        &migrated.postgres,
+        "SELECT indexdef FROM pg_indexes
+        WHERE schemaname = 'sofie' AND indexname = 'forgotten_principals_at'",
+        &[],
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(
+        indexed,
+        [[SqlValue::Text(
+            "CREATE INDEX forgotten_principals_at ON sofie.forgotten_principals \
+             USING btree (forgotten_at)"
+                .to_owned()
+        )]]
+    );
+}

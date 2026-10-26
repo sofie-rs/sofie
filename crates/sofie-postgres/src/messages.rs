@@ -39,7 +39,8 @@ pub(crate) const MIGRATIONS: Migrations = Migrations::new(
             "0020_inbox_read.sql",
             "0021_notify_digest_items_sent.sql",
             "0022_forgotten_principals.sql",
-            "0023_product_events_principal.sql"
+            "0023_product_events_principal.sql",
+            "0024_forgotten_principals_at.sql"
         ]
     ),
 );

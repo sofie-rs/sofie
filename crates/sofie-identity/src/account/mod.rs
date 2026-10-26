@@ -169,7 +169,7 @@ impl Account {
         let mut records = self.added_ways_in(read).await?;
         #[cfg(feature = "sessions")]
         records.push(Box::new(
-            crate::sessions::ending_everywhere(read, id, now).await?,
+            crate::sessions::ending_all(read, id, None, now).await?,
         ));
         #[cfg(feature = "tokens")]
         records.push(Box::new(crate::tokens::revoking(read, id).await?));

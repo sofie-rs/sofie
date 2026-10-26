@@ -48,6 +48,10 @@ async fn started() -> TestApp {
                     sofie_identity::impersonation::stop_routes::<Member, Console>,
                 )
                 .area::<Member>("sofie_identity", sofie_identity::sessions::routes::<Member>)
+                .area::<Console>(
+                    "sofie_identity",
+                    sofie_identity::sessions::routes::<Console>,
+                )
                 .area::<Member>("sofie_identity", sofie_identity::passkeys::routes::<Member>)
                 .area::<Member>("sofie_identity", sofie_identity::oauth::routes::<Member>)
                 .area::<Member>(
@@ -447,6 +451,31 @@ async fn a_member_ending_its_other_sessions_ends_an_impersonation_on_the_record(
         .await
         .assert_ok();
 
+    assert_eq!(assert_raised::<ImpersonationEnded>(&app).len(), 1);
+}
+
+#[tokio::test]
+async fn an_impersonator_ending_its_other_sessions_ends_the_impersonations_it_started() {
+    let app = started().await;
+    let (grace, staff) = support::joined::<Console>(&app, "grace@example.com").await;
+    support::joined::<Member>(&app, "ada@example.com").await;
+    grant_impersonation(&app, grace).await;
+    let ada = impersonate(&app, &staff, "ada@example.com")
+        .await
+        .session()
+        .unwrap();
+
+    app.post("/console/sessions/others")
+        .session(&staff)
+        .accept_json()
+        .await
+        .assert_ok();
+
+    app.get("/account/who")
+        .session(&ada)
+        .accept_json()
+        .await
+        .assert_status(401);
     assert_eq!(assert_raised::<ImpersonationEnded>(&app).len(), 1);
 }
 

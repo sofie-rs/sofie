@@ -4,7 +4,7 @@ mod screen;
 use std::time::Duration;
 
 use sofie::core::Instant;
-use sofie::db::{Db, Uuid};
+use sofie::db::{Db, Query, Uuid};
 use sofie::http::SessionRecord;
 use sofie::prelude::*;
 
@@ -251,58 +251,27 @@ pub(crate) async fn impersonations_in(
     }
 }
 
+/// The account's live sessions but `keep`, and those of the impersonations it started.
 pub(crate) async fn ending_all(
     read: &Read,
     account: AccountId,
     keep: Option<Uuid>,
     now: Instant,
-) -> Result<Vec<AccountSession>> {
-    let mut live = AccountSession::query()
-        .where_(AccountSession::ACCOUNT.eq(account))
-        .where_(AccountSession::ENDED_AT.is_null())
-        .all(read)
-        .await?;
-    live.retain(|record| Some(record.session) != keep);
-    for record in &mut live {
-        record.end(now);
-    }
-    Ok(live)
-}
-
-pub(crate) async fn ending_everywhere(
-    read: &Read,
-    account: AccountId,
-    now: Instant,
 ) -> Result<(Vec<AccountSession>, Impersonations)> {
     #[cfg_attr(not(feature = "impersonation"), expect(unused_mut))]
-    let mut sessions = ending_all(read, account, None, now).await?;
+    let mut owned = AccountSession::ACCOUNT.eq(account);
     #[cfg(feature = "impersonation")]
     {
         let started = crate::impersonation::sessions_started_by(read, account).await?;
-        sessions.extend(ending_sessions(read, started, now).await?);
+        owned = owned.or(AccountSession::SESSION.in_(started));
     }
+    let mut which = AccountSession::query().where_(owned);
+    if let Some(keep) = keep {
+        which = which.where_(AccountSession::SESSION.ne(keep));
+    }
+    let sessions = ending(read, which, now).await?;
     let impersonations = impersonations_in(read, &sessions, now).await?;
     Ok((sessions, impersonations))
-}
-
-#[cfg(feature = "impersonation")]
-async fn ending_sessions(
-    read: &Read,
-    sessions: Vec<Uuid>,
-    now: Instant,
-) -> Result<Vec<AccountSession>> {
-    if sessions.is_empty() {
-        return Ok(Vec::new());
-    }
-    let mut live = AccountSession::query()
-        .where_(AccountSession::SESSION.in_(sessions))
-        .where_(AccountSession::ENDED_AT.is_null())
-        .all(read)
-        .await?;
-    for record in &mut live {
-        record.end(now);
-    }
-    Ok(live)
 }
 
 /// Each of the account's live sessions in `area`, ended: for a membership of it removed,
@@ -313,16 +282,10 @@ pub async fn ending_in(
     area: &str,
     now: Instant,
 ) -> Result<Vec<AccountSession>> {
-    let mut live = AccountSession::query()
+    let which = AccountSession::query()
         .where_(AccountSession::ACCOUNT.eq(account))
-        .where_(AccountSession::AREA.eq(area.to_owned()))
-        .where_(AccountSession::ENDED_AT.is_null())
-        .all(read)
-        .await?;
-    for record in &mut live {
-        record.end(now);
-    }
-    Ok(live)
+        .where_(AccountSession::AREA.eq(area.to_owned()));
+    ending(read, which, now).await
 }
 
 /// The accounts' live sessions in `area` signed in as `principal`, ended: for accounts no
@@ -335,17 +298,23 @@ pub async fn ending_as(
     principal: Uuid,
     now: Instant,
 ) -> Result<Vec<AccountSession>> {
-    let mut live = AccountSession::query()
+    let signed_in = AccountSession::PRINCIPAL.is_null();
+    let which = AccountSession::query()
         .where_(AccountSession::ACCOUNT.in_(accounts.iter().copied()))
         .where_(AccountSession::AREA.eq(area.to_owned()))
+        .where_(signed_in.or(AccountSession::PRINCIPAL.eq(Some(principal))));
+    ending(read, which, now).await
+}
+
+async fn ending(
+    read: &Read,
+    which: Query<AccountSession>,
+    now: Instant,
+) -> Result<Vec<AccountSession>> {
+    let mut live = which
         .where_(AccountSession::ENDED_AT.is_null())
         .all(read)
         .await?;
-    live.retain(|record| {
-        record
-            .principal
-            .is_none_or(|signed_in| signed_in == principal)
-    });
     for record in &mut live {
         record.end(now);
     }

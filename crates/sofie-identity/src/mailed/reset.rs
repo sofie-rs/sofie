@@ -90,7 +90,7 @@ async fn signed_out(
     now: sofie::core::Instant,
 ) -> Result<(Ended, Revoked)> {
     #[cfg(feature = "sessions")]
-    let ended = crate::sessions::ending_everywhere(read, account, now).await?;
+    let ended = crate::sessions::ending_all(read, account, None, now).await?;
     #[cfg(not(feature = "sessions"))]
     let ended = ();
     #[cfg(feature = "tokens")]

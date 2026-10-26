@@ -3,8 +3,8 @@ use sofie::http::{Area, Routes, Shipped};
 use sofie::prelude::*;
 
 use super::{AccountSession, Impersonations, ending_all, impersonations_in};
-use crate::account_of;
 use crate::signing_in::OwnSession;
+use crate::{Unscoped, account_of};
 
 /// Each principal sees and ends only its own account's sessions.
 pub fn routes<A: Area>(routes: &mut Routes<A>) {
@@ -62,15 +62,21 @@ async fn end_one<A: Area>(
     Ok((record, impersonations))
 }
 
+/// Unscoped, as the sessions of the impersonations the account started are its members'.
 async fn end_others<A: Area>(
     principal: Principal<A>,
     _own: OwnSession,
     session: Session,
-    read: Read,
+    unscoped: Unscoped,
     clock: Clock,
-) -> Result<(Vec<AccountSession>, Impersonations)> {
-    let now = clock.now();
-    let ended = ending_all(&read, account_of(&principal), session.current(), now).await?;
-    let impersonations = impersonations_in(&read, &ended, now).await?;
-    Ok((ended, impersonations))
+) -> Result<()> {
+    let read = unscoped.0.read();
+    let mut ended = ending_all(
+        &read,
+        account_of(&principal),
+        session.current(),
+        clock.now(),
+    )
+    .await?;
+    unscoped.0.commit(&mut ended).await
 }

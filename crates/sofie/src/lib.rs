@@ -387,6 +387,8 @@ impl Packages {
             search.install(&worker_db);
         }
         let worker = framework_jobs(worker(worker_db).await?);
+        #[cfg(feature = "notify")]
+        let worker = sofie_notify::housekeeping(worker);
         #[cfg(feature = "search-meilisearch")]
         let worker = if self.search.is_some() {
             sofie_db::index_searches(worker)
@@ -403,14 +405,15 @@ impl Packages {
     }
 }
 
-/// The packages' jobs, added to the app's worker and to a test's alike, so the two cannot drift.
+/// The packages' jobs, added to the app's worker and to a test's alike, so the two cannot drift;
+/// their schedules stay off a test's worker, where they would fire on every drain.
 #[doc(hidden)]
 #[must_use]
 pub fn framework_jobs(worker: Worker) -> Worker {
     #[cfg(feature = "mail")]
     let worker = sofie_mail::worker(worker);
     #[cfg(feature = "notify")]
-    let worker = sofie_notify::worker(worker);
+    let worker = sofie_notify::jobs(worker);
     worker
 }
 

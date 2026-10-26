@@ -188,7 +188,7 @@ fn routes(routes: &mut Routes<Members>) {
 async fn start() -> TestApp {
     sofie_testing::start(
         |db: Db| async move { Ok(App::new(db).area::<Members>("shop", routes)) },
-        Worker::new,
+        |db| sofie_notify::housekeeping(Worker::new(db)),
     )
     .await
 }

@@ -85,12 +85,17 @@ pub fn install(db: &Db, setup: &Setup) {
 
 #[doc(hidden)]
 #[must_use]
-pub fn worker(worker: Worker) -> Worker {
+pub fn jobs(worker: Worker) -> Worker {
     worker
         .job(deliver::JOB, deliver::deliver)
         .job(push::JOB, push::push)
         .job(digest::JOB, digest::send_digest)
-        .every(retention::JOB, retention::EVERY, retention::prune)
+}
+
+#[doc(hidden)]
+#[must_use]
+pub fn housekeeping(worker: Worker) -> Worker {
+    worker.every(retention::JOB, retention::EVERY, retention::prune)
 }
 
 /// Sends notifications from a handler, job or task; each is delivered once the outcome commits.

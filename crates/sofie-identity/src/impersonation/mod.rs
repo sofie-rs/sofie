@@ -39,6 +39,8 @@ pub struct Impersonation {
     area: String,
     reason: String,
     session: Uuid,
+    /// The impersonator's own session, which must still live for stopping to sign back in.
+    started_from: Option<Uuid>,
     ends_at: Instant,
     ended_at: Option<Instant>,
     /// The member's permissions at the start, which the impersonator's covered; a request
@@ -221,6 +223,7 @@ where
     let granted = refuse_unless_within(&read, &permissions, member.id(), M::NAME).await?;
     let now = clock.now();
     let ends_at = now.checked_add(LASTS)?;
+    let started_from = session.current();
     let signed_in =
         sign_in::<M>(&session, member.id(), &clock)?.impersonated(impersonator.email(), ends_at);
     let current = signed_in.session();
@@ -232,6 +235,7 @@ where
         area: M::NAME.to_owned(),
         reason: reason.to_owned(),
         session: current,
+        started_from,
         ends_at,
         ended_at: None,
         granted: granted.join(&GRANTED_SEPARATOR.to_string()),
@@ -299,13 +303,29 @@ where
         .ok_or_else(|| Error::Rule(NOT_IMPERSONATING.to_owned()))?;
     impersonation.end(clock.now())?;
     let sessions = crate::sessions::ending_current(&read, &session, &clock).await?;
-    let impersonator = impersonation.impersonator;
-    membership::require(&unscoped.0.read(), impersonator, S::NAME).await?;
-    let signed_in = sign_in::<S>(&session, impersonator, &clock)?;
+    let signed_in = if returns::<S>(&unscoped.0.read(), &impersonation).await? {
+        Some(sign_in::<S>(&session, impersonation.impersonator, &clock)?)
+    } else {
+        session.sign_out();
+        None
+    };
     unscoped
         .0
         .commit(&mut (impersonation, sessions, signed_in))
         .await
+}
+
+/// The member's session outlives a password reset or "sign out everywhere" of the
+/// impersonator's account, so only the impersonator's own session still live signs it back in.
+async fn returns<S: Area>(read: &Read, impersonation: &Impersonation) -> Result<bool> {
+    let Some(started_from) = impersonation.started_from else {
+        return Ok(false);
+    };
+    let impersonator = impersonation.impersonator;
+    if crate::sessions::account_of(read, started_from).await? != Some(impersonator) {
+        return Ok(false);
+    }
+    Ok(held(read, impersonator, S::NAME).await?.is_some())
 }
 
 #[cfg(feature = "account-data")]
@@ -346,6 +366,20 @@ pub(crate) async fn ending_in_sessions(
         impersonation.end(now)?;
     }
     Ok(open)
+}
+
+/// The member sessions of the impersonations `impersonator` has open, for ending them with
+/// all of its own sessions.
+pub(crate) async fn sessions_started_by(read: &Read, impersonator: AccountId) -> Result<Vec<Uuid>> {
+    let open = Impersonation::query()
+        .where_(Impersonation::IMPERSONATOR.eq(impersonator))
+        .where_(Impersonation::ENDED_AT.is_null())
+        .all(read)
+        .await?;
+    Ok(open
+        .into_iter()
+        .map(|impersonation| impersonation.session)
+        .collect())
 }
 
 pub(crate) struct Unscoped(Db);

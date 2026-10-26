@@ -449,3 +449,34 @@ async fn a_member_ending_its_other_sessions_ends_an_impersonation_on_the_record(
 
     assert_eq!(assert_raised::<ImpersonationEnded>(&app).len(), 1);
 }
+
+#[tokio::test]
+async fn stopping_after_the_impersonators_own_session_ended_only_signs_out() {
+    let app = started().await;
+    let (grace, staff) = support::joined::<Console>(&app, "grace@example.com").await;
+    support::joined::<Member>(&app, "ada@example.com").await;
+    grant_impersonation(&app, grace).await;
+    let started = impersonate(&app, &staff, "ada@example.com").await;
+    started.assert_status(204);
+    let ada = started.session().expect("a session as the member");
+
+    app.query(
+        "UPDATE sofie_identity.account_session SET ended_at = now() WHERE account = $1",
+        &[sofie::core::SqlValue::Uuid(grace.uuid())],
+    )
+    .await;
+    let stopped = app
+        .post("/account/impersonation/stop")
+        .session(&ada)
+        .accept_json()
+        .await;
+    stopped.assert_status(204);
+
+    assert!(stopped.session().is_none(), "no staff session is opened");
+    app.get("/account/who")
+        .session(&ada)
+        .accept_json()
+        .await
+        .assert_status(401);
+    assert_raised::<ImpersonationEnded>(&app);
+}

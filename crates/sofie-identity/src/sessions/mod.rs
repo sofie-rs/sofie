@@ -274,9 +274,35 @@ pub(crate) async fn ending_everywhere(
     account: AccountId,
     now: Instant,
 ) -> Result<(Vec<AccountSession>, Impersonations)> {
-    let sessions = ending_all(read, account, None, now).await?;
+    #[cfg_attr(not(feature = "impersonation"), expect(unused_mut))]
+    let mut sessions = ending_all(read, account, None, now).await?;
+    #[cfg(feature = "impersonation")]
+    {
+        let started = crate::impersonation::sessions_started_by(read, account).await?;
+        sessions.extend(ending_sessions(read, started, now).await?);
+    }
     let impersonations = impersonations_in(read, &sessions, now).await?;
     Ok((sessions, impersonations))
+}
+
+#[cfg(feature = "impersonation")]
+async fn ending_sessions(
+    read: &Read,
+    sessions: Vec<Uuid>,
+    now: Instant,
+) -> Result<Vec<AccountSession>> {
+    if sessions.is_empty() {
+        return Ok(Vec::new());
+    }
+    let mut live = AccountSession::query()
+        .where_(AccountSession::SESSION.in_(sessions))
+        .where_(AccountSession::ENDED_AT.is_null())
+        .all(read)
+        .await?;
+    for record in &mut live {
+        record.end(now);
+    }
+    Ok(live)
 }
 
 /// Each of the account's live sessions in `area`, ended: for a membership of it removed,

@@ -15,8 +15,7 @@ use crate::AccountId;
     feature = "sign-in-links",
     feature = "totp",
     feature = "passkeys",
-    feature = "oauth",
-    feature = "impersonation"
+    feature = "oauth"
 ))]
 pub(crate) const NOT_A_MEMBER: &str = "This account may not sign in here.";
 
@@ -158,8 +157,7 @@ pub(crate) async fn held(
     feature = "sign-in-links",
     feature = "totp",
     feature = "passkeys",
-    feature = "oauth",
-    feature = "impersonation"
+    feature = "oauth"
 ))]
 pub(crate) async fn require(read: &Read, account: AccountId, area: &str) -> Result<()> {
     held(read, account, area)

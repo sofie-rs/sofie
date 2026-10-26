@@ -159,6 +159,8 @@ pub const fn migrations() -> Migrations {
         "0014_account_session_principal.sql",
         "0015_join_links.sql",
         "0016_impersonation_granted.sql",
+        "0017_impersonation_started_from.sql",
+        "0018_impersonation_impersonator.sql",
     ]
     .aggregates(AGGREGATES)
 }

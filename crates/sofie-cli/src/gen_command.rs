@@ -85,6 +85,11 @@ impl GenOutcome {
 
 /// Writing, it first makes the generated code reachable, as `sofie fix` would.
 pub fn gen_app(root: &Path, mode: GenMode) -> Result<Vec<GenOutcome>, GenError> {
+    generated_app(root, mode).map(|(_, outcomes)| outcomes)
+}
+
+/// The checked model the generated code was rendered from, so docs need not load it again.
+fn generated_app(root: &Path, mode: GenMode) -> Result<(App, Vec<GenOutcome>), GenError> {
     let mut app = sofie_model::load(root).map_err(GenError::Model)?;
     let mut outcomes = Vec::new();
     if mode == GenMode::Write {
@@ -96,7 +101,7 @@ pub fn gen_app(root: &Path, mode: GenMode) -> Result<Vec<GenOutcome>, GenError> 
     }
     let (screens, languages) = checked_parts(&app)?;
     outcomes.extend(sync_generated(&app, &screens, languages.as_ref(), mode)?);
-    Ok(outcomes)
+    Ok((app, outcomes))
 }
 
 pub fn regenerate(root: &Path) -> Result<Vec<String>, GenError> {
@@ -107,18 +112,28 @@ pub fn regenerate(root: &Path) -> Result<Vec<String>, GenError> {
 /// `sofie gen`: the generated code, then `docs/gen/` for an app keeping its docs, read from
 /// the model the new code gives.
 pub fn regenerated(root: &Path, mode: GenMode) -> Result<Vec<GenOutcome>, GenError> {
-    let mut outcomes = gen_app(root, mode)?;
-    outcomes.extend(regenerate_docs(root, mode)?);
+    let (app, mut outcomes) = generated_app(root, mode)?;
+    let docs = regenerate_docs(&app, &outcomes, mode)?;
+    outcomes.extend(docs);
     Ok(outcomes)
 }
 
+/// The model is loaded again only when the code just written can change it; that code was
+/// rendered from a checked model, so it is not checked again.
 #[cfg(feature = "docs")]
-fn regenerate_docs(root: &Path, mode: GenMode) -> Result<Vec<GenOutcome>, GenError> {
-    let app = checked_model(root)?;
-    if !crate::docs::keeps_docs(&app) {
+fn regenerate_docs(
+    app: &App,
+    outcomes: &[GenOutcome],
+    mode: GenMode,
+) -> Result<Vec<GenOutcome>, GenError> {
+    if !crate::docs::keeps_docs(app) {
         return Ok(Vec::new());
     }
-    crate::docs::sync_docs(&app, mode)
+    if !outcomes.iter().any(|outcome| outcome.change().is_some()) {
+        return crate::docs::sync_docs(app, mode);
+    }
+    let reloaded = sofie_model::load(&app.root).map_err(GenError::Model)?;
+    crate::docs::sync_docs(&reloaded, mode)
 }
 
 #[cfg(not(feature = "docs"))]
@@ -126,7 +141,11 @@ fn regenerate_docs(root: &Path, mode: GenMode) -> Result<Vec<GenOutcome>, GenErr
     clippy::unnecessary_wraps,
     reason = "the same signature as with `docs`"
 )]
-fn regenerate_docs(_root: &Path, _mode: GenMode) -> Result<Vec<GenOutcome>, GenError> {
+fn regenerate_docs(
+    _app: &App,
+    _outcomes: &[GenOutcome],
+    _mode: GenMode,
+) -> Result<Vec<GenOutcome>, GenError> {
     Ok(Vec::new())
 }
 

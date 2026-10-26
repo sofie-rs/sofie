@@ -21,7 +21,7 @@ use sofie_model::naming::{contract_package, crate_name, snake_case};
 use sofie_model::{App, Module};
 
 use crate::fix_command::generated_export_lines;
-use crate::gen_command::{GenError, GenMode, GenOutcome, gen_app};
+use crate::gen_command::{GenError, GenMode, GenOutcome, gen_app, regenerated};
 use crate::source_edits::{
     Journal, path_dependency, read, toml_escaped, with_dependency_line, with_lines_appended,
 };
@@ -190,7 +190,7 @@ pub fn new_module(root: &Path, name: &str) -> Result<Vec<GenOutcome>, GenError> 
                 with_dependency_line(&read(&manifest)?, &dependency),
             )
         })
-        .and_then(|()| gen_app(root, GenMode::Write));
+        .and_then(|()| regenerated(root, GenMode::Write));
     journal.finish(written)
 }
 

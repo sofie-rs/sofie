@@ -59,18 +59,23 @@ fn generate(root: &Path, original: &Path, generator: &Generator) -> ToolOutput {
         Ok(report) => report,
         Err(error) => return ToolOutput::from_error(root, &error),
     };
-    match regenerate(root) {
-        Ok(written) if written.is_empty() => text.push_str("sofie gen: everything up to date\n"),
-        Ok(written) => {
-            let _ = writeln!(text, "sofie gen:\n  {}", written.join("\n  "));
-        }
-        Err(error) => {
-            let failed = ToolOutput::from_error(root, &error);
-            return ToolOutput::failed(format!(
-                "{text}sofie gen failed, and the changes above are kept; fix what it reports and \
-                 run `gen`:\n{}",
-                failed.text
-            ));
+    // `new_module` ends in its own `sofie gen`, already in its report.
+    if !matches!(generator, Generator::NewModule(_)) {
+        match regenerate(root) {
+            Ok(written) if written.is_empty() => {
+                text.push_str("sofie gen: everything up to date\n");
+            }
+            Ok(written) => {
+                let _ = writeln!(text, "sofie gen:\n  {}", written.join("\n  "));
+            }
+            Err(error) => {
+                let failed = ToolOutput::from_error(root, &error);
+                return ToolOutput::failed(format!(
+                    "{text}sofie gen failed, and the changes above are kept; fix what it reports \
+                     and run `gen`:\n{}",
+                    failed.text
+                ));
+            }
         }
     }
     match check_app(root) {

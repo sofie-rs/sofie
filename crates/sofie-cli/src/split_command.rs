@@ -9,6 +9,7 @@ use sofie_model::{App, Module};
 
 use crate::env_example::remote_prefix;
 use crate::gen_command::{GenError, GenMode, GenOutcome, io_error, read_existing, regenerated};
+use crate::new_command::edits::with_feature_on;
 use crate::new_command::{
     app_sources, checked_name, dependency_line_start, find_module, refuse_existing, write_all,
 };
@@ -464,7 +465,13 @@ fn leave_app(journal: &mut Journal, plan: &SplitPlan) -> Result<(), GenError> {
         let path = relative_path(&plan.root.join("app"), &new_contract).unwrap_or_default();
         text = with_dependency_line(&text, &path_dependency(&plan.contract_package(), &path));
     }
-    text = with_sofie_feature(&text);
+    text = with_feature_on(&text, "sofie", FEATURE).ok_or_else(|| {
+        GenError::Usage(format!(
+            "{} has no one-line `sofie` dependency to turn the `{FEATURE}` feature on in; \
+             add `features = [\"{FEATURE}\"]` to it",
+            app_manifest.display()
+        ))
+    })?;
     text = with_metadata(&text, "remote", std::slice::from_ref(&plan.module));
     text = with_metadata(&text, "serves", &plan.calls_back);
     journal.write(&app_manifest, text)
@@ -676,35 +683,6 @@ fn without_dependency(text: &str, package: &str) -> String {
     format!("{}{kept}{}", &text[..start], &text[end..])
 }
 
-fn with_sofie_feature(text: &str) -> String {
-    let Some((start, end)) = toml_section(text, DEPENDENCIES) else {
-        return text.to_owned();
-    };
-    let edited: String = text[start..end]
-        .split_inclusive('\n')
-        .map(|line| {
-            let trimmed = line.trim_end();
-            if trimmed == "sofie.workspace = true" {
-                return format!("sofie = {{ workspace = true, features = [\"{FEATURE}\"] }}\n");
-            }
-            if !trimmed.starts_with("sofie = {") || trimmed.contains(FEATURE) {
-                return line.to_owned();
-            }
-            match trimmed.find("features = [") {
-                Some(at) => {
-                    let at = at + "features = [".len();
-                    format!("{}\"{FEATURE}\", {}\n", &trimmed[..at], &trimmed[at..])
-                }
-                None => format!(
-                    "{}, features = [\"{FEATURE}\"] }}\n",
-                    trimmed.trim_end_matches('}').trim_end()
-                ),
-            }
-        })
-        .collect();
-    format!("{}{edited}{}", &text[..start], &text[end..])
-}
-
 /// Adds `names` to `key` under `[package.metadata.sofie]`, the table `sofie_model` reads.
 fn with_metadata(text: &str, key: &str, names: &[String]) -> String {
     const TABLE: &str = "[package.metadata.sofie]";
@@ -773,7 +751,7 @@ mod tests {
     #[test]
     fn the_app_left_drops_the_module_and_turns_on_remote_contracts() {
         let text = without_dependency(MANIFEST, "order");
-        let text = with_sofie_feature(&text);
+        let text = with_feature_on(&text, "sofie", FEATURE).unwrap();
         let text = with_metadata(&text, "remote", &["order".to_owned()]);
         let text = with_metadata(&text, "remote", &["billing".to_owned()]);
 
@@ -782,16 +760,6 @@ mod tests {
             "[package]\nname = \"shop\"\n\n[package.metadata.sofie]\nremote = [\"billing\", \"order\"]\n\n\
              [dependencies]\nsofie = { workspace = true, features = [\"remote-contracts\"] }\n\
              order-contract = { path = \"../modules/order/contract\" }\n\n[lints]\nworkspace = true\n"
-        );
-    }
-
-    #[test]
-    fn an_sofie_dependency_with_features_gains_one_more() {
-        let text = "[dependencies]\nsofie = { workspace = true, features = [\"config\"] }\n";
-
-        assert_eq!(
-            with_sofie_feature(text),
-            "[dependencies]\nsofie = { workspace = true, features = [\"remote-contracts\", \"config\"] }\n"
         );
     }
 

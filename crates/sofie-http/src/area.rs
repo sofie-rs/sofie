@@ -25,9 +25,6 @@ pub enum Client {
     #[default]
     Html,
     Svelte,
-    /// The engine compiles it, but the build refuses it until the web toolchain carries a React
-    /// adapter.
-    React,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

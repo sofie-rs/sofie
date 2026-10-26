@@ -35,7 +35,7 @@ pub(crate) fn client_areas(app: &App) -> Vec<ClientArea<'_>> {
         .into_iter()
         .filter_map(|known| {
             let client = match known.definition?.client {
-                AreaClient::Html | AreaClient::React => return None,
+                AreaClient::Html => return None,
                 AreaClient::Svelte => Client::Svelte,
             };
             let screens: Vec<(String, &Path)> = app

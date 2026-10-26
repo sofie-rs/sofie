@@ -1523,9 +1523,8 @@ a Svelte area and an HTML area side by side.
   component and field control, renders them with Svelte on the server and
   compares the HTML with the engine's for the same template and data.
 
-Not covered yet: `Client::React` compiles in the engine but the build refuses
-it, as the web toolchain carries no React adapter (decided 2026-10-15: Svelte
-is enough for now); sign-in pages are in `Web`, an HTML area; the telemetry
+Not covered yet: React, as the web toolchain carries no React adapter
+(decided 2026-10-15: Svelte is enough for now); sign-in pages are in `Web`, an HTML area; the telemetry
 endpoint counts a `client` navigation under its catch-all name until it lists
 that name.
 

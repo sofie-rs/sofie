@@ -126,7 +126,6 @@ fn areas(app: &App) -> String {
                 "; its screens are compiled into Svelte components (`explain` and `components` \
                  hold for them too; markup, forms and actions behave as in HTML areas)"
             }
-            Some(sofie_model::AreaClient::React) => "; it names React, which the build refuses",
             _ => "",
         };
         let _ = writeln!(

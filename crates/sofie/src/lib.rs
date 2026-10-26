@@ -271,9 +271,12 @@ fn on_runtime(settings: &Settings, work: impl AsyncFnOnce(Db) -> Result<()>) -> 
         .block_on(async {
             sofie_telemetry::init()
                 .map_err(|error| Error::internal("starting telemetry", error))?;
-            settings::warn_on_old_signing_keys()?;
-            let db = database::connect(&settings.database_url, settings.pool)?;
-            let outcome = work(db).await;
+            let outcome = async {
+                settings::warn_on_old_signing_keys()?;
+                let db = database::connect(&settings.database_url, settings.pool)?;
+                work(db).await
+            }
+            .await;
             sofie_telemetry::shutdown().await;
             outcome
         })

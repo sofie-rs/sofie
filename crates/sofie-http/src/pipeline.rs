@@ -11,7 +11,7 @@ use http::request::Parts;
 use http::{Method, StatusCode};
 use http_body_util::{BodyExt, Full, LengthLimitError, Limited};
 use hyper::body::Incoming;
-use sofie_core::{Error, Timestamp, Uuid};
+use sofie_core::{Error, Uuid};
 use sofie_db::{Db, Reach};
 use tracing::Instrument;
 
@@ -513,7 +513,7 @@ pub(crate) struct Found<'r> {
     pub(crate) reach: Reach,
     /// Read once, so every check on the request sees the same instant.
     #[cfg(any(feature = "steps", feature = "idempotency", feature = "etag"))]
-    pub(crate) now: Timestamp,
+    pub(crate) now: sofie_core::Timestamp,
     #[cfg(feature = "gates")]
     pub(crate) gates: crate::gate::RequestGates,
 }

@@ -266,8 +266,11 @@ fn gen_writes_route_builders_and_member_areas_into_the_contract_until_written_by
     let fixture = Fixture::new();
     fixture.write(
         "Cargo.toml",
-        "[workspace]\nresolver = \"3\"\nmembers = [\"app\", \"modules/*\", \"modules/*/contract\"]\n",
+        "[workspace]\nresolver = \"3\"\nmembers = [\"app\", \"modules/*\", \"modules/*/contract\"]\n\n\
+         [workspace.dependencies]\nsofie = { path = \"sofie\" }\n",
     );
+    fixture.write("sofie/Cargo.toml", &manifest("sofie", ""));
+    fixture.write("sofie/src/lib.rs", "");
     fixture.write(
         "app/Cargo.toml",
         &manifest(
@@ -588,6 +591,39 @@ fn docs_are_written_and_held_to_the_code() {
         fixture
             .read("docs/gen/security.md")
             .contains("`/orders/old`")
+    );
+}
+
+#[test]
+fn a_new_aggregate_gives_the_contract_the_framework_its_generated_code_names() {
+    let directory = TemporaryDirectory::new("sofie-cli-new-aggregate");
+    let sofie = |arguments: &[&str], in_directory: &Path| {
+        Command::new(env!("CARGO_BIN_EXE_sofie"))
+            .args(arguments)
+            .current_dir(in_directory)
+            .output()
+            .unwrap()
+    };
+    sofie(&["new", "app", "demo"], directory.root());
+    let root = directory.path("demo");
+    sofie(&["new", "module", "catalog"], &root);
+
+    let aggregate = sofie(&["new", "aggregate", "catalog", "Product"], &root);
+    let check = sofie(&["check"], &root);
+
+    assert_eq!(
+        aggregate.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&aggregate.stderr)
+    );
+    let manifest = fs::read_to_string(root.join("modules/catalog/contract/Cargo.toml")).unwrap();
+    assert!(manifest.contains("sofie.workspace = true"), "{manifest}");
+    assert_eq!(
+        stdout(&check),
+        "ok\n",
+        "{}",
+        String::from_utf8_lossy(&check.stderr)
     );
 }
 

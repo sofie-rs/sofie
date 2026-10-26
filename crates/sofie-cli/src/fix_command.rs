@@ -11,7 +11,9 @@ use crate::gen_command::{GenError, io_error, regenerate};
 use crate::new_command::edits::with_feature_on;
 use crate::new_command::task::tasks_wiring;
 use crate::rustfmt::format_rust;
-use crate::source_edits::{add_dependency, append_lines, declare_module, read, write};
+use crate::source_edits::{
+    add_dependency, append_lines, declare_module, read, with_dependency_line, write,
+};
 
 pub struct FixReport {
     pub applied: Vec<String>,
@@ -156,13 +158,29 @@ fn export_generated(app: &App, module: &Module) -> Result<Vec<(PathBuf, String)>
         return Ok(Vec::new());
     };
     let lines = generated_export_lines(app, module);
-    if lines.is_empty() {
-        return Ok(Vec::new());
+    let mut applied = Vec::new();
+    if !lines.is_empty() {
+        let root = contract.path.join("src").join("lib.rs");
+        append_lines(&root, &lines)?;
+        let change = format!("added `{}` to {}", lines.join(" "), shown(app, &root));
+        applied.push((root, change));
     }
-    let root = contract.path.join("src").join("lib.rs");
-    append_lines(&root, &lines)?;
-    let change = format!("added `{}` to {}", lines.join(" "), shown(app, &root));
-    Ok(vec![(root, change)])
+    let exports_gen = module.contract_declares_gen || !lines.is_empty();
+    let names_framework = contract
+        .dependencies
+        .iter()
+        .any(|dependency| dependency.crate_name == "sofie");
+    // The generated code names `sofie`, which a contract fresh from `sofie new module` lacks.
+    if exports_gen && !names_framework {
+        let manifest = contract.path.join("Cargo.toml");
+        write(
+            &manifest,
+            with_dependency_line(&read(&manifest)?, "sofie.workspace = true\n"),
+        )?;
+        let change = format!("added `sofie` to {}", shown(app, &manifest));
+        applied.push((manifest, change));
+    }
+    Ok(applied)
 }
 
 /// What the contract's `lib.rs` lacks to declare and export the code `sofie gen` writes into it.

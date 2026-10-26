@@ -58,7 +58,8 @@ pub const fn migrations() -> Migrations {
             [
                 "0001_create_billing.sql",
                 "0002_provider_customer.sql",
-                "0003_seats_asked.sql"
+                "0003_seats_asked.sql",
+                "0004_started_at.sql"
             ]
         ),
     )
@@ -67,7 +68,8 @@ pub const fn migrations() -> Migrations {
         [
             "0001_create_billing.sql",
             "0002_provider_customer.sql",
-            "0003_seats_asked.sql"
+            "0003_seats_asked.sql",
+            "0004_started_at.sql"
         ]
     ))
     .aggregates(AGGREGATES)

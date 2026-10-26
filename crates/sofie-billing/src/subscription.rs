@@ -19,7 +19,10 @@ pub(crate) struct Subscription {
     seats: i64,
     /// Kept once set, so an owner gets one trial.
     trial_ends_at: Option<Timestamp>,
-    /// Where quota periods are counted from.
+    /// Where quota periods are counted from: when this trial or provider subscription began,
+    /// kept across renewals, which move `period_start`. Unset on a row written before it
+    /// existed, which counts from the `period_start` it held then.
+    started_at: Option<Timestamp>,
     period_start: Timestamp,
     period_ends_at: Option<Timestamp>,
     cancels_at_period_end: bool,
@@ -58,6 +61,7 @@ impl Subscription {
             status,
             seats: 1,
             trial_ends_at: None,
+            started_at: Some(now),
             period_start: now,
             period_ends_at: None,
             cancels_at_period_end: false,
@@ -89,6 +93,7 @@ impl Subscription {
         self.status = Status::Trialing;
         self.seats = 1;
         self.trial_ends_at = Some(trial_end(plan, now)?);
+        self.started_at = Some(now);
         self.period_start = now;
         self.period_ends_at = None;
         self.cancels_at_period_end = false;
@@ -169,6 +174,11 @@ impl Subscription {
         plan: &str,
         now: Timestamp,
     ) -> Result<()> {
+        self.started_at = Some(if self.is_held(change) {
+            self.started_at()
+        } else {
+            change.period_start
+        });
         plan.clone_into(&mut self.plan);
         self.status = status;
         self.seats = i64::from(change.quantity);
@@ -249,8 +259,8 @@ impl Subscription {
         u32::try_from(self.seats).unwrap_or(u32::MAX)
     }
 
-    pub(crate) fn period_start(&self) -> Timestamp {
-        self.period_start
+    pub(crate) fn started_at(&self) -> Timestamp {
+        self.started_at.unwrap_or(self.period_start)
     }
 
     pub(crate) fn trial_ends_at(&self) -> Option<Timestamp> {
@@ -299,6 +309,7 @@ impl Aggregate for Subscription {
         Field::new("created_at", Timestamp::COLUMNS, false),
         Field::new("changed_at", Timestamp::COLUMNS, false),
         Field::new("seats_asked", i64::COLUMNS, true),
+        Field::new("started_at", Timestamp::COLUMNS, true),
     ];
     const UNIQUE: &'static [&'static str] = &["subscriber"];
     /// So an owned area's principal starts a trial for itself and nobody else.
@@ -332,6 +343,7 @@ impl Aggregate for Subscription {
         self.created_at.encode(out);
         self.changed_at.encode(out);
         self.seats_asked.encode(out);
+        self.started_at.encode(out);
     }
 
     fn decode(meta: Meta, row: &mut dyn ColumnReader) -> Result<Self> {
@@ -352,6 +364,7 @@ impl Aggregate for Subscription {
             created_at: Timestamp::decode(row)?,
             changed_at: Timestamp::decode(row)?,
             seats_asked: Option::decode(row)?,
+            started_at: Option::decode(row)?,
         })
     }
 }
@@ -411,5 +424,31 @@ mod tests {
 
         assert!(matches!(same_second, Followed::Ignored(_)));
         assert_eq!(subscription.plan_held(now), None);
+    }
+
+    #[test]
+    fn a_renewal_keeps_where_quotas_are_counted_from() {
+        let started: Timestamp = "2026-10-14T10:00:00Z".parse().unwrap();
+        let renewed: Timestamp = "2026-11-14T10:00:00Z".parse().unwrap();
+        let mut subscription = Subscription::from_provider(
+            "stripe",
+            &change(Status::Active, started),
+            Status::Active,
+            "pro",
+            started,
+        )
+        .unwrap();
+
+        subscription
+            .follow(
+                "stripe",
+                &change(Status::Active, renewed),
+                Status::Active,
+                "pro",
+                renewed,
+            )
+            .unwrap();
+
+        assert_eq!(subscription.started_at(), started);
     }
 }

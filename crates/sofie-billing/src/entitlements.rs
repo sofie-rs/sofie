@@ -34,7 +34,7 @@ impl Entitlements {
             seats: plan
                 .seat_rule()
                 .seats(paying.map_or(0, Subscription::seats)),
-            anchor: paying.map_or(Timestamp::UNIX_EPOCH, Subscription::period_start),
+            anchor: paying.map_or(Timestamp::UNIX_EPOCH, Subscription::started_at),
             billing,
         }
     }

@@ -297,6 +297,7 @@ impl Pipeline {
                     parameters,
                     session: session.clone(),
                     reach,
+                    #[cfg(any(feature = "steps", feature = "idempotency", feature = "etag"))]
                     now,
                     #[cfg(feature = "gates")]
                     gates,
@@ -526,6 +527,7 @@ pub(crate) struct Found<'r> {
     pub(crate) session: RequestSession,
     pub(crate) reach: Reach,
     /// Read once, so every check on the request sees the same instant.
+    #[cfg(any(feature = "steps", feature = "idempotency", feature = "etag"))]
     pub(crate) now: Timestamp,
     #[cfg(feature = "gates")]
     pub(crate) gates: crate::gate::RequestGates,

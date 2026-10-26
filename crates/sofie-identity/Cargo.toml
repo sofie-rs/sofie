@@ -62,7 +62,7 @@ impersonation = ["permissions", "sessions", "sofie/resources"]
 # Internal: what each mails a signed link with.
 links = ["account-links", "sofie/mail"]
 # Internal: single-use links an account follows, signed.
-account-links = ["sofie/signed-links"]
+account-links = ["sofie/retention", "sofie/signed-links"]
 
 [dependencies]
 # The app chooses its database and whether Postgres takes TLS; sign-in pages need screens.

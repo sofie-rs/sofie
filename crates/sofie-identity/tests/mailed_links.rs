@@ -380,6 +380,22 @@ async fn a_changed_or_expired_link_opens_nothing() {
 }
 
 #[tokio::test]
+async fn links_expired_over_an_hour_ago_are_pruned() {
+    let app = started().await;
+    sign_up(&app, "members").await;
+    ask_reset(&app, "ada@example.com").await;
+    app.drain().await;
+
+    app.clock().advance(Duration::from_mins(121)).unwrap();
+    app.drain().await;
+
+    let links = app
+        .query("SELECT count(*) FROM sofie_identity.account_link", &[])
+        .await;
+    assert_eq!(links, [vec![sofie::core::SqlValue::Int(0)]]);
+}
+
+#[tokio::test]
 async fn an_area_requiring_a_confirmed_address_signs_in_only_after_its_link() {
     let app = started().await;
 

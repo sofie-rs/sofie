@@ -63,6 +63,7 @@ async fn reset_password(
     let mut others = AccountLink::query()
         .where_(AccountLink::ACCOUNT.eq(link.account()))
         .where_(AccountLink::USED_AT.is_null())
+        .where_(AccountLink::EXPIRES_AT.gt(now))
         .all(&read)
         .await?;
     others.retain(|other| other.id() != link.id());

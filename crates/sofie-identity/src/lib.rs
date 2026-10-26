@@ -171,6 +171,7 @@ pub const fn migrations() -> Migrations {
         "0016_impersonation_granted.sql",
         "0017_impersonation_started_from.sql",
         "0018_impersonation_impersonator.sql",
+        "0019_account_link_expires.sql",
     ]
     .aggregates(AGGREGATES)
 }
@@ -264,6 +265,12 @@ pub fn worker(worker: Worker) -> Worker {
         "sofie_identity.prune_sessions",
         sessions::PRUNE_EVERY,
         sessions::prune,
+    );
+    #[cfg(feature = "account-links")]
+    let worker = worker.every(
+        "sofie_identity.prune_account_links",
+        account_link::PRUNE_EVERY,
+        account_link::prune,
     );
     worker
 }

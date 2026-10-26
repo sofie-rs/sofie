@@ -50,6 +50,9 @@ pub struct LinkPage {
     used_at: Option<Instant>,
 }
 
+pub(crate) const PRUNE_EVERY: Duration = Duration::from_hours(1);
+const PRUNE_MARGIN: Duration = Duration::from_hours(1);
+
 pub(crate) const INVALID: &str = "This link is invalid, was used already or has expired.";
 
 impl AccountLink {
@@ -148,6 +151,15 @@ pub(crate) fn signed_action(
     urls.sign(path, left)
 }
 
+/// Kept an hour past its expiry, so the hourly limit on mailed links still counts it.
+pub(crate) async fn prune(prune: sofie::db::Prune, clock: Clock) -> Result<()> {
+    let before = clock.now().checked_sub(PRUNE_MARGIN)?;
+    prune
+        .before(AccountLink::EXPIRES_AT, before)
+        .await
+        .map(drop)
+}
+
 /// Used up, so no link mailed before the account closed opens it again.
 #[cfg(feature = "account-data")]
 pub(crate) async fn closing(
@@ -158,6 +170,7 @@ pub(crate) async fn closing(
     let mut unused = AccountLink::query()
         .where_(AccountLink::ACCOUNT.eq(account))
         .where_(AccountLink::USED_AT.is_null())
+        .where_(AccountLink::EXPIRES_AT.gt(now))
         .all(read)
         .await?;
     for link in &mut unused {

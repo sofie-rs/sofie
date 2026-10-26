@@ -141,7 +141,9 @@ impl Subscription {
                 "another subscription than the one held, canceled",
             ));
         }
-        if !same && self.runs_one_started_after(change) {
+        // A canceled one held leaves any other subscription to be followed.
+        let running = self.status != Status::Canceled;
+        if !same && running && started_before(change, self.provider_started_at) {
             return Ok(Followed::Ignored(
                 "another subscription started before the running one held",
             ));
@@ -173,15 +175,6 @@ impl Subscription {
 
     pub(crate) fn is_held(&self, change: &SubscriptionChange) -> bool {
         self.reference.as_deref() == Some(change.subscription.as_str())
-    }
-
-    /// A canceled one held leaves any other subscription to be followed.
-    fn runs_one_started_after(&self, change: &SubscriptionChange) -> bool {
-        let running = self.status != Status::Canceled;
-        match (self.provider_started_at, change.started_at) {
-            (Some(held), Some(other)) => running && other < held,
-            _ => false,
-        }
     }
 
     fn take(
@@ -301,6 +294,10 @@ impl Subscription {
         };
         self.meta.raise(changed)
     }
+}
+
+fn started_before(change: &SubscriptionChange, held: Option<Timestamp>) -> bool {
+    matches!((change.started_at, held), (Some(other), Some(held)) if other < held)
 }
 
 fn trial_end(plan: &Plan, now: Timestamp) -> Result<Timestamp> {

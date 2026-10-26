@@ -120,11 +120,13 @@ impl LogFields for crate::LocalDateTime {
     }
 }
 
+/// Two decimals, about a kilometre: a full-precision position is personal, an area is not.
 #[cfg(feature = "geo")]
 impl LogFields for crate::Coordinate {
     fn log_fields(&self, field: &mut dyn FnMut(Option<&'static str>, LogValue<'_>)) {
-        field(Some("latitude"), LogValue::Float(self.latitude()));
-        field(Some("longitude"), LogValue::Float(self.longitude()));
+        let rounded = |degrees: f64| LogValue::Float((degrees * 100.0).round() / 100.0);
+        field(Some("latitude"), rounded(self.latitude()));
+        field(Some("longitude"), rounded(self.longitude()));
     }
 }
 
@@ -160,6 +162,19 @@ mod tests {
             [
                 (Some("minor"), "Integer(14990)".to_owned()),
                 (Some("currency"), "Text(\"EUR\")".to_owned())
+            ]
+        );
+    }
+
+    #[cfg(feature = "geo")]
+    #[test]
+    fn a_coordinate_logs_rounded_to_about_a_kilometre() {
+        let home = crate::Coordinate::try_new(41.008_237, -28.978_359).unwrap();
+        assert_eq!(
+            logged(&home),
+            [
+                (Some("latitude"), "Float(41.01)".to_owned()),
+                (Some("longitude"), "Float(-28.98)".to_owned())
             ]
         );
     }

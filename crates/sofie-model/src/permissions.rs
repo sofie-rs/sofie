@@ -91,18 +91,12 @@ fn aggregate_permissions(module: &str, aggregate: &Aggregate) -> Vec<String> {
     record.chain(fields).collect()
 }
 
-/// `read` for a page, else the handler's first word, on the longest aggregate name its other words spell, or else its last word.
-/// A write never needs `read`, which a read-only member holds: `read_notifications` marks them, so it needs `update`.
+/// The handler's action on the longest aggregate name its other words spell, or else its last word.
 #[must_use]
 pub fn route_permission(module: &Module, route: &Route) -> String {
     let handler = route.handler.last().map_or("", String::as_str);
     let words: Vec<&str> = handler.split('_').filter(|word| !word.is_empty()).collect();
-    let (action, subject) = match (route.method, words.split_first()) {
-        (Method::Get, _) => ("read", words.as_slice()),
-        (_, None) => ("update", words.as_slice()),
-        (_, Some((&"read", rest))) => ("update", rest),
-        (_, Some((verb, rest))) => (*verb, rest),
-    };
+    let (action, subject) = route_action(route.method, &words);
     let models: Vec<String> = module
         .code
         .aggregates
@@ -114,6 +108,20 @@ pub fn route_permission(module: &Module, route: &Route) -> String {
         "{}.{model}.{WHOLE_RECORD}.{action}",
         module.krate.crate_name
     )
+}
+
+/// `read` for a page, but a `new_` or `edit_` form needs the right to submit it, as sofie-http
+/// enforces; else the handler's first word. A write never needs `read`, which a read-only member
+/// holds: `read_notifications` marks them, so it needs `update`.
+fn route_action<'a>(method: Method, words: &'a [&'a str]) -> (&'a str, &'a [&'a str]) {
+    match (method, words.split_first()) {
+        (Method::Get, Some((&"new", rest))) => ("create", rest),
+        (Method::Get, Some((&"edit", rest))) => ("update", rest),
+        (Method::Get, _) => ("read", words),
+        (_, None) => ("update", words),
+        (_, Some((&"read", rest))) => ("update", rest),
+        (_, Some((verb, rest))) => (verb, rest),
+    }
 }
 
 /// A resource's list handler spells its record's plural, as `list_opening_hours`.
@@ -163,7 +171,8 @@ fn singular(word: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{permission_constant, singular, subject_model};
+    use super::{permission_constant, route_action, singular, subject_model};
+    use crate::Method;
 
     #[test]
     fn a_permission_s_constant_names_its_model_field_and_action() {
@@ -171,6 +180,23 @@ mod tests {
         assert_eq!(
             permission_constant("order.order_line.total.read"),
             "ORDER_LINE_TOTAL_READ"
+        );
+    }
+
+    #[test]
+    fn a_form_page_needs_the_action_its_form_submits() {
+        assert_eq!(
+            route_action(Method::Get, &["new", "order"]),
+            ("create", &["order"][..])
+        );
+        assert_eq!(
+            route_action(Method::Get, &["edit", "order"]),
+            ("update", &["order"][..])
+        );
+        assert_eq!(route_action(Method::Get, &["show", "order"]).0, "read");
+        assert_eq!(
+            route_action(Method::Post, &["read", "notifications"]).0,
+            "update"
         );
     }
 

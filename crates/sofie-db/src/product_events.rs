@@ -17,7 +17,6 @@ pub struct ProductSql {
     pub cohorts: &'static str,
     /// Deletes at most a batch, answering a row per event deleted.
     pub prune: &'static str,
-    /// Deletes a principal's events; `forget_principal` runs it after recording the principal.
     pub forget: &'static str,
     /// Deletes what a write racing `forget` kept.
     pub sweep: &'static str,

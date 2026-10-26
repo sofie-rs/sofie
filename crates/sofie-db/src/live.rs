@@ -60,7 +60,6 @@ pub enum Readers {
     Unrestricted,
 }
 
-/// Ordered by topic first, so sorted changes group by table.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct TableChange {
     pub topic: Topic,

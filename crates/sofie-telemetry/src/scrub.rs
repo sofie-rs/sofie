@@ -56,7 +56,6 @@ const RULES: [Rule; 7] = [
     personal::ip_addresses,
 ];
 
-/// A span's fields, scrubbed once on the writer's thread however many lines it is in.
 #[derive(Clone, Debug, Default)]
 pub(crate) struct SpanFields {
     raw: Fields,
@@ -92,7 +91,6 @@ impl Deref for SpanFields {
     }
 }
 
-/// Spans are scrubbed as they render, through [`SpanFields::scrubbed`].
 pub(crate) fn scrub(line: &mut PendingLine) {
     for (name, value) in line.fields.iter_mut() {
         if let Some(clean) = scrubbed(name, value) {

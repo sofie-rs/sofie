@@ -220,8 +220,6 @@ impl Messages {
         self.db.transaction(steps).await
     }
 
-    /// A schedule stored under another cadence starts over from `first_at`; one stored under
-    /// `previous_cadence`, the same cadence in an older key's text, keeps its time.
     pub async fn add_schedule(
         &self,
         name: &str,

@@ -1,4 +1,3 @@
-/// How a type's name becomes a table, column or error field: `HTTPStatus` as `http_status`.
 /// sofie-macros has no dependencies, so it keeps a copy its tests hold to this one.
 #[must_use]
 pub fn snake_case(name: &str) -> String {

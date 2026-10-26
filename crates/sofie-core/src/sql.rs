@@ -121,7 +121,6 @@ const fn names_column(name: &str, columns: &[ColumnSpec], other: &str, suffix: &
     false
 }
 
-/// Whether `left` and `left_suffix` name the same column as `right` and `right_suffix`.
 #[doc(hidden)]
 #[must_use]
 pub const fn same_column(left: &str, left_suffix: &str, right: &str, right_suffix: &str) -> bool {

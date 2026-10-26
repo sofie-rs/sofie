@@ -27,8 +27,7 @@ fn is_word_character(character: char) -> bool {
     character.is_alphanumeric() || is_combining_mark(character)
 }
 
-/// `Email`'s local-part characters; symbols before the first letter or digit, such as a quote
-/// or a URL's `//`, are left outside.
+/// `Email`'s local-part characters, less leading symbols such as a quote or a URL's `//`.
 fn local_part_start(text: &str, at: usize) -> usize {
     let start = text[..at]
         .char_indices()

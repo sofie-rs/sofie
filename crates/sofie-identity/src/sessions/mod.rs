@@ -298,7 +298,6 @@ pub async fn ending_as(
     ending(read, which, now).await
 }
 
-/// Sessions ended, with the impersonations in them.
 pub struct Ended {
     sessions: Vec<AccountSession>,
     impersonations: Impersonations,

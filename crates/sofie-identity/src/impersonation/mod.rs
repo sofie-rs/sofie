@@ -368,8 +368,6 @@ pub(crate) async fn ending_in_sessions(
     Ok(open)
 }
 
-/// The member sessions of the impersonations `impersonator` has open, for ending them with
-/// all of its own sessions.
 pub(crate) async fn sessions_started_by(read: &Read, impersonator: AccountId) -> Result<Vec<Uuid>> {
     let open = Impersonation::query()
         .where_(Impersonation::IMPERSONATOR.eq(impersonator))

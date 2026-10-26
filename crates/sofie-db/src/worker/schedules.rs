@@ -69,7 +69,6 @@ impl Cadence {
         }
     }
 
-    /// Stored beside the schedule: a different key starts the schedule over.
     fn key(self) -> String {
         match self {
             Self::Interval(interval) => format!("every {}ms", interval.as_millis()),

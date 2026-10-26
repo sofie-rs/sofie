@@ -63,6 +63,7 @@ impl<A: Aggregate, T: Cast> Column<A, T> {
             .partition(|row| row.contains(&SqlValue::Null));
         let listed = Kind::In {
             columns: columns.clone(),
+            types: T::COLUMNS.iter().map(|column| column.ty).collect(),
             rows,
         };
         let kind = holding_null.into_iter().fold(listed, |kind, values| {
@@ -232,6 +233,7 @@ pub(crate) enum Kind {
     },
     In {
         columns: Vec<String>,
+        types: Vec<SqlType>,
         rows: Vec<Vec<SqlValue>>,
     },
     Null(Vec<String>),
@@ -457,6 +459,73 @@ mod tests {
                 vec![SqlValue::Int(1), SqlValue::Int(2), SqlValue::Int(9)]
             )
         );
+    }
+
+    struct Arrays;
+
+    impl crate::Dialect for Arrays {
+        fn push_placeholder(&self, sql: &mut String, index: usize) {
+            NUMBERED.push_placeholder(sql, index);
+        }
+
+        fn binds_arrays(&self) -> bool {
+            true
+        }
+
+        fn migrations_setup(&self) -> &'static str {
+            unimplemented!()
+        }
+
+        fn migrations_lock(&self) -> &'static str {
+            unimplemented!()
+        }
+
+        fn enter_schema(&self, _schema: &str) -> String {
+            unimplemented!()
+        }
+
+        fn framework_migrations(&self) -> crate::Migrations {
+            unimplemented!()
+        }
+
+        fn messages(&self) -> &'static crate::MessageSql {
+            NUMBERED.messages()
+        }
+    }
+
+    #[test]
+    fn listed_values_of_several_columns_bind_one_array_per_column_where_arrays_bind() {
+        let period: Column<Note, Option<Period>> = Column::new("period");
+        let closed = |from| {
+            Some(Period {
+                from: Some(from),
+                until: 9,
+            })
+        };
+        let open = Some(Period {
+            from: None,
+            until: 9,
+        });
+        let render = |condition: Condition<Note>| {
+            let (mut sql, mut params) = (String::new(), Vec::new());
+            condition.kind.render_into(&Arrays, &mut params, &mut sql);
+            (sql, params)
+        };
+
+        let (one, _) = render(period.in_([closed(1)]));
+        let (three, params) = render(period.in_([closed(1), open, closed(2), closed(3)]));
+
+        assert_eq!(
+            one,
+            "((\"period_from\", \"period_until\") IN \
+             (SELECT * FROM unnest($1::bigint[], $2::bigint[])))"
+        );
+        assert_eq!(
+            three,
+            format!("({one} OR (\"period_from\" IS NULL AND \"period_until\" = $3))")
+        );
+        let ints = |values: [i64; 3]| SqlValue::Array(values.map(SqlValue::Int).to_vec());
+        assert_eq!(params, [ints([1, 2, 3]), ints([9, 9, 9]), SqlValue::Int(9)]);
     }
 
     #[test]

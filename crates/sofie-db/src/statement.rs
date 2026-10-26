@@ -318,6 +318,7 @@ mod tests {
         let (mut sql, mut params) = (String::new(), Vec::new());
         let kind = Kind::In {
             columns: vec!["total".to_owned(), "total_currency".to_owned()],
+            types: vec![SqlType::Int, SqlType::Text],
             rows: vec![vec![SqlValue::Int(1), SqlValue::Text("EUR".to_owned())]],
         };
 

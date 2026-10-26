@@ -1,5 +1,6 @@
 use sofie_core::{
-    Cast, Clock, ColumnReader, Error, Instant, Result, SqlValue, TestClock, Timestamp,
+    Cast, Clock, ColumnReader, ColumnSpec, Error, Instant, Result, SqlType, SqlValue, TestClock,
+    Timestamp,
 };
 use sofie_db::{
     Aggregate, Behavior, Column, Condition, Db, Field, File, Load, Meta, Migrations, Page, Select,
@@ -200,6 +201,68 @@ async fn conditions_match_ranges_lists_patterns_and_existence() {
     assert!(long.exists(&read).await.unwrap());
     let longer = Book::query().where_(Book::PAGES.gt(500));
     assert!(!longer.exists(&read).await.unwrap());
+}
+
+/// Spans a book's own title and pages columns, so a value of several columns needs no table of its own.
+struct Edition {
+    title: &'static str,
+    pages: i64,
+}
+
+impl Cast for Edition {
+    const COLUMNS: &'static [ColumnSpec] = &[
+        ColumnSpec::new("title", SqlType::Text),
+        ColumnSpec::new("pages", SqlType::Int),
+    ];
+
+    fn encode(&self, out: &mut Vec<SqlValue>) {
+        self.title.to_owned().encode(out);
+        self.pages.encode(out);
+    }
+
+    fn decode(_: &mut dyn ColumnReader) -> Result<Self> {
+        unimplemented!("only listed in a condition")
+    }
+}
+
+#[tokio::test]
+async fn values_of_several_columns_are_listed_whatever_their_number() {
+    let (_database, db) = library(Clock::system()).await;
+    shelved(&db, &[("Dune", 412), ("Emma", 474), ("Ulysses", 730)]).await;
+    let read = db.read();
+    let edition: Column<Book, Edition> = Column::new("");
+    let listed = |editions: Vec<Edition>| {
+        Book::query()
+            .where_(edition.in_(editions))
+            .order_by(Book::PAGES.asc())
+            .all(&read)
+    };
+
+    let one = listed(vec![Edition {
+        title: "Dune",
+        pages: 412,
+    }])
+    .await
+    .unwrap();
+    let three = listed(vec![
+        Edition {
+            title: "Emma",
+            pages: 474,
+        },
+        Edition {
+            title: "Dune",
+            pages: 1,
+        },
+        Edition {
+            title: "Ulysses",
+            pages: 730,
+        },
+    ])
+    .await
+    .unwrap();
+
+    assert_eq!(titles(&one), ["Dune"]);
+    assert_eq!(titles(&three), ["Emma", "Ulysses"]);
 }
 
 #[tokio::test]

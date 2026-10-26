@@ -1,4 +1,4 @@
-use sofie_core::SqlValue;
+use sofie_core::{SqlType, SqlValue};
 
 use super::{InSelect, Kind};
 use crate::Dialect;
@@ -52,7 +52,11 @@ impl Renderer<'_> {
                 self.bind(high);
                 self.sql.push(')');
             }
-            Kind::In { columns, rows } => self.render_in(columns, rows),
+            Kind::In {
+                columns,
+                types,
+                rows,
+            } => self.render_in(columns, types, rows),
             Kind::Null(columns) => self.each_column(columns, |renderer, _, column| {
                 renderer.quoted(column);
                 renderer.sql.push_str(" IS NULL");
@@ -133,7 +137,7 @@ impl Renderer<'_> {
         self.sql.push_str("))");
     }
 
-    fn render_in(&mut self, columns: &[String], rows: &[Vec<SqlValue>]) {
+    fn render_in(&mut self, columns: &[String], types: &[SqlType], rows: &[Vec<SqlValue>]) {
         if rows.is_empty() {
             self.sql.push_str("(1 = 0)");
             return;
@@ -151,6 +155,10 @@ impl Renderer<'_> {
             renderer.quoted(&columns[index]);
         });
         self.sql.push_str(" IN (");
+        if self.dialect.binds_arrays() {
+            self.unnest(types, rows);
+            return;
+        }
         for (index, row) in rows.iter().enumerate() {
             if index > 0 {
                 self.sql.push_str(", ");
@@ -158,6 +166,24 @@ impl Renderer<'_> {
             self.tuple(row.len(), |renderer, index| renderer.bind(&row[index]));
         }
         self.sql.push_str("))");
+    }
+
+    /// One array per column, so the text stays the same whatever the number of rows.
+    fn unnest(&mut self, types: &[SqlType], rows: &[Vec<SqlValue>]) {
+        self.sql.push_str("SELECT * FROM unnest(");
+        for (index, ty) in types.iter().enumerate() {
+            if index > 0 {
+                self.sql.push_str(", ");
+            }
+            let column = rows.iter().map(|row| row[index].clone()).collect();
+            self.params.push(SqlValue::Array(column));
+            self.dialect.push_placeholder(self.sql, self.params.len());
+            // Unlike `= ANY`, unnest gives the server no column to infer an array's type from.
+            self.sql.push_str("::");
+            self.sql.push_str(postgres_type(*ty));
+            self.sql.push_str("[]");
+        }
+        self.sql.push_str(")))");
     }
 
     fn tuple(&mut self, count: usize, mut part: impl FnMut(&mut Self, usize)) {
@@ -173,6 +199,20 @@ impl Renderer<'_> {
             part(self, index);
         }
         self.sql.push(')');
+    }
+}
+
+const fn postgres_type(ty: SqlType) -> &'static str {
+    match ty {
+        SqlType::Bool => "boolean",
+        SqlType::Int => "bigint",
+        SqlType::Float => "double precision",
+        SqlType::Text => "text",
+        SqlType::Bytes => "bytea",
+        SqlType::Uuid => "uuid",
+        SqlType::Timestamp => "timestamptz",
+        SqlType::Date => "date",
+        SqlType::DateTime => "timestamp",
     }
 }
 

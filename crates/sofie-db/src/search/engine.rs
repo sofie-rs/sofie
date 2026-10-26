@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use sofie_core::{Error, Result, SqlValue, Uuid};
+use sofie_core::{Error, Result, SqlType, SqlValue, Uuid};
 
 use crate::condition::Kind;
 use crate::statement::Criteria;
@@ -144,6 +144,7 @@ pub(crate) async fn matched(mut criteria: Criteria, read: &Read) -> Result<Crite
         };
         *search = Kind::In {
             columns: vec!["id".to_owned()],
+            types: vec![SqlType::Uuid],
             rows: ids.into_iter().map(|id| vec![SqlValue::Uuid(id)]).collect(),
         };
     }

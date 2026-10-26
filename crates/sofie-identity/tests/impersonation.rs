@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use serde_json::{Value, json};
 use sofie::db::{Db, Outcome, ReadOnly, Reply};
-use sofie::http::Gates;
+use sofie::http::{Gates, Permission, RoutePermission};
 use sofie::prelude::*;
 use sofie_identity::impersonation::{Impersonating, ImpersonationEnded, ImpersonationStarted};
 use sofie_identity::{AccountId, Memberships};
@@ -12,6 +12,25 @@ use sofie_testing::{TestApp, TestResponse, TestSession, assert_raised};
 use support::{Console, Member};
 
 mod support;
+
+const OWN_SESSIONS: Permission = Permission::new("sofie_identity.account_session.*.update");
+const ROUTE_PERMISSIONS: &[RoutePermission] = &[
+    RoutePermission {
+        method: "GET",
+        path: "/console/sessions",
+        permission: OWN_SESSIONS,
+    },
+    RoutePermission {
+        method: "POST",
+        path: "/console/sessions/{account_session}/end",
+        permission: OWN_SESSIONS,
+    },
+    RoutePermission {
+        method: "POST",
+        path: "/console/sessions/others",
+        permission: OWN_SESSIONS,
+    },
+];
 
 struct Who(Option<String>);
 
@@ -36,7 +55,7 @@ async fn started() -> TestApp {
             Ok(App::new(db)
                 .screens(screens)
                 .membership(Memberships)
-                .gates(Gates::default())
+                .gates(Gates::default().route_permissions(ROUTE_PERMISSIONS))
                 .area::<Web>("sofie_identity", sofie_identity::routes::<Console>)
                 .area::<Web>("sofie_identity", sofie_identity::routes::<Member>)
                 .area::<Console>(
@@ -459,7 +478,16 @@ async fn an_impersonator_ending_its_other_sessions_ends_the_impersonations_it_st
     let app = started().await;
     let (grace, staff) = support::joined::<Console>(&app, "grace@example.com").await;
     support::joined::<Member>(&app, "ada@example.com").await;
-    grant_impersonation(&app, grace).await;
+    support::grant_role(
+        &app,
+        grace,
+        "support",
+        &[
+            "sofie_identity.impersonation.*.*",
+            "sofie_identity.account_session.*.update",
+        ],
+    )
+    .await;
     let ada = impersonate(&app, &staff, "ada@example.com")
         .await
         .session()

@@ -14,8 +14,7 @@ pub(super) fn email_addresses(text: &str) -> Vec<Range<usize>> {
         let at = from + found;
         from = at + 1;
         let start = local_part_start(text, at);
-        let has_local_part = text[start..at].chars().any(is_word_character);
-        if let Some(end) = domain_end(text, at + 1).filter(|_| has_local_part) {
+        if let Some(end) = domain_end(text, at + 1).filter(|_| start < at) {
             ranges.push(start..end);
             from = end;
         }
@@ -28,12 +27,21 @@ fn is_word_character(character: char) -> bool {
     character.is_alphanumeric() || is_combining_mark(character)
 }
 
+/// `Email`'s local-part characters; symbols before the first letter or digit, such as a quote
+/// or a URL's `//`, are left outside.
 fn local_part_start(text: &str, at: usize) -> usize {
-    text[..at]
+    let start = text[..at]
         .char_indices()
         .rev()
-        .find(|(_, character)| !(is_word_character(*character) || "._%+-".contains(*character)))
-        .map_or(0, |(before, character)| before + character.len_utf8())
+        .find(|(_, character)| !is_local_character(*character))
+        .map_or(0, |(before, character)| before + character.len_utf8());
+    text[start..at]
+        .find(is_word_character)
+        .map_or(at, |offset| start + offset)
+}
+
+fn is_local_character(character: char) -> bool {
+    is_word_character(character) || "!#$%&'*+-/=?^_`{|}~.".contains(character)
 }
 
 fn domain_end(text: &str, from: usize) -> Option<usize> {
@@ -192,6 +200,8 @@ mod tests {
                 "fetching https://jane@example.com:pw@host/feed",
                 "fetching https://***:***@host/feed",
             ),
+            ("o'brien@example.com bounced", "*** bounced"),
+            ("sent to 'jane&co@example.com'", "sent to '***'"),
         ];
         for (text, expected) in cases {
             assert_eq!(clean(text), expected);

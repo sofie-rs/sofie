@@ -1258,3 +1258,36 @@ async fn a_schedule_whose_cadence_changed_starts_over_from_its_new_first_time() 
 
     assert_eq!((ran_hourly, ran_again), (1, 0));
 }
+
+#[tokio::test]
+async fn a_schedule_stored_under_its_older_cadence_key_keeps_its_time() {
+    let file = File::new("cadence-key");
+    let db = migrated_in(file.open()).await;
+    let next_at: sofie_core::Timestamp = "2026-10-25T12:00:00Z".parse().unwrap();
+    let stored = "INSERT INTO sofie_schedules (name, next_at, cadence) \
+                  VALUES ('notes.report', ?1, 'Interval(86400s)')";
+    sofie_db::query_values(&file.open(), stored, &[SqlValue::Timestamp(next_at)])
+        .await
+        .unwrap();
+    let now: sofie_core::Timestamp = "2026-10-24T12:00:00Z".parse().unwrap();
+    let clock = sofie_core::TestClock::starting_at(now);
+
+    let ran = Worker::new(db.with_clock(clock.clock()))
+        .every("notes.report", Duration::from_hours(24), report)
+        .drain()
+        .await
+        .unwrap();
+
+    let sql = "SELECT next_at, cadence FROM sofie_schedules WHERE name = 'notes.report'";
+    let schedule = sofie_db::query_values(&file.open(), sql, &[])
+        .await
+        .unwrap();
+    assert_eq!(ran, 0);
+    assert_eq!(
+        schedule,
+        [[
+            SqlValue::Timestamp(next_at),
+            SqlValue::Text("every 86400000ms".to_owned())
+        ]]
+    );
+}

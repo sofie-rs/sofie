@@ -88,10 +88,12 @@ SET claimed_until = NULL, last_error = $3, dead_at = now(), event_id = NULL
 WHERE id = $1 AND attempts = $2",
     to_job: "UPDATE sofie.messages SET kind = 'job', name = $3, event_id = id
 WHERE id = $1 AND attempts = $2",
-    // A schedule stored before cadences were kept adopts this one and keeps its time.
+    // A schedule stored before cadences were kept, or under the same cadence's older key,
+    // adopts this one and keeps its time.
     add_schedule: "INSERT INTO sofie.schedules (name, next_at, cadence) VALUES ($1, $2, $3)
 ON CONFLICT (name) DO UPDATE SET cadence = excluded.cadence,
-    next_at = CASE WHEN schedules.cadence IS NULL THEN schedules.next_at ELSE excluded.next_at END
+    next_at = CASE WHEN schedules.cadence IS NULL OR schedules.cadence = $4::text
+        THEN schedules.next_at ELSE excluded.next_at END
 WHERE schedules.cadence IS DISTINCT FROM excluded.cadence",
     // The outer select reads the table as it was before the update, so a
     // schedule that was not due answers its stored time. A run still waiting

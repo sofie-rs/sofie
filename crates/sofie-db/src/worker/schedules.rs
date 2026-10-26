@@ -69,6 +69,15 @@ impl Cadence {
         }
     }
 
+    /// Stored beside the schedule: a different key starts the schedule over.
+    fn key(self) -> String {
+        match self {
+            Self::Interval(interval) => format!("every {}ms", interval.as_millis()),
+            #[cfg(feature = "local-time")]
+            Self::At(wall_clock) => wall_clock.key(),
+        }
+    }
+
     fn next_after(self, now: Timestamp) -> Result<Timestamp> {
         match self {
             Self::Interval(interval) => now
@@ -104,8 +113,10 @@ impl Schedules {
     pub(super) async fn store(&self, messages: &Messages, now: Timestamp) -> Result<()> {
         for (name, cadence, _) in &self.every {
             let first_at = cadence.first_at(now)?;
+            // Keys were the Debug text before; a schedule still holding it keeps its time.
+            let previous_key = format!("{cadence:?}");
             messages
-                .add_schedule(name, first_at, &format!("{cadence:?}"))
+                .add_schedule(name, first_at, &cadence.key(), &previous_key)
                 .await?;
         }
         Ok(())

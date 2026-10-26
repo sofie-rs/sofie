@@ -220,12 +220,20 @@ impl Messages {
         self.db.transaction(steps).await
     }
 
-    /// A schedule stored under another cadence starts over from `first_at`.
-    pub async fn add_schedule(&self, name: &str, first_at: Timestamp, cadence: &str) -> Result<()> {
+    /// A schedule stored under another cadence starts over from `first_at`; one stored under
+    /// `previous_cadence`, the same cadence in an older key's text, keeps its time.
+    pub async fn add_schedule(
+        &self,
+        name: &str,
+        first_at: Timestamp,
+        cadence: &str,
+        previous_cadence: &str,
+    ) -> Result<()> {
         let params = [
             SqlValue::Text(name.to_owned()),
             SqlValue::Timestamp(first_at),
             SqlValue::Text(cadence.to_owned()),
+            SqlValue::Text(previous_cadence.to_owned()),
         ];
         let sql = self.sql().add_schedule;
         query_values(self.db.driver(), sql, &params).await.map(drop)

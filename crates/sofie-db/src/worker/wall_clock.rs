@@ -1,3 +1,4 @@
+use sofie_core::variants::Variants as _;
 use sofie_core::{Error, Instant, Result, Timestamp};
 use sofie_values::{Date, TimeOfDay, TimeZone, Weekday};
 
@@ -33,6 +34,13 @@ impl WallClock {
                 self.zone
             ))
         })
+    }
+
+    pub(crate) fn key(self) -> String {
+        match self.on {
+            None => format!("daily at {} {}", self.at, self.zone),
+            Some(weekday) => format!("weekly on {} at {} {}", weekday.name(), self.at, self.zone),
+        }
     }
 
     /// Counted in the zone's days, so a time its clocks show twice runs once, at the first.

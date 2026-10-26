@@ -95,11 +95,12 @@ WHERE id = ?1 AND attempts = ?2"
     ),
     to_job: "UPDATE sofie_messages SET kind = 'job', name = ?3, event_id = id
 WHERE id = ?1 AND attempts = ?2",
-    // A schedule stored before cadences were kept adopts this one and keeps its time.
+    // A schedule stored before cadences were kept, or under the same cadence's older key,
+    // adopts this one and keeps its time.
     add_schedule: "INSERT INTO sofie_schedules (name, next_at, cadence) VALUES (?1, ?2, ?3)
 ON CONFLICT (name) DO UPDATE SET cadence = excluded.cadence,
-    next_at = CASE WHEN sofie_schedules.cadence IS NULL THEN sofie_schedules.next_at
-        ELSE excluded.next_at END
+    next_at = CASE WHEN sofie_schedules.cadence IS NULL OR sofie_schedules.cadence = ?4
+        THEN sofie_schedules.next_at ELSE excluded.next_at END
 WHERE sofie_schedules.cadence IS NOT excluded.cadence",
     // Three statements on one connection, which no other writer interleaves:
     // the message is queued only when the schedule moved and no run of it is still waiting, and

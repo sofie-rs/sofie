@@ -149,7 +149,29 @@ impl<A: Aggregate> Outcome for Pruned<A> {
 }
 
 fn delete_loaded<A: Aggregate>(records: &[A], dialect: &dyn Dialect) -> Result<Step> {
+    let table = crate::aggregate::table::<A>().qualified(dialect);
     let (id, version) = (dialect.quote("id"), dialect.quote("version"));
+    let expected = u64::try_from(records.len())
+        .map_err(|error| Error::internal("counting pruned records", error))?;
+    if dialect.binds_arrays() {
+        // One statement text whatever the batch size, so each connection prepares it once.
+        let sql = format!(
+            "DELETE FROM {table} WHERE ({id}, {version}) IN \
+             (SELECT * FROM unnest({}::uuid[], {}::bigint[]))",
+            dialect.placeholder(1),
+            dialect.placeholder(2)
+        );
+        let ids = records
+            .iter()
+            .map(|record| SqlValue::Uuid(record.meta().id()))
+            .collect();
+        let versions = records
+            .iter()
+            .map(|record| SqlValue::Int(record.meta().version()))
+            .collect();
+        let params = vec![SqlValue::Array(ids), SqlValue::Array(versions)];
+        return Ok(Step::statement(sql, params, Some(expected)));
+    }
     let mut params = Vec::with_capacity(records.len() * 2);
     let mut matches = Vec::with_capacity(records.len());
     for record in records {
@@ -161,12 +183,6 @@ fn delete_loaded<A: Aggregate>(records: &[A], dialect: &dyn Dialect) -> Result<S
             dialect.placeholder(params.len())
         ));
     }
-    let sql = format!(
-        "DELETE FROM {} WHERE {}",
-        crate::aggregate::table::<A>().qualified(dialect),
-        matches.join(" OR ")
-    );
-    let expected = u64::try_from(records.len())
-        .map_err(|error| Error::internal("counting pruned records", error))?;
+    let sql = format!("DELETE FROM {table} WHERE {}", matches.join(" OR "));
     Ok(Step::statement(sql, params, Some(expected)))
 }

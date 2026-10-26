@@ -330,7 +330,11 @@ impl Connections {
     {
         #[cfg(feature = "shield")]
         let shield = self.pipeline.shield.clone();
-        let failed = move |error: &dyn std::fmt::Display| {
+        let failed = move |error: &(dyn std::error::Error + 'static)| {
+            if ends_routinely(error) {
+                tracing::debug!(error = %error, "a connection ended");
+                return;
+            }
             tracing::warn!(error.kind = "connection", error = %error, "a connection failed");
             #[cfg(feature = "shield")]
             shield.connection_failed(peer.ip());
@@ -373,7 +377,7 @@ struct Served<S> {
 }
 
 impl<S> Served<S> {
-    async fn run<I, B>(self, io: I, failed: impl FnOnce(&dyn std::fmt::Display))
+    async fn run<I, B>(self, io: I, failed: impl FnOnce(&(dyn std::error::Error + 'static)))
     where
         I: AsyncRead + AsyncWrite + Unpin + Send + 'static,
         S: Service<Request<Incoming>, Response = http::Response<B>, Error = Infallible>
@@ -397,9 +401,34 @@ impl<S> Served<S> {
             None => connection.await,
         };
         if let Err(error) = outcome {
-            failed(&error);
+            failed(&*error);
         }
     }
+}
+
+/// An idle keep-alive connection ends in hyper's header timeout, and a client may
+/// reset or drop a connection at any time: neither is a protocol violation.
+fn ends_routinely(error: &(dyn std::error::Error + 'static)) -> bool {
+    std::iter::successors(Some(error), |error| error.source()).any(|cause| {
+        if let Some(hyper) = cause.downcast_ref::<hyper::Error>() {
+            return hyper.is_timeout()
+                || hyper.is_incomplete_message()
+                || hyper.is_closed()
+                || hyper.is_canceled()
+                || hyper.is_body_write_aborted()
+                || hyper.is_shutdown();
+        }
+        cause.downcast_ref::<std::io::Error>().is_some_and(|io| {
+            matches!(
+                io.kind(),
+                std::io::ErrorKind::ConnectionReset
+                    | std::io::ErrorKind::ConnectionAborted
+                    | std::io::ErrorKind::BrokenPipe
+                    | std::io::ErrorKind::UnexpectedEof
+                    | std::io::ErrorKind::TimedOut
+            )
+        })
+    })
 }
 
 /// HTTP/2 forbids `Connection`; there the lifetime ends the connection instead.
@@ -525,5 +554,18 @@ mod tests {
         assert!(elapsed < Duration::from_secs(1), "{elapsed:?}");
         assert!(answer.starts_with("HTTP/1.1 503"), "{answer}");
         assert!(answer.contains("connection: close"), "{answer}");
+    }
+
+    #[test]
+    fn a_reset_or_timed_out_connection_ends_routinely() {
+        for kind in [
+            std::io::ErrorKind::ConnectionReset,
+            std::io::ErrorKind::TimedOut,
+        ] {
+            assert!(ends_routinely(&std::io::Error::from(kind)), "{kind:?}");
+        }
+        assert!(!ends_routinely(&std::io::Error::from(
+            std::io::ErrorKind::InvalidData
+        )));
     }
 }

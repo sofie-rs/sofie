@@ -221,7 +221,7 @@ fn first_title_outside_svg(body: &str) -> Option<usize> {
     let mut svg_depth = 0_isize;
     for (start, _) in body.match_indices('<') {
         let tag = &body[start..];
-        if tag.starts_with("<svg") {
+        if opens_svg(tag) {
             svg_depth += 1;
         } else if tag.starts_with("</svg>") {
             svg_depth -= 1;
@@ -230,6 +230,11 @@ fn first_title_outside_svg(body: &str) -> Option<usize> {
         }
     }
     None
+}
+
+fn opens_svg(tag: &str) -> bool {
+    tag.strip_prefix("<svg")
+        .is_some_and(|rest| rest.starts_with([' ', '\t', '\n', '\r', '>']))
 }
 
 #[must_use]
@@ -316,6 +321,12 @@ mod tests {
     #[test]
     fn a_title_only_inside_svgs_is_no_page_title() {
         assert!(split_title("<svg><title>Icon</title></svg><p>Text</p>").is_none());
+    }
+
+    #[test]
+    fn a_tag_only_starting_with_svg_opens_no_svg() {
+        let (title, _, _) = split_title("<svg-icon></svg-icon><title>Orders</title>").unwrap();
+        assert_eq!(title, "<title>Orders</title>");
     }
 
     #[test]

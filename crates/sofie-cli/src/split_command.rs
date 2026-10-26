@@ -9,7 +9,9 @@ use sofie_model::{App, Module};
 
 use crate::env_example::remote_prefix;
 use crate::gen_command::{GenError, GenMode, GenOutcome, io_error, read_existing, regenerated};
-use crate::new_command::{app_sources, checked_name, find_module, refuse_existing, write_all};
+use crate::new_command::{
+    app_sources, checked_name, dependency_line_start, find_module, refuse_existing, write_all,
+};
 use crate::source_edits::{
     DEPENDENCIES, Journal, path_dependency, read, toml_escaped, toml_section, toml_table,
     with_dependency_line,
@@ -455,7 +457,10 @@ fn leave_app(journal: &mut Journal, plan: &SplitPlan) -> Result<(), GenError> {
     }
     let app_manifest = plan.root.join("app").join("Cargo.toml");
     let mut text = without_dependency(&read(&app_manifest)?, &plan.package);
-    if !text.contains(&format!("{} =", plan.contract_package())) {
+    let depends = toml_section(&text, DEPENDENCIES).is_some_and(|(start, end)| {
+        dependency_line_start(&text[start..end], &plan.contract_package()).is_some()
+    });
+    if !depends {
         let path = relative_path(&plan.root.join("app"), &new_contract).unwrap_or_default();
         text = with_dependency_line(&text, &path_dependency(&plan.contract_package(), &path));
     }

@@ -53,22 +53,27 @@ impl<A: Aggregate, T: Cast> Column<A, T> {
         Condition::new(Kind::Not(Box::new(compare(self.field, operator, value))))
     }
 
-    /// An empty list matches nothing; `None` matches the null rows, as in `eq`.
+    /// An empty list matches nothing; a value holding a null matches as in `eq`.
     #[must_use]
     pub fn in_(self, values: impl IntoIterator<Item = T>) -> Condition<A> {
         let columns = names::<T>(self.field);
-        let (nulls, rows): (Vec<_>, Vec<_>) = values
+        let (holding_null, rows): (Vec<_>, Vec<_>) = values
             .into_iter()
             .map(encoded)
-            .partition(|row| T::NULLABLE && row.iter().all(|value| *value == SqlValue::Null));
+            .partition(|row| row.contains(&SqlValue::Null));
         let listed = Kind::In {
             columns: columns.clone(),
             rows,
         };
-        if nulls.is_empty() {
-            return Condition::new(listed);
-        }
-        Condition::new(Kind::Or(Box::new(listed), Box::new(Kind::Null(columns))))
+        let kind = holding_null.into_iter().fold(listed, |kind, values| {
+            let equal = Kind::Compare {
+                columns: columns.clone(),
+                operator: "=",
+                values,
+            };
+            Kind::Or(Box::new(kind), Box::new(equal))
+        });
+        Condition::new(kind)
     }
 
     #[must_use]
@@ -427,6 +432,30 @@ mod tests {
         assert_eq!(
             rendered(&period.eq(None)).0,
             "(\"period_from\" IS NULL AND \"period_until\" IS NULL)"
+        );
+    }
+
+    #[test]
+    fn a_listed_value_holding_a_null_matches_as_eq_does() {
+        let period: Column<Note, Option<Period>> = Column::new("period");
+        let closed = Some(Period {
+            from: Some(1),
+            until: 2,
+        });
+        let open = Some(Period {
+            from: None,
+            until: 9,
+        });
+
+        assert_eq!(
+            rendered(&period.in_([closed, open, None])),
+            (
+                "((((\"period_from\", \"period_until\") IN (($1, $2))) \
+                 OR (\"period_from\" IS NULL AND \"period_until\" = $3)) \
+                 OR (\"period_from\" IS NULL AND \"period_until\" IS NULL))"
+                    .to_owned(),
+                vec![SqlValue::Int(1), SqlValue::Int(2), SqlValue::Int(9)]
+            )
         );
     }
 

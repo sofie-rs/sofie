@@ -28,7 +28,7 @@ compile = ["parse", "content", "gates", "i18n", "islands", "layout", "listing"]
 # Client areas: a page shell holding the first screen as JSON and the area's
 # bundle, and what a screen's envelope describes.
 clients = []
-# Screens compiled into Svelte or React components by an app's build script.
+# Screens compiled into Svelte components by an app's build script.
 client-compile = ["parse", "clients"]
 # What `sofie check` reads of a template: the data paths it binds and the
 # element ids a fragment render finds. No app needs them.

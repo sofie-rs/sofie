@@ -4,7 +4,7 @@ use serde::{Deserialize, Deserializer};
 use sofie_core::{Cast, ColumnReader, ColumnSpec, Result, SqlValue};
 
 /// No `Display` and no `Serialize`, so no reply, log field or event payload can carry it.
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone)]
 pub struct Secret<T> {
     value: T,
 }
@@ -18,6 +18,20 @@ impl<T> Secret<T> {
         &self.value
     }
 }
+
+/// Constant time for equal lengths, so timing does not tell how much of a guess was right.
+impl<T: AsRef<[u8]>> PartialEq for Secret<T> {
+    fn eq(&self, other: &Self) -> bool {
+        let (own, other) = (self.value.as_ref(), other.value.as_ref());
+        let difference = own
+            .iter()
+            .zip(other)
+            .fold(0, |difference, (own, other)| difference | (own ^ other));
+        own.len() == other.len() && std::hint::black_box(difference) == 0
+    }
+}
+
+impl<T: AsRef<[u8]>> Eq for Secret<T> {}
 
 impl<T> fmt::Debug for Secret<T> {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -57,6 +71,15 @@ mod tests {
         assert_eq!(format!("{key:?}"), "Secret(***)");
         assert_eq!(format!("{:?}", Some(&key)), "Some(Secret(***))");
         assert_eq!(key.expose(), "sk_live_123");
+    }
+
+    #[test]
+    fn equals_only_the_same_bytes() {
+        let key = Secret::new("sk_live_123".to_owned());
+
+        assert_eq!(key, Secret::new("sk_live_123".to_owned()));
+        assert_ne!(key, Secret::new("sk_live_124".to_owned()));
+        assert_ne!(key, Secret::new("sk_live_12".to_owned()));
     }
 
     #[test]

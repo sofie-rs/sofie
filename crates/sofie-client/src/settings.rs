@@ -46,17 +46,19 @@ pub(crate) struct Limits {
 
 impl Vendor {
     pub(crate) fn read(self, vendor: &str) -> Result<(Option<Target>, Allowed, Limits)> {
+        let private = self.private.unwrap_or(false);
         let base = self
             .base_url
             .as_deref()
             .map(|url| {
                 let base = Target::parse(url)?;
-                match base.path.query() {
-                    Some(_) => {
-                        Err("it carries a query, which a path would be joined after".to_owned())
-                    }
-                    None => Ok(base),
+                if base.path.query().is_some() {
+                    return Err("it carries a query, which a path would be joined after".to_owned());
                 }
+                if !base.secure && !private {
+                    return Err("it is not HTTPS, which only a PRIVATE vendor may skip".to_owned());
+                }
+                Ok(base)
             })
             .transpose()
             .map_err(|problem| {
@@ -78,10 +80,7 @@ impl Vendor {
             retries: self.retries.unwrap_or(RETRIES),
             redirects: self.redirects.unwrap_or(0),
         };
-        let allowed = Allowed {
-            hosts,
-            private: self.private.unwrap_or(false),
-        };
+        let allowed = Allowed { hosts, private };
         Ok((base, allowed, limits))
     }
 }
@@ -102,6 +101,22 @@ mod tests {
         };
 
         assert!(refused.to_string().contains("query"), "{refused}");
+    }
+
+    #[test]
+    fn a_plain_http_base_url_is_refused_unless_private() {
+        let settings = |private| Vendor {
+            base_url: Some("http://api.vendor.test/v1".to_owned()),
+            private,
+            ..Vendor::default()
+        };
+
+        let Err(refused) = settings(None).read("vendor") else {
+            panic!("a plain HTTP base URL is refused");
+        };
+
+        assert!(refused.to_string().contains("HTTPS"), "{refused}");
+        assert!(settings(Some(true)).read("vendor").is_ok());
     }
 
     #[test]

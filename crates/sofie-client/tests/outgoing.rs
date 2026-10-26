@@ -190,14 +190,13 @@ async fn internal_addresses_are_refused_unless_the_vendor_allows_them() {
     let allowed = server.outgoing(Vendor::default());
 
     let refused = public_only.get("/ok").send().await.unwrap_err();
-    let plain = outgoing(Vendor {
+    let plain_http = Vendor {
         base_url: Some("http://vendor.test".to_owned()),
         ..Vendor::default()
-    })
-    .get("/ok")
-    .send()
-    .await
-    .unwrap_err();
+    };
+    let Err(plain) = sofie_client::testing::outgoing("vendor", plain_http, ROOT) else {
+        panic!("a plain HTTP base URL is refused when read");
+    };
 
     assert!(
         matches!(&refused, Error::Internal { context, .. } if context.contains("internal address")),

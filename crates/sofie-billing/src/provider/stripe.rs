@@ -195,6 +195,7 @@ fn subscription(object: &Value, occurred_at: Timestamp) -> Result<Option<Change>
             .get("cancel_at_period_end")
             .and_then(Value::as_bool)
             .unwrap_or(false),
+        started_at: seconds(object.get("start_date"))?,
         occurred_at,
     })))
 }
@@ -269,7 +270,7 @@ mod tests {
             "id": "evt_1", "type": "customer.subscription.updated", "created": 1_760_000_100,
             "data": {"object": {
                 "id": "sub_1", "customer": "cus_1", "status": "past_due",
-                "cancel_at_period_end": true, "trial_end": null,
+                "cancel_at_period_end": true, "trial_end": null, "start_date": 1_750_000_000,
                 "metadata": {"subscriber": SUBSCRIBER},
                 "items": {"data": [{
                     "price": {"id": "price_pro"}, "quantity": 3,
@@ -287,6 +288,10 @@ mod tests {
         assert_eq!(change.status, Some(Status::PastDue));
         assert_eq!(change.quantity, 3);
         assert_eq!(change.period_start.as_second(), 1_760_000_000);
+        assert_eq!(
+            change.started_at.map(Timestamp::as_second),
+            Some(1_750_000_000)
+        );
         assert!(change.cancels_at_period_end);
     }
 

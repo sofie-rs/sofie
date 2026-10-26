@@ -281,7 +281,7 @@ fn subscription_event(id: &str, subscriber: Uuid, status: &str, created: i64) ->
         "id": id, "type": "customer.subscription.updated", "created": created,
         "data": {"object": {
             "id": "sub_1", "customer": "cus_1", "status": status,
-            "cancel_at_period_end": false, "trial_end": null,
+            "cancel_at_period_end": false, "trial_end": null, "start_date": created,
             "metadata": {"subscriber": subscriber.to_string()},
             "items": {"data": [{
                 "price": {"id": "price_pro"}, "quantity": 4,
@@ -423,6 +423,37 @@ async fn a_signed_stripe_event_sets_the_subscription_once_and_late_ones_are_drop
     let changed = sofie_testing::assert_raised::<SubscriptionChanged>(&app);
     let statuses: Vec<Status> = changed.iter().map(|changed| changed.status).collect();
     assert_eq!(statuses, [Status::Active, Status::Canceled]);
+}
+
+#[tokio::test]
+async fn a_late_change_of_a_subscription_started_earlier_does_not_take_over_the_newer_one() {
+    let (app, _) = started().await;
+    let owner = Uuid::from_u128(16);
+    let created = now(&app);
+    let old = |id: &str, status: &str, at: i64| {
+        let mut event = subscription_event(id, owner, status, at);
+        event["data"]["object"]["start_date"] = json!(created);
+        event
+    };
+    stripe_event(&app, &old("evt_1", "active", created)).await;
+    let mut new = subscription_event("evt_2", owner, "active", created + 10);
+    new["data"]["object"]["id"] = json!("sub_2");
+    stripe_event(&app, &new).await.assert_ok();
+
+    stripe_event(&app, &old("evt_3", "active", created + 20))
+        .await
+        .assert_ok();
+    stripe_event(&app, &old("evt_4", "canceled", created + 30))
+        .await
+        .assert_ok();
+
+    let held = entitlements(&app, 16).await;
+    assert_eq!(held.plan().name(), "pro");
+    assert_eq!(held.standing().map(Standing::status), Some(Status::Active));
+    let references = app
+        .query("SELECT reference FROM sofie_billing.subscription", &[])
+        .await;
+    assert_eq!(references, [vec![SqlValue::Text("sub_2".to_owned())]]);
 }
 
 #[tokio::test]
@@ -838,6 +869,7 @@ async fn seats_change_at_paddle_by_sending_the_held_price_with_the_new_count() {
         "data": {
             "id": "sub_01", "status": "active", "customer_id": "ctm_01",
             "custom_data": {"subscriber": owner.to_string()},
+            "started_at": "2026-10-14T10:00:00Z",
             "items": [{"price": {"id": "price_pro"}, "quantity": 2}]
         }
     })

@@ -31,6 +31,8 @@ pub(crate) struct Subscription {
     reference: Option<String>,
     /// The provider's time of the last change followed, so an older one arriving late is dropped.
     provider_changed_at: Option<Timestamp>,
+    /// When the provider's subscription held began, so one started before it is not followed back.
+    provider_started_at: Option<Timestamp>,
     created_at: Timestamp,
     changed_at: Timestamp,
     /// The latest count asked of the provider's subscription held, so an older ask still
@@ -69,6 +71,7 @@ impl Subscription {
             provider_customer: None,
             reference: None,
             provider_changed_at: None,
+            provider_started_at: None,
             created_at: now,
             changed_at: now,
             seats_asked: None,
@@ -99,6 +102,7 @@ impl Subscription {
         self.cancels_at_period_end = false;
         self.provider = None;
         self.reference = None;
+        self.provider_started_at = None;
         self.seats_asked = None;
         self.changed_at = now;
         self.raise()
@@ -137,6 +141,11 @@ impl Subscription {
                 "another subscription than the one held, canceled",
             ));
         }
+        if !same && self.runs_one_started_after(change) {
+            return Ok(Followed::Ignored(
+                "another subscription started before the running one held",
+            ));
+        }
         if !same && self.reference.is_some() && self.status != Status::Canceled {
             tracing::warn!(
                 subscriber = %self.subscriber,
@@ -166,6 +175,15 @@ impl Subscription {
         self.reference.as_deref() == Some(change.subscription.as_str())
     }
 
+    /// A canceled one held leaves any other subscription to be followed.
+    fn runs_one_started_after(&self, change: &SubscriptionChange) -> bool {
+        let running = self.status != Status::Canceled;
+        match (self.provider_started_at, change.started_at) {
+            (Some(held), Some(other)) => running && other < held,
+            _ => false,
+        }
+    }
+
     fn take(
         &mut self,
         provider: &'static str,
@@ -174,7 +192,8 @@ impl Subscription {
         plan: &str,
         now: Timestamp,
     ) -> Result<()> {
-        self.started_at = Some(if self.is_held(change) {
+        let held = self.is_held(change);
+        self.started_at = Some(if held {
             self.started_at()
         } else {
             change.period_start
@@ -190,8 +209,11 @@ impl Subscription {
         self.cancels_at_period_end = change.cancels_at_period_end;
         self.provider = Some(provider.to_owned());
         self.provider_customer = Some(change.provider_customer.clone());
-        if !self.is_held(change) {
+        if !held {
             self.seats_asked = None;
+        }
+        if !held || change.started_at.is_some() {
+            self.provider_started_at = change.started_at;
         }
         self.reference = Some(change.subscription.clone());
         self.provider_changed_at = Some(change.occurred_at);
@@ -310,6 +332,7 @@ impl Aggregate for Subscription {
         Field::new("changed_at", Timestamp::COLUMNS, false),
         Field::new("seats_asked", i64::COLUMNS, true),
         Field::new("started_at", Timestamp::COLUMNS, true),
+        Field::new("provider_started_at", Timestamp::COLUMNS, true),
     ];
     const UNIQUE: &'static [&'static str] = &["subscriber"];
     /// So an owned area's principal starts a trial for itself and nobody else.
@@ -344,6 +367,7 @@ impl Aggregate for Subscription {
         self.changed_at.encode(out);
         self.seats_asked.encode(out);
         self.started_at.encode(out);
+        self.provider_started_at.encode(out);
     }
 
     fn decode(meta: Meta, row: &mut dyn ColumnReader) -> Result<Self> {
@@ -365,6 +389,7 @@ impl Aggregate for Subscription {
             changed_at: Timestamp::decode(row)?,
             seats_asked: Option::decode(row)?,
             started_at: Option::decode(row)?,
+            provider_started_at: Option::decode(row)?,
         })
     }
 }
@@ -387,6 +412,7 @@ mod tests {
             period_ends_at: None,
             trial_ends_at: None,
             cancels_at_period_end: true,
+            started_at: None,
             occurred_at: now,
         }
     }
@@ -450,5 +476,135 @@ mod tests {
             .unwrap();
 
         assert_eq!(subscription.started_at(), started);
+    }
+
+    fn of(reference: &str, status: Status, started: Option<&str>, at: &str) -> SubscriptionChange {
+        let at: Timestamp = at.parse().unwrap();
+        SubscriptionChange {
+            subscription: reference.to_owned(),
+            started_at: started.map(|started| started.parse().unwrap()),
+            cancels_at_period_end: false,
+            ..change(status, at)
+        }
+    }
+
+    fn followed(subscription: &mut Subscription, change: &SubscriptionChange) -> Followed {
+        let status = change.status.unwrap();
+        subscription
+            .follow("stripe", change, status, "pro", change.occurred_at)
+            .unwrap()
+    }
+
+    const OLD_START: Option<&str> = Some("2026-09-01T10:00:00Z");
+    const NEW_START: Option<&str> = Some("2026-10-14T10:00:00Z");
+
+    fn following_the_newer() -> Subscription {
+        let old = of("sub_old", Status::Active, OLD_START, "2026-10-14T09:00:00Z");
+        let mut subscription =
+            Subscription::from_provider("stripe", &old, Status::Active, "pro", old.occurred_at)
+                .unwrap();
+        let new = of("sub_new", Status::Active, NEW_START, "2026-10-14T10:00:00Z");
+        assert!(matches!(
+            followed(&mut subscription, &new),
+            Followed::Changed
+        ));
+        subscription
+    }
+
+    #[test]
+    fn a_subscription_started_later_is_followed() {
+        let subscription = following_the_newer();
+
+        assert_eq!(subscription.running_at_provider(), Some("sub_new"));
+    }
+
+    #[test]
+    fn a_late_change_of_a_subscription_started_earlier_is_ignored() {
+        let mut subscription = following_the_newer();
+        let late = of("sub_old", Status::Active, OLD_START, "2026-10-14T11:00:00Z");
+
+        let outcome = followed(&mut subscription, &late);
+
+        assert!(matches!(outcome, Followed::Ignored(_)));
+        assert_eq!(subscription.running_at_provider(), Some("sub_new"));
+    }
+
+    #[test]
+    fn the_end_of_one_started_earlier_does_not_cancel_the_newer_one_followed() {
+        let mut subscription = following_the_newer();
+        let late = of("sub_old", Status::Active, OLD_START, "2026-10-14T11:00:00Z");
+        let deleted = of(
+            "sub_old",
+            Status::Canceled,
+            OLD_START,
+            "2026-11-01T10:00:00Z",
+        );
+
+        followed(&mut subscription, &late);
+        followed(&mut subscription, &deleted);
+
+        let now: Timestamp = "2026-11-01T10:00:00Z".parse().unwrap();
+        assert_eq!(subscription.plan_held(now), Some("pro"));
+        assert_eq!(subscription.running_at_provider(), Some("sub_new"));
+    }
+
+    #[test]
+    fn without_both_starts_the_latest_change_is_followed() {
+        let unknown_held = of("sub_old", Status::Active, None, "2026-10-14T09:00:00Z");
+        let mut subscription = Subscription::from_provider(
+            "stripe",
+            &unknown_held,
+            Status::Active,
+            "pro",
+            unknown_held.occurred_at,
+        )
+        .unwrap();
+        let unknown_other = of("sub_new", Status::Active, None, "2026-10-14T10:00:00Z");
+        let earlier_but_unknown = of("sub_old", Status::Active, OLD_START, "2026-10-14T11:00:00Z");
+
+        followed(&mut subscription, &unknown_other);
+        let switched_back = subscription.running_at_provider().map(str::to_owned);
+        followed(&mut subscription, &earlier_but_unknown);
+
+        assert_eq!(switched_back.as_deref(), Some("sub_new"));
+        assert_eq!(subscription.running_at_provider(), Some("sub_old"));
+    }
+
+    #[test]
+    fn a_start_unknown_on_the_row_held_is_recorded_by_its_next_change() {
+        let unknown = of("sub_new", Status::Active, None, "2026-10-14T10:00:00Z");
+        let mut subscription = Subscription::from_provider(
+            "stripe",
+            &unknown,
+            Status::Active,
+            "pro",
+            unknown.occurred_at,
+        )
+        .unwrap();
+        let known = of("sub_new", Status::Active, NEW_START, "2026-10-14T11:00:00Z");
+        let older = of("sub_old", Status::Active, OLD_START, "2026-10-14T12:00:00Z");
+
+        followed(&mut subscription, &known);
+        let outcome = followed(&mut subscription, &older);
+
+        assert!(matches!(outcome, Followed::Ignored(_)));
+        assert_eq!(subscription.running_at_provider(), Some("sub_new"));
+    }
+
+    #[test]
+    fn a_canceled_one_held_leaves_one_started_earlier_to_be_followed() {
+        let mut subscription = following_the_newer();
+        let canceled = of(
+            "sub_new",
+            Status::Canceled,
+            NEW_START,
+            "2026-10-14T11:00:00Z",
+        );
+        let still_billing = of("sub_old", Status::Active, OLD_START, "2026-10-14T12:00:00Z");
+
+        followed(&mut subscription, &canceled);
+        followed(&mut subscription, &still_billing);
+
+        assert_eq!(subscription.running_at_provider(), Some("sub_old"));
     }
 }

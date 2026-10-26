@@ -178,6 +178,7 @@ fn subscription(data: &Value, occurred_at: Timestamp) -> Result<Option<Change>> 
         period_ends_at: instant(data, "/current_billing_period/ends_at")?,
         trial_ends_at: instant(item, "/trial_dates/ends_at")?,
         cancels_at_period_end: scheduled == Some("cancel"),
+        started_at: instant(data, "/started_at")?,
         occurred_at,
     })))
 }
@@ -241,7 +242,7 @@ mod tests {
             "occurred_at": "2026-10-14T10:00:00.000Z",
             "data": {
                 "id": "sub_01", "status": "trialing", "customer_id": "ctm_01",
-                "custom_data": {"subscriber": SUBSCRIBER},
+                "custom_data": {"subscriber": SUBSCRIBER}, "started_at": "2026-09-14T10:00:00Z",
                 "scheduled_change": {"action": "cancel", "effective_at": "2026-11-14T10:00:00Z"},
                 "current_billing_period": {"starts_at": "2026-10-14T10:00:00Z", "ends_at": "2026-11-14T10:00:00Z"},
                 "items": [{"price": {"id": "pri_pro"}, "quantity": 1,
@@ -256,6 +257,10 @@ mod tests {
         assert_eq!(change.status, Some(Status::Trialing));
         assert_eq!(change.price, "pri_pro");
         assert!(change.cancels_at_period_end);
+        assert_eq!(
+            change.started_at,
+            Some("2026-09-14T10:00:00Z".parse().unwrap())
+        );
         assert_eq!(
             change.trial_ends_at,
             Some("2026-10-28T10:00:00Z".parse().unwrap())

@@ -74,6 +74,8 @@ pub(crate) struct SubscriptionChange {
     pub(crate) period_ends_at: Option<Timestamp>,
     pub(crate) trial_ends_at: Option<Timestamp>,
     pub(crate) cancels_at_period_end: bool,
+    /// When the provider's subscription began, which tells two live ones of a subscriber apart.
+    pub(crate) started_at: Option<Timestamp>,
     pub(crate) occurred_at: Timestamp,
 }
 

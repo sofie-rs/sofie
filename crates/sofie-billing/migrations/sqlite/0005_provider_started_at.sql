@@ -1,0 +1,1 @@
+ALTER TABLE sofie_billing_subscription ADD COLUMN provider_started_at timestamptz;

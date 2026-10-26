@@ -228,8 +228,8 @@ async fn discard(storage: &Storage, keys: &[StorageKey]) {
 
 /// A `multipart/form-data` body sent to an action becomes the JSON object of its fields, each file
 /// a sealed [`Upload`] stored as it arrives; any other body is read as before. A file sent to a
-/// route without `.file_limit(…)`, to a page, webhook or queue route, or to an app without
-/// storage, is refused: nothing would keep it.
+/// route without `.file_limit(…)`, to a page or queue route, or to an app without storage, is
+/// refused: nothing would keep it. A webhook's body is always read as sent.
 pub(crate) async fn read(
     asked: Asked<'_>,
     target: &Target,
@@ -238,7 +238,8 @@ pub(crate) async fn read(
     limit: usize,
 ) -> Result<RequestBody, Box<Response>> {
     let (request, caller) = (asked.request, asked.caller);
-    let Some(boundary) = multipart::boundary(&request.headers) else {
+    let boundary = multipart::boundary(&request.headers).filter(|_| !is_webhook(target));
+    let Some(boundary) = boundary else {
         let limit = match target.admission.rules.file_limit {
             Some(_) => limit.min(TEXT_LIMIT),
             None => limit,
@@ -304,11 +305,18 @@ fn as_sent(fields: &Map<String, Value>) -> Map<String, Value> {
 }
 
 /// A queued job reads its input in another process, which cannot open an upload's seal.
-fn takes_files(request: &Parts, target: &Target) -> bool {
+/// A webhook's signature covers the body exactly as sent, so a multipart one is never parsed.
+fn is_webhook(target: &Target) -> bool {
     #[cfg(feature = "webhooks")]
-    if target.admission.rules.verify.is_some() {
-        return false;
+    return target.admission.rules.verify.is_some();
+    #[cfg(not(feature = "webhooks"))]
+    {
+        let _ = target;
+        false
     }
+}
+
+fn takes_files(request: &Parts, target: &Target) -> bool {
     #[cfg(feature = "jobs")]
     if target.admission.rules.queues {
         return false;

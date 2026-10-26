@@ -17,12 +17,6 @@ pub(super) fn new_mail(
 ) -> Result<(), GenError> {
     let source = module.krate.path.join("src");
     let template = source.join("mails").join(format!("{name}.html"));
-    if template.is_file() {
-        return Err(GenError::Usage(format!(
-            "{} exists already; choose another name",
-            template.display()
-        )));
-    }
     let file = source.join("mails.rs");
     refuse_function(&file, name)?;
     if let Some(list) = list {

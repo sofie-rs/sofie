@@ -12,6 +12,10 @@ mod config;
 mod constraints;
 #[cfg(feature = "contracts")]
 mod contracts;
+/// The rule `case` copies, for the test that holds the copy to it.
+#[cfg(test)]
+#[path = "../../sofie-core/src/case.rs"]
+mod core_case;
 mod crate_path;
 mod enumeration;
 mod event;

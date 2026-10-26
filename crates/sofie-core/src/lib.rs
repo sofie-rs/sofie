@@ -1,3 +1,4 @@
+pub mod case;
 mod clock;
 mod constraint;
 mod display;

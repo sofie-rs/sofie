@@ -3,6 +3,7 @@ use std::mem::discriminant;
 
 use serde::{Deserialize, Deserializer, Serializer};
 
+use crate::case::snake_case;
 use crate::{Cast, ColumnReader, ColumnSpec, Error, Result, SqlValue};
 
 pub trait Variants: Copy + 'static {
@@ -35,17 +36,6 @@ pub trait Variants: Copy + 'static {
             next.name(),
         ))
     }
-}
-
-fn snake_case(name: &str) -> String {
-    let mut snake = String::with_capacity(name.len() + 4);
-    for (index, character) in name.chars().enumerate() {
-        if character.is_uppercase() && index > 0 {
-            snake.push('_');
-        }
-        snake.extend(character.to_lowercase());
-    }
-    snake
 }
 
 pub const COLUMNS: &[ColumnSpec] = String::COLUMNS;

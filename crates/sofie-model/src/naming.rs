@@ -2,6 +2,8 @@
 
 use std::path::{Component, Path, PathBuf};
 
+pub use sofie_core::case::snake_case;
+
 use crate::{
     Aggregate, App, AreaContribution, AreaDefinition, Crate, Method, Module, Route, TypeName,
 };
@@ -151,20 +153,6 @@ pub fn stored_name(variant: &str) -> String {
     snake_case(variant).to_uppercase()
 }
 
-/// Must match how `#[derive(Aggregate)]` names a table.
-#[must_use]
-pub fn snake_case(name: &str) -> String {
-    let characters: Vec<char> = name.chars().collect();
-    let mut snake = String::with_capacity(name.len() + 4);
-    for (index, &character) in characters.iter().enumerate() {
-        if index > 0 && starts_word(&characters, index) {
-            snake.push('_');
-        }
-        snake.extend(character.to_lowercase());
-    }
-    snake
-}
-
 /// `weekly_news` as `WeeklyNews`.
 #[must_use]
 pub fn pascal_case(snake: &str) -> String {
@@ -177,20 +165,6 @@ pub fn pascal_case(snake: &str) -> String {
             })
         })
         .collect()
-}
-
-fn starts_word(characters: &[char], index: usize) -> bool {
-    let current = characters[index];
-    if !current.is_uppercase() {
-        return false;
-    }
-    let previous = characters[index - 1];
-    let next_is_lowercase = characters
-        .get(index + 1)
-        .is_some_and(|next| next.is_lowercase());
-    previous.is_lowercase()
-        || previous.is_ascii_digit()
-        || (previous.is_uppercase() && next_is_lowercase)
 }
 
 pub(crate) fn route_name(module: &Module, area: &str, route: &Route) -> String {

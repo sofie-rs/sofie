@@ -1,3 +1,4 @@
+/// A copy of `sofie_core::case::snake_case`, which a test holds it to.
 pub(crate) fn snake_case(name: &str) -> String {
     let characters: Vec<char> = name.chars().collect();
     let mut snake = String::with_capacity(name.len() + 4);
@@ -38,6 +39,27 @@ mod tests {
         assert_eq!(snake_case("OrderLine"), "order_line");
         assert_eq!(snake_case("HTTPRequest"), "http_request");
         assert_eq!(snake_case("Line2Item"), "line2_item");
+    }
+
+    #[test]
+    fn snake_case_agrees_with_sofie_core_s() {
+        for name in [
+            "Order",
+            "OrderLine",
+            "HTTPStatus",
+            "OrderID",
+            "Line2Item",
+            "IPv6Address",
+            "A",
+            "already_snake",
+            "Çiçek",
+        ] {
+            assert_eq!(
+                snake_case(name),
+                crate::core_case::snake_case(name),
+                "{name}"
+            );
+        }
     }
 
     #[test]

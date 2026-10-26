@@ -8,6 +8,7 @@ use std::ops::Range;
 use std::path::{Path, PathBuf};
 
 use serde_json::Value;
+use sofie_model::naming::relative_path;
 
 use crate::cargo;
 use crate::child_process::{self, ProcessGroup};
@@ -69,12 +70,21 @@ pub(super) fn dry_run<T>(
         scratch.path.join(relative)
     };
     // The copy before the run, not the app after it: the app can change meanwhile, as
-    // when `sofie dev` regenerates it, and would hide what the run changed.
-    let before = files(&copy)?;
+    // when `sofie dev` regenerates it, and would hide what the run changed. The whole
+    // copied workspace, as a generator may edit its manifest.
+    let before = files(&scratch.path)?;
     let result = run(&copy);
-    let changes = compare(&before, &files(&copy)?);
+    let mut changes = compare(&before, &files(&scratch.path)?);
+    for change in &mut changes {
+        change.path = from_app(relative, &change.path);
+    }
     scratch.remove()?;
     Ok((result, changes))
+}
+
+/// A path in the workspace as the app's directory reaches it, `../Cargo.toml` for its manifest.
+fn from_app(app: &Path, path: &Path) -> PathBuf {
+    relative_path(app, path).map_or_else(|| path.to_path_buf(), PathBuf::from)
 }
 
 fn workspace_of(root: &Path) -> Result<(PathBuf, Vec<PathBuf>), GenError> {
@@ -458,6 +468,27 @@ mod tests {
         assert_eq!(changes.len(), 1);
         assert_eq!(changes[0].to_string(), "change app/src/wiring.rs");
         assert!(!copy.ends_with('/'), "{copy}");
+    }
+
+    #[test]
+    fn a_change_to_the_workspace_manifest_above_the_app_is_listed_from_the_app() {
+        let directory = TemporaryDirectory::new("sofie-dry-run-workspace");
+        directory.write(
+            "Cargo.toml",
+            "[workspace]\nresolver = \"3\"\nmembers = [\"shop/app\"]\n",
+        );
+        directory.write("shop/app/Cargo.toml", &manifest("dry", ""));
+        directory.write("shop/app/src/lib.rs", "");
+        let root = canonical(&directory.path("shop")).unwrap();
+
+        let ((), changes) = dry_run(&root, |copy| {
+            fs::write(copy.join("../Cargo.toml"), "[workspace]\n").unwrap();
+            fs::write(copy.join("app/src/lib.rs"), "pub fn new() {}\n").unwrap();
+        })
+        .unwrap();
+
+        let listed: Vec<String> = changes.iter().map(ToString::to_string).collect();
+        assert_eq!(listed, ["change ../Cargo.toml", "change app/src/lib.rs"]);
     }
 
     /// Copied by its absolute path, such a member was copied onto itself, which truncated its files.

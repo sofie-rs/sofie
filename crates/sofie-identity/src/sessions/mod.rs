@@ -17,7 +17,6 @@ use crate::AccountId;
 const DEVICE_CHARACTERS: usize = 200;
 /// A write per request would cost more than the request itself.
 const LAST_SEEN_PRECISION: Duration = Duration::from_secs(60);
-pub(crate) const PRUNE_EVERY: Duration = Duration::from_hours(1);
 /// A cookie is sealed as the response is written, after its record: kept a while past the
 /// lifetime, so no ended record goes while a cookie it refuses still opens.
 const PRUNE_MARGIN: Duration = Duration::from_hours(1);
@@ -160,7 +159,7 @@ async fn ending_impersonated(
 }
 
 /// A record unseen for longer than a cookie lives can refuse no cookie, ended or not.
-pub(crate) async fn prune(prune: sofie::db::Prune, clock: Clock) -> Result<()> {
+pub(crate) async fn prune(prune: &sofie::db::Prune, clock: &Clock) -> Result<()> {
     let kept = sofie::auth::SessionClaims::ABSOLUTE_LIFETIME + PRUNE_MARGIN;
     let before = clock.now().checked_sub(kept)?;
     prune

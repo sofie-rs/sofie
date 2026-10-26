@@ -50,7 +50,6 @@ pub struct LinkPage {
     used_at: Option<Instant>,
 }
 
-pub(crate) const PRUNE_EVERY: Duration = Duration::from_hours(1);
 const PRUNE_MARGIN: Duration = Duration::from_hours(1);
 
 pub(crate) const INVALID: &str = "This link is invalid, was used already or has expired.";
@@ -152,7 +151,7 @@ pub(crate) fn signed_action(
 }
 
 /// Kept an hour past its expiry, so the hourly limit on mailed links still counts it.
-pub(crate) async fn prune(prune: sofie::db::Prune, clock: Clock) -> Result<()> {
+pub(crate) async fn prune(prune: &sofie::db::Prune, clock: &Clock) -> Result<()> {
     let before = clock.now().checked_sub(PRUNE_MARGIN)?;
     prune
         .before(AccountLink::EXPIRES_AT, before)

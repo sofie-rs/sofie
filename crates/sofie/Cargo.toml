@@ -69,7 +69,7 @@ groups = ["children", "sofie-http/groups"]
 # `Create` and `Update` derived for aggregates without a `factory.rs`.
 factories = ["sofie-macros/factories"]
 # For tests; sofie-testing turns it on.
-fixtures = ["sofie-values/fixtures", "sofie-macros/fixtures"]
+fixtures = ["sofie-values/fixtures", "sofie-macros/fixtures", "sofie-mail?/testing"]
 codes = ["sofie-db/codes"]
 flags = ["sofie-db/flags"]
 history = ["sofie-db/history", "sofie-http/history"]

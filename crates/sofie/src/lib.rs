@@ -414,13 +414,17 @@ pub fn framework_jobs(worker: Worker) -> Worker {
     worker
 }
 
-/// What `framework_jobs` needs on a test's database besides the fake mail transport,
-/// which sofie-testing installs: notify without web push keys, as no test reaches a push service.
+/// What `framework_jobs` needs on a test's database, reaching no mail server or push service:
+/// a fake mail transport, also when the test app does not read what it sent, and notify
+/// without web push keys.
+#[cfg(feature = "fixtures")]
 #[doc(hidden)]
 pub fn install_for_tests(db: &Db) -> Result<()> {
+    #[cfg(feature = "mail")]
+    let _ = sofie_mail::testing::fake(db);
     #[cfg(feature = "notify")]
     sofie_notify::install(db, &sofie_notify::Setup::new(None)?);
-    #[cfg(not(feature = "notify"))]
+    #[cfg(not(any(feature = "mail", feature = "notify")))]
     let _ = db;
     Ok(())
 }

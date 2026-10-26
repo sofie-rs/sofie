@@ -56,9 +56,10 @@ where
         .migrate(migrations)
         .await
         .expect("migrating the test database");
+    sofie::install_for_tests(&db).expect("installing the framework's packages");
+    // Replaces the framework's fake transport with one whose outbox `sent_mails` reads.
     #[cfg(feature = "mail")]
     let outbox = sofie_mail::testing::fake(&db);
-    sofie::install_for_tests(&db).expect("installing the framework's packages");
     let flags = start_flags(&db, Application::FLAGS).await;
     let built: Result<App> = app.build(db.clone(), flags.as_ref()).await;
     let server = TestServer::start(built.expect("building the app")).await;

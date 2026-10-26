@@ -36,11 +36,7 @@ ORDER BY 1, 2",
     prune: "DELETE FROM sofie.product_events WHERE ctid IN (
     SELECT ctid FROM sofie.product_events WHERE at < $1 LIMIT 10000
 ) RETURNING 1",
-    forget: "WITH remembered AS (
-    INSERT INTO sofie.forgotten_principals (principal) VALUES ($1) ON CONFLICT DO NOTHING
-), forgotten AS (
-    DELETE FROM sofie.product_events WHERE principal = $1 RETURNING 1
-) SELECT count(*) FROM forgotten",
+    forget: "DELETE FROM sofie.product_events WHERE principal = $1",
     // Later writes skip the principals kept forgotten, so only the last day's are swept.
     sweep: "DELETE FROM sofie.product_events event USING sofie.forgotten_principals forgotten
 WHERE event.principal = forgotten.principal AND forgotten.forgotten_at > now() - interval '1 day'",

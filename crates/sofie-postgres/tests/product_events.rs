@@ -1,9 +1,9 @@
 #![cfg(feature = "product-reports")]
 
-use sofie_core::{Date, SqlValue, Timestamp, Uuid};
+use sofie_core::{Date, Result, SqlValue, Timestamp, Uuid};
 use sofie_db::worker::Worker;
 use sofie_db::{
-    Cohort, Db, Period, ProductEvents, Prune, Retention, cohorts, forget_product_events,
+    Cohort, Db, Outcome, Period, Plan, ProductEvents, Prune, Retention, cohorts, forget_principal,
     query_values,
 };
 use sofie_postgres::Postgres;
@@ -25,6 +25,21 @@ async fn migrated() -> Migrated {
         db,
         postgres,
     }
+}
+
+struct Forgetting(Uuid);
+
+impl Outcome for Forgetting {
+    fn plan(&self, plan: &mut Plan<'_>) -> Result<()> {
+        forget_principal(plan, self.0);
+        Ok(())
+    }
+}
+
+async fn forget(db: &Db, principal: u128) {
+    db.commit(&mut Forgetting(Uuid::from_u128(principal)))
+        .await
+        .unwrap();
 }
 
 async fn insert(postgres: &Postgres, at: &str, name: &str, principal: u128) {
@@ -52,7 +67,7 @@ async fn events_raised_in_a_span_are_written_with_their_principal_unless_it_was_
     let closing = tracing::info_span!("closing");
     sofie_telemetry::attach_principal(&closing, Uuid::from_u128(3));
     closing.in_scope(|| sofie_telemetry::product_event!(account.closed));
-    forget_product_events(db, Uuid::from_u128(3)).await.unwrap();
+    forget(db, 3).await;
 
     request.in_scope(|| sofie_telemetry::product_event!(account.signed_up));
     sofie_telemetry::product_event!(page.viewed);
@@ -176,12 +191,11 @@ async fn a_closed_account_s_events_are_forgotten() {
     insert(postgres, "2026-09-11T10:00:00Z", "page.viewed", 1).await;
     insert(postgres, "2026-09-12T10:00:00Z", "signed_up", 2).await;
 
-    let forgotten = forget_product_events(db, Uuid::from_u128(1)).await.unwrap();
+    forget(db, 1).await;
 
     let left = query_values(postgres, "SELECT principal FROM sofie.product_events", &[])
         .await
         .unwrap();
-    assert_eq!(forgotten, 2);
     assert_eq!(left, [vec![SqlValue::Uuid(Uuid::from_u128(2))]]);
 }
 
@@ -189,7 +203,7 @@ async fn a_closed_account_s_events_are_forgotten() {
 async fn an_event_a_write_racing_the_erasure_kept_is_swept_by_the_prune() {
     let migrated = migrated().await;
     let (db, postgres) = (&migrated.db, &migrated.postgres);
-    forget_product_events(db, Uuid::from_u128(1)).await.unwrap();
+    forget(db, 1).await;
     insert(postgres, "2026-09-10T10:00:00Z", "page.viewed", 1).await;
     insert(postgres, "2026-09-10T10:00:00Z", "page.viewed", 2).await;
 

@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use sofie_core::{Date, Error, Result, SqlValue, Timestamp, Uuid};
+use sofie_core::{Date, Error, Result, SqlValue, Timestamp};
 use sofie_telemetry::{ProductRecord, keep_product_events};
 use tokio::sync::{mpsc, oneshot};
 
@@ -17,8 +17,9 @@ pub struct ProductSql {
     pub cohorts: &'static str,
     /// Deletes at most a batch, answering a row per event deleted.
     pub prune: &'static str,
+    /// Deletes a principal's events; `forget_principal` runs it after recording the principal.
     pub forget: &'static str,
-    /// Deletes what a write racing `forget` kept, as `forget` records whom it erased.
+    /// Deletes what a write racing `forget` kept.
     pub sweep: &'static str,
 }
 
@@ -109,17 +110,6 @@ pub async fn cohorts(db: &Db, retention: &Retention<'_>) -> Result<Vec<Cohort>> 
         }
     }
     Ok(cohorts)
-}
-
-pub async fn forget_product_events(db: &Db, principal: Uuid) -> Result<u64> {
-    let sql = product_sql(db.driver().dialect())?.forget;
-    let rows = query_values(db.driver(), sql, &[SqlValue::Uuid(principal)]).await?;
-    let Some([SqlValue::Int(forgotten)]) = rows.first().map(Vec::as_slice) else {
-        return Err(Error::internal_message(
-            "forgetting product events answered no count",
-        ));
-    };
-    u64::try_from(*forgotten).map_err(|error| Error::internal("counting forgotten events", error))
 }
 
 impl crate::Prune {

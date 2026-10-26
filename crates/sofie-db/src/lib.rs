@@ -177,9 +177,7 @@ pub use live::{
     track_topics,
 };
 #[cfg(feature = "product-reports")]
-pub use product_events::{
-    Cohort, Period, ProductEvents, ProductSql, Retention, cohorts, forget_product_events,
-};
+pub use product_events::{Cohort, Period, ProductEvents, ProductSql, Retention, cohorts};
 #[cfg(feature = "retention")]
 pub use prune::Prune;
 #[cfg(feature = "publishing")]

@@ -272,18 +272,35 @@ impl<A: Area> Resolve<RequestContext<A>> for Session {
 }
 
 /// The session the request's cookie carries, read in a page's loader as in an action.
-pub struct CurrentSession(Option<Uuid>);
+pub struct CurrentSession {
+    id: Option<Uuid>,
+    account: Option<Uuid>,
+}
 
 impl CurrentSession {
     #[must_use]
     pub fn id(&self) -> Option<Uuid> {
-        self.0
+        self.id
+    }
+
+    /// The account its record signed in, as confirmed live for this request; `None` when no
+    /// record was confirmed.
+    #[must_use]
+    pub fn account(&self) -> Option<Uuid> {
+        self.account
     }
 }
 
 impl<A: Area, M> Resolve<RequestContext<A, M>> for CurrentSession {
     fn resolve(context: &mut RequestContext<A, M>) -> impl Future<Output = Result<Self>> + Send {
-        std::future::ready(Ok(Self(context.session().recorded)))
+        let session = context.session();
+        std::future::ready(Ok(Self {
+            id: session.recorded,
+            #[cfg(feature = "session-list")]
+            account: session.account,
+            #[cfg(not(feature = "session-list"))]
+            account: None,
+        }))
     }
 }
 
@@ -354,6 +371,9 @@ pub(crate) struct RequestSession {
     claims: Option<SessionClaims>,
     /// The cookie's session, when the claims are the cookie's own.
     recorded: Option<Uuid>,
+    /// The account the recorded session signed in, once its record is confirmed live.
+    #[cfg(feature = "session-list")]
+    account: Option<Uuid>,
     #[cfg(feature = "flows")]
     flow: Option<String>,
     #[cfg(feature = "client-headers")]
@@ -414,13 +434,18 @@ impl RequestSession {
         match sessions.records.live(members, db, session, seen).await? {
             Some(SessionRecord::Live {
                 account,
-                impersonator: Some(impersonator),
+                impersonator,
                 ..
-            }) => tracing::info!(
-                impersonation.account = %account,
-                impersonation.impersonator = %impersonator,
-                "a request made while impersonating"
-            ),
+            }) => {
+                self.account = Some(account);
+                if let Some(impersonator) = impersonator {
+                    tracing::info!(
+                        impersonation.account = %account,
+                        impersonation.impersonator = %impersonator,
+                        "a request made while impersonating"
+                    );
+                }
+            }
             Some(_) => {}
             None => {
                 self.claims = None;

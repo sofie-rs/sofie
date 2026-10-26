@@ -1,5 +1,6 @@
 use sofie::http::{CurrentSession, RequestContext};
 use sofie::prelude::*;
+use sofie_identity::AccountId;
 
 use crate::organization::{OrganizationArea, OrganizationMember, OrganizationRole, membership};
 use sofie::db::{Context, Resolve};
@@ -40,14 +41,15 @@ const ONLY_AN_OWNER: &str = "Only an owner renames, hands over or deletes the or
 impl<O: OrganizationArea, M> Resolve<RequestContext<O, M>> for Acting {
     async fn resolve(context: &mut RequestContext<O, M>) -> Result<Self> {
         let organization = Principal::<O>::resolve(context).await?.id();
-        let session = CurrentSession::resolve(context)
-            .await?
-            .id()
-            .ok_or(Error::NotFound)?;
+        let current = CurrentSession::resolve(context).await?;
+        let session = current.id().ok_or(Error::NotFound)?;
         let unscoped = context.db().read();
-        let account = sofie_identity::sessions::account_of(&unscoped, session)
-            .await?
-            .ok_or_else(|| Error::Rule(GONE.to_owned()))?;
+        let account = match current.account() {
+            Some(account) => AccountId::from_uuid(account),
+            None => sofie_identity::sessions::account_of(&unscoped, session)
+                .await?
+                .ok_or_else(|| Error::Rule(GONE.to_owned()))?,
+        };
         let member = membership(&unscoped, organization, account)
             .await?
             .ok_or_else(|| Error::Rule(GONE.to_owned()))?;

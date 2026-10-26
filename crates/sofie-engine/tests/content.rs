@@ -141,6 +141,41 @@ fn a_page_is_named_by_a_title_or_a_head_but_not_both() {
     }
 }
 
+/// Only the first `<Head>` moved into `<head>`; the rest left a second title and tags in the body.
+#[test]
+fn a_page_has_one_head() {
+    for (source, refusal) in [
+        (
+            r#"<Head title="T" /><Head description="D" />"#,
+            "`<Head>` is written twice",
+        ),
+        (
+            r"{#each data.posts as post}<Head title={post.title} />{/each}",
+            "a `Head` cannot be inside `{#each}`",
+        ),
+        (
+            r#"<Table id="t" of={data.posts} columns="title" as="post"><Head title={post.title} /></Table>"#,
+            "a `Head` cannot be inside `{#each}` or a `Table` row",
+        ),
+    ] {
+        let error = sofie_engine::Template::parse("content/web/head", source)
+            .expect_err("the page gets two heads")
+            .to_string();
+
+        assert!(error.contains(refusal), "{source}: {error}");
+    }
+}
+
+#[test]
+fn each_branch_of_an_if_may_write_the_head() {
+    let parsed = sofie_engine::Template::parse(
+        "content/web/head",
+        r#"{#if data.draft}<Head title="Draft" />{:else}<Head title={data.title} />{/if}"#,
+    );
+
+    assert!(parsed.is_ok(), "{:?}", parsed.err());
+}
+
 #[test]
 fn a_head_takes_no_id() {
     let parsed = sofie_engine::Template::parse("content/web/head", r#"<Head id="h" title="T" />"#);

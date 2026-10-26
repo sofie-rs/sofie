@@ -46,6 +46,7 @@ pub(crate) fn parse_recorded(
 #[derive(Clone, Copy, Default)]
 struct PageNames {
     title: bool,
+    head: bool,
     head_title: bool,
 }
 
@@ -69,10 +70,26 @@ impl PageNames {
         self.refuse_two(position)
     }
 
+    /// The page moves only the first `<Head>`'s tags into its head; a second would leave its
+    /// tags in the body.
     #[cfg(feature = "content")]
-    fn claim_head_title(&mut self, position: Position) -> Result<(), LocatedError> {
-        self.head_title = true;
+    fn claim_head(&mut self, has_title: bool, position: Position) -> Result<(), LocatedError> {
+        if self.head {
+            bail!(
+                position,
+                "`<Head>` is written twice; a page has one head, so write it once"
+            );
+        }
+        self.head = true;
+        self.head_title = has_title;
         self.refuse_two(position)
+    }
+
+    /// An `{#if}`'s branches may each name the page.
+    fn join(&mut self, other_branch: Self) {
+        self.title |= other_branch.title;
+        self.head |= other_branch.head;
+        self.head_title |= other_branch.head_title;
     }
 
     fn refuse_two(self, position: Position) -> Result<(), LocatedError> {
@@ -191,13 +208,16 @@ impl<'s> Parser<'s> {
         self.scope.record(&condition, position);
         let opener = Opener::new("`{#if}`", position);
         let ids_before = self.ids.clone();
+        let names_before = self.names;
         let then_branch = self.parse_children()?.into_ops();
         let mut else_branch = Vec::new();
         if close(&mut self.cursor, &opener, &[Closer::Else, Closer::EndIf])? == Closer::Else {
             let then_ids = std::mem::replace(&mut self.ids, ids_before);
+            let then_names = std::mem::replace(&mut self.names, names_before);
             else_branch = self.parse_children()?.into_ops();
             close(&mut self.cursor, &opener, &[Closer::EndIf])?;
             self.ids.join(then_ids);
+            self.names.join(then_names);
         }
         Ok(Op::If(Conditional {
             condition,
@@ -341,6 +361,14 @@ impl<'s> Parser<'s> {
                  `Action`, such as `<Action post=\"…\" label=\"…\" with={{{{id: item.id}}}} />`"
             );
         }
+        #[cfg(feature = "content")]
+        if kind == Kind::Head && self.ids.is_repeated {
+            bail!(
+                position,
+                "a `Head` cannot be inside `{{#each}}` or a `Table` row: it would be written once \
+                 per item, and a page has one head; write it once, outside the loop"
+            );
+        }
         let deferred_name = (kind == Kind::Table).then_some("link");
         let attributes = parse_attributes_deferring(
             &mut self.cursor,
@@ -352,8 +380,9 @@ impl<'s> Parser<'s> {
         let (mut props, is_self_closing) = (attributes.given, attributes.is_self_closing);
         self.ids.claim(&props)?;
         #[cfg(feature = "content")]
-        if kind == Kind::Head && props.iter().any(|prop| prop.name == "title") {
-            self.names.claim_head_title(position)?;
+        if kind == Kind::Head {
+            let has_title = props.iter().any(|prop| prop.name == "title");
+            self.names.claim_head(has_title, position)?;
         }
         if kind == Kind::Action {
             self.scope.record_action(&props, position);

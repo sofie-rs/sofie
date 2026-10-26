@@ -47,3 +47,6 @@ tokio = { workspace = true, features = ["io-util", "macros"] }
 
 [lints]
 workspace = true
+
+[package.metadata.docs.rs]
+all-features = true

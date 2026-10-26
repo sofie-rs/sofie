@@ -1,47 +1,31 @@
 use std::fmt::Write;
 
-use super::Client;
-use super::script::{array, authored, literal, slot, text, url_text, value};
+use super::script::{array, literal, slot, text, url_text, value};
 use super::tree::{AttributePart, Element, ElementAttribute, Node};
 use crate::catalog::{Component, Content, FormPart};
 use crate::syntax::{Expression, Position};
 
 pub(super) struct Emitter {
-    client: Client,
     out: String,
     /// Loop and row names bound around the node being written.
     depth: usize,
 }
 
 impl Emitter {
-    pub(super) fn new(client: Client) -> Self {
+    pub(super) fn new() -> Self {
         Self {
-            client,
             out: String::new(),
             depth: 0,
         }
     }
 
     pub(super) fn screen(mut self, nodes: &[Node<'_>]) -> Result<String, String> {
-        match self.client {
-            Client::Svelte => {
-                self.out.push_str(
-                    "<script>\nimport { Catalog, S } from \"sofie:svelte\";\n\
-                     let { data, view } = $props();\n</script>\n",
-                );
-                self.nodes(nodes)?;
-                self.out.push('\n');
-            }
-            Client::React => {
-                self.out.push_str(
-                    "import { Fragment } from \"react\";\n\
-                     import { Catalog, S } from \"sofie:react\";\n\n\
-                     export default function Screen({ data, view }) {\n  return (<>",
-                );
-                self.nodes(nodes)?;
-                self.out.push_str("</>);\n}\n");
-            }
-        }
+        self.out.push_str(
+            "<script>\nimport { Catalog, S } from \"sofie:svelte\";\n\
+             let { data, view } = $props();\n</script>\n",
+        );
+        self.nodes(nodes)?;
+        self.out.push('\n');
         Ok(self.out)
     }
 
@@ -53,7 +37,7 @@ impl Emitter {
         match node {
             Node::Element(element) => self.element(element),
             Node::Markup(markup) => {
-                self.markup(markup);
+                self.out.push_str(&svelte_markup(markup));
                 Ok(())
             }
             Node::Text(expression) => {
@@ -80,19 +64,9 @@ impl Emitter {
         self.out.push('}');
     }
 
-    fn markup(&mut self, markup: &str) {
-        match self.client {
-            Client::Svelte => self.out.push_str(&svelte_markup(markup)),
-            // JSX drops whitespace across lines as HTML between block elements would show it;
-            // other text is a string, so its spaces and characters stay exact.
-            Client::React if markup.trim().is_empty() && markup.contains('\n') => {}
-            Client::React => self.braced(&authored(markup)),
-        }
-    }
-
     /// Svelte writes into the head only through `<svelte:head>`.
     fn element(&mut self, element: &Element<'_>) -> Result<(), String> {
-        if self.client == Client::Svelte && element.tag == "title" {
+        if element.tag == "title" {
             self.out.push_str("<svelte:head>");
             self.plain_element(element)?;
             self.out.push_str("</svelte:head>");
@@ -108,11 +82,7 @@ impl Emitter {
             self.attribute(attribute);
         }
         let Some(children) = &element.children else {
-            self.out.push_str(if self.client == Client::React {
-                " />"
-            } else {
-                ">"
-            });
+            self.out.push('>');
             return Ok(());
         };
         self.out.push('>');
@@ -125,13 +95,6 @@ impl Emitter {
 
     fn attribute(&mut self, attribute: &ElementAttribute<'_>) {
         self.out.push(' ');
-        match self.client {
-            Client::Svelte => self.svelte_attribute(attribute),
-            Client::React => self.react_attribute(attribute),
-        }
-    }
-
-    fn svelte_attribute(&mut self, attribute: &ElementAttribute<'_>) {
         self.out.push_str(&attribute.name);
         self.out.push_str("=\"");
         for part in &attribute.value {
@@ -146,30 +109,6 @@ impl Emitter {
         self.out.push('"');
     }
 
-    fn react_attribute(&mut self, attribute: &ElementAttribute<'_>) {
-        let name = react_name(&attribute.name);
-        self.out.push_str(&name);
-        self.out.push('=');
-        if attribute.value.is_empty() && BOOLEAN_ATTRIBUTES.contains(&attribute.name.as_str()) {
-            self.out.push_str("{true}");
-            return;
-        }
-        let parts: Vec<String> = attribute
-            .value
-            .iter()
-            .map(|part| match part {
-                AttributePart::Markup(markup) => authored(markup),
-                AttributePart::Text(expression) => text(expression),
-                AttributePart::Url(expression) => format!("S.url({})", url_text(expression)),
-            })
-            .collect();
-        match parts.as_slice() {
-            [] => self.out.push_str("\"\""),
-            [only] => self.braced(only),
-            _ => self.braced(&parts.join(" + ")),
-        }
-    }
-
     fn conditional(
         &mut self,
         condition: &Expression,
@@ -177,28 +116,15 @@ impl Emitter {
         else_branch: &[Node<'_>],
     ) -> Result<(), String> {
         let condition = format!("S.truthy({})", value(condition));
-        match self.client {
-            Client::Svelte => {
-                self.out.push_str("{#if ");
-                self.out.push_str(&condition);
-                self.out.push('}');
-                self.nodes(then_branch)?;
-                if !else_branch.is_empty() {
-                    self.out.push_str("{:else}");
-                    self.nodes(else_branch)?;
-                }
-                self.out.push_str("{/if}");
-            }
-            Client::React => {
-                self.out.push('{');
-                self.out.push_str(&condition);
-                self.out.push_str(" ? (<>");
-                self.nodes(then_branch)?;
-                self.out.push_str("</>) : (<>");
-                self.nodes(else_branch)?;
-                self.out.push_str("</>)}");
-            }
+        self.out.push_str("{#if ");
+        self.out.push_str(&condition);
+        self.out.push('}');
+        self.nodes(then_branch)?;
+        if !else_branch.is_empty() {
+            self.out.push_str("{:else}");
+            self.nodes(else_branch)?;
         }
+        self.out.push_str("{/if}");
         Ok(())
     }
 
@@ -217,21 +143,9 @@ impl Emitter {
         let list = format!("S.items({})", value(list));
         let outer = self.depth;
         self.depth += 1 + usize::from(has_index);
-        match self.client {
-            Client::Svelte => {
-                let _ = write!(self.out, "{{#each {list} as {item}, {index}}}");
-                self.nodes(body)?;
-                self.out.push_str("{/each}");
-            }
-            Client::React => {
-                let _ = write!(
-                    self.out,
-                    "{{{list}.map(({item}, {index}) => (<Fragment key={{{index}}}>"
-                );
-                self.nodes(body)?;
-                self.out.push_str("</Fragment>))}");
-            }
-        }
+        let _ = write!(self.out, "{{#each {list} as {item}, {index}}}");
+        self.nodes(body)?;
+        self.out.push_str("{/each}");
         self.depth = outer;
         Ok(())
     }
@@ -243,30 +157,17 @@ impl Emitter {
             .iter()
             .map(|(name, code)| format!("{}: {code}", literal(name)))
             .collect();
-        self.out.push_str("<Catalog ");
-        self.out.push_str(match self.client {
-            Client::Svelte => "{view}",
-            Client::React => "view={view}",
-        });
-        self.out.push_str(" name=");
+        self.out.push_str("<Catalog {view} name=");
         self.out.push_str(&literal(call.name));
         self.out.push_str(" props={{");
         self.out.push_str(&props.join(", "));
         self.out.push_str("}}");
-        if self.client == Client::React
-            && let Some(row) = call.row
-        {
-            self.out.push_str(" row={");
-            self.row(row)?;
-            self.out.push('}');
-        }
-        let svelte_row = call.row.filter(|_| self.client == Client::Svelte);
-        if call.children.is_none() && svelte_row.is_none() {
+        if call.children.is_none() && call.row.is_none() {
             self.out.push_str(" />");
             return Ok(());
         }
         self.out.push('>');
-        if let Some(row) = svelte_row {
+        if let Some(row) = call.row {
             self.row(row)?;
         }
         if let Some(children) = call.children {
@@ -277,24 +178,14 @@ impl Emitter {
         Ok(())
     }
 
-    /// A table's row content, given the row as the next slot: a snippet in Svelte, a function
-    /// in React.
+    /// A table's row content as a snippet, given the row as the next slot.
     fn row(&mut self, ops: &[crate::syntax::Op]) -> Result<(), String> {
         let nodes = super::tree::tree(ops)?;
         let row = slot(self.depth);
         self.depth += 1;
-        match self.client {
-            Client::Svelte => {
-                let _ = write!(self.out, "{{#snippet row({row})}}");
-                self.nodes(&nodes)?;
-                self.out.push_str("{/snippet}");
-            }
-            Client::React => {
-                let _ = write!(self.out, "({row}) => (<>");
-                self.nodes(&nodes)?;
-                self.out.push_str("</>)");
-            }
-        }
+        let _ = write!(self.out, "{{#snippet row({row})}}");
+        self.nodes(&nodes)?;
+        self.out.push_str("{/snippet}");
         self.depth -= 1;
         Ok(())
     }
@@ -481,99 +372,4 @@ fn form_part(part: &FormPart) -> String {
 
 fn svelte_markup(markup: &str) -> String {
     markup.replace('{', "&#123;").replace('}', "&#125;")
-}
-
-const BOOLEAN_ATTRIBUTES: &[&str] = &[
-    "allowfullscreen",
-    "async",
-    "autofocus",
-    "autoplay",
-    "checked",
-    "controls",
-    "default",
-    "defer",
-    "disabled",
-    "formnovalidate",
-    "hidden",
-    "inert",
-    "itemscope",
-    "loop",
-    "multiple",
-    "muted",
-    "nomodule",
-    "novalidate",
-    "open",
-    "playsinline",
-    "readonly",
-    "required",
-    "reversed",
-    "selected",
-];
-
-/// React names DOM properties in camelCase; `aria-*` and `data-*` keep their dashes.
-fn react_name(name: &str) -> String {
-    let renamed = match name {
-        "class" => "className",
-        "for" => "htmlFor",
-        "accesskey" => "accessKey",
-        "autocomplete" => "autoComplete",
-        "autofocus" => "autoFocus",
-        "autoplay" => "autoPlay",
-        "colspan" => "colSpan",
-        "contenteditable" => "contentEditable",
-        "crossorigin" => "crossOrigin",
-        "datetime" => "dateTime",
-        "enctype" => "encType",
-        "enterkeyhint" => "enterKeyHint",
-        "fetchpriority" => "fetchPriority",
-        "formaction" => "formAction",
-        "formnovalidate" => "formNoValidate",
-        "inputmode" => "inputMode",
-        "maxlength" => "maxLength",
-        "minlength" => "minLength",
-        "novalidate" => "noValidate",
-        "playsinline" => "playsInline",
-        "readonly" => "readOnly",
-        "referrerpolicy" => "referrerPolicy",
-        "rowspan" => "rowSpan",
-        "spellcheck" => "spellCheck",
-        "srcset" => "srcSet",
-        "tabindex" => "tabIndex",
-        "usemap" => "useMap",
-        "viewbox" => "viewBox",
-        _ => "",
-    };
-    if !renamed.is_empty() {
-        return renamed.to_owned();
-    }
-    if name.starts_with("aria-") || name.starts_with("data-") || !name.contains('-') {
-        return name.to_owned();
-    }
-    let mut camel = String::with_capacity(name.len());
-    let mut upper = false;
-    for character in name.chars() {
-        if character == '-' {
-            upper = true;
-        } else if upper {
-            camel.push(character.to_ascii_uppercase());
-            upper = false;
-        } else {
-            camel.push(character);
-        }
-    }
-    camel
-}
-
-#[cfg(test)]
-mod tests {
-    use super::react_name;
-
-    #[test]
-    fn react_names_follow_its_dom_properties() {
-        assert_eq!(react_name("class"), "className");
-        assert_eq!(react_name("stroke-width"), "strokeWidth");
-        assert_eq!(react_name("aria-label"), "aria-label");
-        assert_eq!(react_name("data-row-id"), "data-row-id");
-        assert_eq!(react_name("href"), "href");
-    }
 }

@@ -233,6 +233,7 @@ pub enum AreaClient {
     #[default]
     Html,
     Svelte,
+    /// Refused when an area names it; kept only until no caller matches on it.
     React,
 }
 

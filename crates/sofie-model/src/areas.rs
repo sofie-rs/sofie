@@ -31,18 +31,15 @@ pub(crate) fn area_definition(
         Some(Expr::Path(path)) => match last_name(&path.path).as_deref() {
             Some("Html") => AreaClient::Html,
             Some("Svelte") => AreaClient::Svelte,
-            Some("React") => AreaClient::React,
-            _ => {
+            Some("React") => {
                 return Err(error(
-                    "`CLIENT` is `Client::Html`, `Client::Svelte` or `Client::React`",
+                    "`Client::React` is not supported: the framework's web toolchain has no \
+                     React adapter; use `Client::Svelte`",
                 ));
             }
+            _ => return Err(error("`CLIENT` is `Client::Html` or `Client::Svelte`")),
         },
-        Some(_) => {
-            return Err(error(
-                "write `CLIENT` as `Client::Svelte` or `Client::React`",
-            ));
-        }
+        Some(_) => return Err(error("write `CLIENT` as `Client::Svelte`")),
     };
     let mut type_path = module_path.to_vec();
     type_path.push(type_name.to_string());
@@ -123,10 +120,8 @@ mod tests {
             client_of("const CLIENT: Client = Client::Svelte;"),
             Ok(AreaClient::Svelte)
         );
-        assert_eq!(
-            client_of("const CLIENT: sofie::http::Client = sofie::http::Client::React;"),
-            Ok(AreaClient::React)
-        );
+        let react = client_of("const CLIENT: sofie::http::Client = sofie::http::Client::React;");
+        assert!(react.unwrap_err().contains("no React adapter"));
         assert!(client_of("const CLIENT: Client = Client::Vue;").is_err());
     }
 }

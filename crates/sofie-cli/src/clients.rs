@@ -35,9 +35,8 @@ pub(crate) fn client_areas(app: &App) -> Vec<ClientArea<'_>> {
         .into_iter()
         .filter_map(|known| {
             let client = match known.definition?.client {
-                AreaClient::Html => return None,
+                AreaClient::Html | AreaClient::React => return None,
                 AreaClient::Svelte => Client::Svelte,
-                AreaClient::React => Client::React,
             };
             let screens: Vec<(String, &Path)> = app
                 .modules
@@ -144,25 +143,12 @@ pub(crate) fn build_clients(
     if areas.is_empty() {
         return Ok(Vec::new());
     }
-    refuse_react(&areas)?;
     check_toolchain()?;
     for area in &areas {
         let plan = write_area(area, screens, out, mode)?;
         run_node("client.mjs", &plan, "the client build", diagnostics)?;
     }
     Ok(areas.into_iter().map(|area| area.area).collect())
-}
-
-/// The engine compiles React components, but the web toolchain carries no React adapter.
-fn refuse_react(areas: &[ClientArea<'_>]) -> Result<(), GenError> {
-    match areas.iter().find(|area| area.client == Client::React) {
-        Some(area) => Err(GenError::Usage(format!(
-            "area `{}` names `Client::React`, but the framework's web toolchain has no React \
-             adapter; use `Client::Svelte`",
-            area.area
-        ))),
-        None => Ok(()),
-    }
 }
 
 fn write_area(
@@ -278,31 +264,10 @@ pub(crate) fn absolute(file: &Path) -> String {
 mod tests {
     use std::path::Path;
 
-    use sofie_check::Screens;
     use sofie_model::testing::{app, define_area, module};
     use sofie_model::{AreaClient, ListedRoute, RouteMount};
 
     use super::*;
-
-    #[test]
-    fn a_react_area_is_refused_before_anything_is_built() {
-        let mut notes = module("notes", "/app/modules/notes");
-        define_area(&mut notes, "desk");
-        notes.defined_areas[0].client = AreaClient::React;
-        let demo = app("/app", vec![notes]);
-
-        let error = build_clients(
-            &demo,
-            &Screens::read(&demo.modules),
-            Path::new("/nonexistent"),
-            IslandMode::Release,
-            Diagnostics::Terminal,
-        )
-        .err()
-        .unwrap();
-
-        assert!(error.to_string().contains("no React adapter"), "{error}");
-    }
 
     #[test]
     fn a_mounted_framework_screen_joins_the_bundle_unless_a_client_cannot_render_it() {

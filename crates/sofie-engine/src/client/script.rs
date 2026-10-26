@@ -114,7 +114,7 @@ pub(super) fn literal(text: &str) -> String {
     serde_json::to_string(text).expect("a string always serializes")
 }
 
-pub(super) fn authored(markup: &str) -> String {
+fn authored(markup: &str) -> String {
     literal(&decode_html(markup))
 }
 

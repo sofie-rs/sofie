@@ -11,7 +11,6 @@ use crate::{Components, Template, TemplateError};
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Client {
     Svelte,
-    React,
 }
 
 impl Client {
@@ -20,7 +19,6 @@ impl Client {
     pub fn name(self) -> &'static str {
         match self {
             Self::Svelte => "svelte",
-            Self::React => "react",
         }
     }
 
@@ -28,7 +26,6 @@ impl Client {
     pub fn extension(self) -> &'static str {
         match self {
             Self::Svelte => "svelte",
-            Self::React => "jsx",
         }
     }
 }
@@ -37,7 +34,6 @@ impl fmt::Display for Client {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str(match self {
             Self::Svelte => "Svelte",
-            Self::React => "React",
         })
     }
 }
@@ -51,7 +47,7 @@ pub fn compile_client(
 ) -> Result<String, TemplateError> {
     let template = Template::parse_with(name, source, components)?;
     tree::tree(&template.ops)
-        .and_then(|nodes| emit::Emitter::new(client).screen(&nodes))
+        .and_then(|nodes| emit::Emitter::new().screen(&nodes))
         .map_err(|message| {
             TemplateError::unlocated(name, format!("compiling for {client}: {message}"))
         })
@@ -87,22 +83,6 @@ mod tests {
              S.join([\"/r/\", S.urlPart(s0?.id)]), \"label\": S.text(\"Go\")}} />{/snippet}",
         ] {
             assert!(svelte.contains(expected), "{expected}\n{svelte}");
-        }
-    }
-
-    #[test]
-    fn react_writes_jsx_with_keys_properties_and_exact_text() {
-        let react = compiled(Client::React);
-
-        for expected in [
-            "<ul className={\"list \" + S.text(data?.kind)}>",
-            "{S.items(data?.items).map((s0, s1) => (<Fragment key={s1}><li>",
-            "<a href={S.url(S.text(s0?.url))}>{S.text(s0?.name)}</a>",
-            "{S.truthy(data?.empty) ? (<><p>{\"None \"}{S.text(\"{x}\")}</p></>) : \
-             (<><input required={true} /></>)}",
-            "row={(s0) => (<><Catalog view={view} name=\"Action\"",
-        ] {
-            assert!(react.contains(expected), "{expected}\n{react}");
         }
     }
 

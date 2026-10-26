@@ -28,7 +28,7 @@ sofie-engine = { workspace = true, features = ["compile"] }
 sofie-core = { path = "../sofie-core", features = ["testing"] }
 sofie-telemetry = { path = "../sofie-telemetry", features = ["capture"] }
 sofie-values = { path = "../sofie-values", features = ["time"] }
-sofie-testing = { path = "../sofie-testing", features = ["mail"] }
+sofie-testing = { path = "../sofie-testing", features = ["notify"] }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 
 [lints]

@@ -58,15 +58,14 @@ where
         .expect("migrating the test database");
     #[cfg(feature = "mail")]
     let outbox = sofie_mail::testing::fake(&db);
+    sofie::install_for_tests(&db).expect("installing the framework's packages");
     let flags = start_flags(&db, Application::FLAGS).await;
     let built: Result<App> = app.build(db.clone(), flags.as_ref()).await;
     let server = TestServer::start(built.expect("building the app")).await;
     let postgres = connect(database.url());
     // A worker a test builds from `app.db()` signs links like the app's own.
     let db = db.with_signing_keys(server.signing_keys());
-    let worker = worker.build(db.clone(), flags.as_ref());
-    #[cfg(feature = "mail")]
-    let worker = sofie_mail::worker(worker);
+    let worker = sofie::framework_jobs(worker.build(db.clone(), flags.as_ref()));
     sofie_db::worker::publish_heard(&worker);
     TestApp {
         worker,

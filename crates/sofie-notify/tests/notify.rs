@@ -9,7 +9,7 @@ use sofie_db::{Db, Id, Queued};
 use sofie_http::{App, Area, Principal, Routes};
 use sofie_notify::{
     Changed, Channel, Digest, Inbox, InboxItem, MarkedRead, Notice, Notify, Preferences, Recipient,
-    Setup, TimeOfDay, Topic,
+    TimeOfDay, Topic,
 };
 use sofie_testing::{TestApp, TestCaller, TestPrincipal, sent_mails};
 use sofie_values::{Email, TimeZone};
@@ -187,11 +187,8 @@ fn routes(routes: &mut Routes<Members>) {
 
 async fn start() -> TestApp {
     sofie_testing::start(
-        |db: Db| async move {
-            sofie_notify::install(&db, &Setup::new(None)?);
-            Ok(App::new(db).area::<Members>("shop", routes))
-        },
-        |db| sofie_notify::worker(Worker::new(db)),
+        |db: Db| async move { Ok(App::new(db).area::<Members>("shop", routes)) },
+        Worker::new,
     )
     .await
 }

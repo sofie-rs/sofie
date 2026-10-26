@@ -383,11 +383,7 @@ impl Packages {
         if let Some(search) = &self.search {
             search.install(&worker_db);
         }
-        let worker = worker(worker_db).await?;
-        #[cfg(feature = "mail")]
-        let worker = sofie_mail::worker(worker);
-        #[cfg(feature = "notify")]
-        let worker = sofie_notify::worker(worker);
+        let worker = framework_jobs(worker(worker_db).await?);
         #[cfg(feature = "search-meilisearch")]
         let worker = if self.search.is_some() {
             sofie_db::index_searches(worker)
@@ -402,6 +398,28 @@ impl Packages {
             None => worker,
         })
     }
+}
+
+/// The packages' jobs, added to the app's worker and to a test's alike, so the two cannot drift.
+#[doc(hidden)]
+#[must_use]
+pub fn framework_jobs(worker: Worker) -> Worker {
+    #[cfg(feature = "mail")]
+    let worker = sofie_mail::worker(worker);
+    #[cfg(feature = "notify")]
+    let worker = sofie_notify::worker(worker);
+    worker
+}
+
+/// What `framework_jobs` needs on a test's database besides the fake mail transport,
+/// which sofie-testing installs: notify without web push keys, as no test reaches a push service.
+#[doc(hidden)]
+pub fn install_for_tests(db: &Db) -> Result<()> {
+    #[cfg(feature = "notify")]
+    sofie_notify::install(db, &sofie_notify::Setup::new(None)?);
+    #[cfg(not(feature = "notify"))]
+    let _ = db;
+    Ok(())
 }
 
 /// Read once from `SOFIE_NOTIFY_*`, so every way the app boots can notify.

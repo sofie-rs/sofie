@@ -16,6 +16,8 @@ flags = ["dep:sofie-flags"]
 contracts = ["sofie-db/contracts"]
 # `TestApp::mails`: what the app's mail jobs sent, through a fake transport.
 mail = ["dep:sofie-mail", "sofie/mail"]
+# Notify's jobs on the test worker, without web push keys; an app turning on `sofie/notify` gets them too.
+notify = ["mail", "sofie/notify"]
 
 [dependencies]
 bytes.workspace = true

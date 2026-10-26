@@ -14,6 +14,7 @@ pub struct Language<'a> {
     translations: &'a Translations,
     index: usize,
     conventions: &'static Conventions,
+    plural_rule: PluralRule,
     #[cfg(feature = "gates")]
     pub(crate) gates: crate::rendering::GatesRef<'a>,
 }
@@ -57,10 +58,12 @@ impl Translations {
             .chain(&accepted)
             .find_map(|wanted| closest(&self.languages, wanted))
             .unwrap_or(0);
+        let language = self.languages[index].language();
         Language {
             translations: self,
             index,
-            conventions: conventions::for_language(self.languages[index].language()),
+            conventions: conventions::for_language(language),
+            plural_rule: PluralRule::for_language(language),
             #[cfg(feature = "gates")]
             gates: crate::rendering::GatesRef::default(),
         }
@@ -102,6 +105,7 @@ impl<'a> Language<'a> {
             translations: &PLAIN,
             index: 0,
             conventions: &NEUTRAL,
+            plural_rule: PluralRule::OneIsOne,
             #[cfg(feature = "gates")]
             gates: crate::rendering::GatesRef::default(),
         }
@@ -167,7 +171,7 @@ impl<'a> Language<'a> {
         count: Option<Shown<'_>>,
     ) -> Option<&'a Message> {
         let one = || self.own_message(&keys.one);
-        self.plural_rule()
+        self.plural_rule
             .is_one(count)
             .then(one)
             .flatten()
@@ -175,8 +179,9 @@ impl<'a> Language<'a> {
             .or_else(|| self.message(key))
     }
 
+    #[cfg(feature = "clients")]
     pub(crate) fn plural_rule(self) -> PluralRule {
-        PluralRule::for_language(self.locale().language())
+        self.plural_rule
     }
 
     pub(crate) fn enumeration(self, name: &str) -> Option<&'a [Variant]> {

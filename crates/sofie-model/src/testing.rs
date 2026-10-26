@@ -240,6 +240,7 @@ pub fn aggregate(name: &str, fields: Vec<FieldDeclaration>, file: impl Into<Path
         path: vec![name.to_owned()],
         mirror: None,
         fields,
+        children: Vec::new(),
         behaviors: Vec::new(),
         exposed: Vec::new(),
         owner: None,

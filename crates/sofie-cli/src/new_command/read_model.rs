@@ -204,7 +204,6 @@ fn is_instant(ty: &syn::Type) -> bool {
     names == ["Instant"] || names == ["Option", "Instant"]
 }
 
-/// A `Children` field is kept in its own table, which a read model's columns do not reach.
 fn readable_fields<'model>(
     aggregate: &'model Aggregate,
     declared: Option<&'model ItemStruct>,
@@ -212,7 +211,6 @@ fn readable_fields<'model>(
     aggregate
         .fields
         .iter()
-        .filter(|field| field.ty.name != "Children")
         .filter_map(|field| {
             let declared = declared?.fields.iter().find(|declared| {
                 declared

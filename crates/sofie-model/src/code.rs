@@ -110,7 +110,9 @@ pub struct Aggregate {
     pub name: String,
     pub path: Vec<String>,
     pub mirror: Option<Vec<String>>,
+    /// Stored columns; `Children` fields live in their own tables and are in `children`.
     pub fields: Vec<FieldDeclaration>,
+    pub children: Vec<FieldDeclaration>,
     pub behaviors: Vec<String>,
     pub exposed: Vec<String>,
     pub owner: Option<String>,
@@ -578,11 +580,15 @@ fn aggregate_of(structure: &ItemStruct, file: &Path, module_path: &[String]) -> 
         .find(|attribute| attribute.path().is_ident("mirror"))
         .and_then(|attribute| attribute.parse_args::<syn::Path>().ok())
         .map(|path| segments(&path));
+    let (children, fields) = fields_of(&structure.fields, |name| name != "meta")
+        .into_iter()
+        .partition(|field| field.ty.name == "Children");
     Aggregate {
         path: [module_path, std::slice::from_ref(&name)].concat(),
         name,
         mirror,
-        fields: fields_of(&structure.fields, |name| name != "meta"),
+        fields,
+        children,
         behaviors,
         exposed: fields_marked(&structure.fields, "expose").collect(),
         owner: fields_marked(&structure.fields, "owner").next(),

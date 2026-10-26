@@ -1350,6 +1350,29 @@ fn refuses_modifiers_a_route_of_that_kind_does_not_have() {
 }
 
 #[test]
+fn children_of_an_aggregate_are_kept_apart_from_its_columns() {
+    let lib = "#[derive(Aggregate)]\n\
+        pub struct Order { meta: Meta, name: String, lines: Children<Line> }\n";
+    let fixture = Fixture::order(lib);
+
+    let code = fixture.module("order").code;
+
+    let [aggregate] = code.aggregates.as_slice() else {
+        panic!("one aggregate: {:?}", code.aggregates);
+    };
+    let children: Vec<String> = aggregate
+        .children
+        .iter()
+        .map(|child| format!("{}: {}", child.name, child.ty))
+        .collect();
+    assert_eq!(children, ["lines: Children<Line>"]);
+    assert_eq!(
+        aggregate.columns(),
+        ["name", "version", "created_at", "updated_at"]
+    );
+}
+
+#[test]
 fn reads_functions_read_models_aggregates_and_raw_sql() {
     let lib = "mod queries;\nmod actions;\n\n#[derive(Aggregate)]\n\
         #[aggregate(behaviors(SoftDelete, Slugged(from = name)))]\n\

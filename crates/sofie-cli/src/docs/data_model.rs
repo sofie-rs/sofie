@@ -45,8 +45,20 @@ fn entity_lines(module: &Module) -> Vec<String> {
                 ));
             }
         }
+        for child in &aggregate.children {
+            lines.push(format!(
+                "{} ||--o{{ {} : {}",
+                aggregate.name,
+                diagram_type(child_type(child)),
+                child.name
+            ));
+        }
     }
     lines
+}
+
+fn child_type(field: &FieldDeclaration) -> &TypeName {
+    field.ty.arguments.first().unwrap_or(&field.ty)
 }
 
 fn attribute(aggregate: &Aggregate, field: &FieldDeclaration) -> String {
@@ -96,6 +108,20 @@ fn aggregate_section(aggregate: &Aggregate) -> String {
     );
     if let Some(mirror) = &aggregate.mirror {
         let _ = writeln!(text, "- Mirrors: {}", code(&mirror.join("::")));
+    }
+    if !aggregate.children.is_empty() {
+        let children: Vec<String> = aggregate
+            .children
+            .iter()
+            .map(|child| {
+                format!(
+                    "{} ({})",
+                    code(&child.name),
+                    code(&child_type(child).to_string())
+                )
+            })
+            .collect();
+        let _ = writeln!(text, "- Children: {}", children.join(", "));
     }
     let _ = writeln!(text, "- Columns: {}\n", codes(&aggregate.columns()));
     let rows: Vec<[String; 3]> = aggregate

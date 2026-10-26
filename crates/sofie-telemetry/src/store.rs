@@ -12,6 +12,7 @@ use tracing::span::Id;
 use crate::TraceParent;
 use crate::context::Trace;
 use crate::fields::Fields;
+use crate::scrub::SpanFields;
 
 static NEXT_OWNER: AtomicU64 = AtomicU64::new(1);
 static NEXT_THREAD_START: AtomicUsize = AtomicUsize::new(0);
@@ -30,7 +31,7 @@ thread_local! {
 pub(crate) struct SpanEntry {
     pub(crate) metadata: &'static Metadata<'static>,
     pub(crate) parent: Option<Id>,
-    pub(crate) fields: Arc<Fields>,
+    pub(crate) fields: Arc<SpanFields>,
     pub(crate) trace: Option<Trace>,
     #[cfg(feature = "product-events")]
     pub(crate) feature_flags: Option<crate::product::EvaluatedFlags>,
@@ -53,7 +54,7 @@ impl SpanEntry {
         Self {
             metadata,
             parent,
-            fields: Arc::new(fields),
+            fields: Arc::new(SpanFields::new(fields)),
             trace,
             #[cfg(feature = "product-events")]
             feature_flags: None,
@@ -186,7 +187,7 @@ impl SpanStore {
     pub(crate) fn scope(
         &self,
         innermost: Option<&Id>,
-    ) -> (Vec<(&'static str, Arc<Fields>)>, Option<TraceParent>) {
+    ) -> (Vec<(&'static str, Arc<SpanFields>)>, Option<TraceParent>) {
         let mut scope = Vec::new();
         let mut nearest = None;
         self.walk_up(innermost, |entry| {

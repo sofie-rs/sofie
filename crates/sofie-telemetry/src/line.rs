@@ -6,6 +6,7 @@ use tracing::Level;
 use crate::TraceParent;
 use crate::fields::{FieldValue, Fields, push_formatted};
 use crate::json;
+use crate::scrub::SpanFields;
 use crate::timestamp::push_timestamp;
 
 const MESSAGE: &str = "message";
@@ -21,7 +22,7 @@ pub(crate) struct PendingLine {
     pub(crate) level: Level,
     pub(crate) target: &'static str,
     pub(crate) fields: Fields,
-    pub(crate) scope: Vec<(&'static str, Arc<Fields>)>,
+    pub(crate) scope: Vec<(&'static str, Arc<SpanFields>)>,
     #[cfg_attr(
         not(feature = "otlp"),
         expect(dead_code, reason = "only the OTLP export links a line to its span")
@@ -54,7 +55,7 @@ fn push_readable(line: &mut String, record: &PendingLine) {
         line.push_str(name);
         if !fields.is_empty() {
             line.push('{');
-            push_readable_fields(line, fields);
+            push_readable_fields(line, fields.scrubbed());
             line.push('}');
         }
         line.push(':');
@@ -116,6 +117,7 @@ mod tests {
 
     use super::{LineFormat, PendingLine};
     use crate::fields::{FieldValue, Fields};
+    use crate::scrub::SpanFields;
 
     fn noon() -> SystemTime {
         UNIX_EPOCH + Duration::from_hours(497_700)
@@ -129,7 +131,7 @@ mod tests {
         fields
     }
 
-    fn render(format: LineFormat, scope: Vec<(&'static str, Arc<Fields>)>) -> String {
+    fn render(format: LineFormat, scope: Vec<(&'static str, Arc<SpanFields>)>) -> String {
         let event = fields(&[
             (
                 "message",
@@ -155,8 +157,8 @@ mod tests {
     fn a_readable_line_shows_the_spans_then_the_event() {
         let request = fields(&[("otel.name", FieldValue::Text("GET /".to_owned()))]);
         let scope = vec![
-            ("request", Arc::new(request)),
-            ("handler", Arc::new(Fields::default())),
+            ("request", Arc::new(SpanFields::new(request))),
+            ("handler", Arc::new(SpanFields::default())),
         ];
 
         assert_eq!(
@@ -209,7 +211,10 @@ mod tests {
             ("attempt", FieldValue::Signed(-1)),
         ]);
         assert_eq!(
-            render(LineFormat::Json, vec![("request", Arc::new(request))]),
+            render(
+                LineFormat::Json,
+                vec![("request", Arc::new(SpanFields::new(request)))]
+            ),
             "{\"timestamp\":\"2026-10-11T12:00:00.000000Z\",\"level\":\"INFO\",\
              \"fields\":{\"message\":\"request finished\",\"status\":200,\"path\":\"/a\\\"b\\n\"},\
              \"target\":\"sofie_http::trace\",\
@@ -228,7 +233,10 @@ mod tests {
             ]),
             scope: vec![(
                 "request",
-                Arc::new(fields(&[("name", FieldValue::Text("forged".to_owned()))])),
+                Arc::new(SpanFields::new(fields(&[(
+                    "name",
+                    FieldValue::Text("forged".to_owned()),
+                )]))),
             )],
             trace: None,
             time: noon(),

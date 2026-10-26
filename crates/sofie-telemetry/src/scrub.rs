@@ -2,8 +2,8 @@
 
 mod personal;
 
-use std::ops::Range;
-use std::sync::Arc;
+use std::ops::{Deref, Range};
+use std::sync::OnceLock;
 
 use sofie_core::encoding::base64;
 
@@ -56,24 +56,59 @@ const RULES: [Rule; 7] = [
     personal::ip_addresses,
 ];
 
-pub(crate) fn scrub(line: &mut PendingLine) {
-    scrub_fields(&mut line.fields);
-    for (_, fields) in &mut line.scope {
-        if fields
-            .iter()
-            .any(|(name, value)| scrubbed(name, value).is_some())
-        {
-            scrub_fields(Arc::make_mut(fields));
+/// A span's fields, scrubbed once on the writer's thread however many lines it is in.
+#[derive(Clone, Debug, Default)]
+pub(crate) struct SpanFields {
+    raw: Fields,
+    scrubbed: OnceLock<Option<Fields>>,
+}
+
+impl SpanFields {
+    pub(crate) fn new(raw: Fields) -> Self {
+        Self {
+            raw,
+            scrubbed: OnceLock::new(),
         }
+    }
+
+    pub(crate) fn merge(&mut self, recorded: Fields) {
+        self.raw.merge(recorded);
+        self.scrubbed = OnceLock::new();
+    }
+
+    pub(crate) fn scrubbed(&self) -> &Fields {
+        self.scrubbed
+            .get_or_init(|| scrubbed_copy(&self.raw))
+            .as_ref()
+            .unwrap_or(&self.raw)
     }
 }
 
-fn scrub_fields(fields: &mut Fields) {
-    for (name, value) in fields.iter_mut() {
+impl Deref for SpanFields {
+    type Target = Fields;
+
+    fn deref(&self) -> &Fields {
+        &self.raw
+    }
+}
+
+/// Spans are scrubbed as they render, through [`SpanFields::scrubbed`].
+pub(crate) fn scrub(line: &mut PendingLine) {
+    for (name, value) in line.fields.iter_mut() {
         if let Some(clean) = scrubbed(name, value) {
             *value = clean;
         }
     }
+}
+
+fn scrubbed_copy(fields: &Fields) -> Option<Fields> {
+    let mut copy: Option<Fields> = None;
+    for (name, value) in fields.iter() {
+        if let Some(clean) = scrubbed(name, value) {
+            copy.get_or_insert_with(|| fields.clone()).set(name, clean);
+        }
+    }
+    copy
 }
 
 fn scrubbed(name: &str, value: &FieldValue) -> Option<FieldValue> {
@@ -386,7 +421,7 @@ mod tests {
 
     use tracing::Level;
 
-    use super::{is_sensitive_key, scrub, scrubbed_text};
+    use super::{SpanFields, is_sensitive_key, scrub, scrubbed_text};
     use crate::fields::{FieldValue, Fields};
     use crate::line::PendingLine;
 
@@ -569,7 +604,7 @@ mod tests {
         event.set("api_token", FieldValue::Unsigned(7));
         let mut span = Fields::default();
         span.set("url.query", FieldValue::Text("?q=jane".to_owned()));
-        let shared = Arc::new(span);
+        let shared = Arc::new(SpanFields::new(span));
         let mut line = PendingLine {
             level: Level::INFO,
             target: "app",
@@ -584,10 +619,25 @@ mod tests {
         let values: Vec<String> = line
             .fields
             .iter()
-            .chain(line.scope[0].1.iter())
+            .chain(line.scope[0].1.scrubbed().iter())
             .map(|(_, value)| value.to_string())
             .collect();
         assert_eq!(values, ["password=***", "***", "?q=***"]);
         assert_eq!(shared.iter().next().unwrap().1.to_string(), "?q=jane");
+    }
+
+    #[test]
+    fn a_span_recorded_after_it_was_scrubbed_is_scrubbed_again() {
+        let mut span = SpanFields::new(Fields::default());
+        assert!(span.scrubbed().is_empty());
+
+        let mut recorded = Fields::default();
+        recorded.set("url.query", FieldValue::Text("?q=jane".to_owned()));
+        span.merge(recorded);
+
+        assert_eq!(
+            span.scrubbed().iter().next().unwrap().1.to_string(),
+            "?q=***"
+        );
     }
 }

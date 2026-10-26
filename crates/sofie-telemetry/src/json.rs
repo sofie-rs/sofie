@@ -20,7 +20,7 @@ pub(crate) fn push_record(line: &mut String, record: &PendingLine) {
             }
             line.push_str("{\"name\":");
             push_string(line, name);
-            push_fields(line, fields);
+            push_fields(line, fields.scrubbed());
             line.push('}');
         }
         line.push(']');

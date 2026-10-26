@@ -7,9 +7,10 @@ use std::time::{Duration, SystemTime};
 
 use tracing::Metadata;
 
-use crate::fields::{FieldValue, Fields, NAME_FIELD};
+use crate::fields::{FieldValue, NAME_FIELD};
 use crate::outage::Output;
 use crate::sample::Sample;
+use crate::scrub::SpanFields;
 use crate::store::SpanEntry;
 use crate::subscriber::Export;
 use crate::{InitError, TraceParent};
@@ -134,7 +135,7 @@ impl Export for Exporter {
 #[derive(Clone)]
 pub(crate) struct ClosedSpan {
     metadata: &'static Metadata<'static>,
-    fields: Arc<Fields>,
+    fields: Arc<SpanFields>,
     trace: Trace,
     end: SystemTime,
 }

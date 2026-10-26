@@ -8,7 +8,7 @@ use tracing::{Level, Span};
 
 use crate::fields::{FieldValue, Fields, NAME_FIELD, push_formatted};
 use crate::line::{PendingLine, push_readable_value};
-use crate::scrub;
+use crate::scrub::{self, SpanFields};
 use crate::store::SpanEntry;
 use crate::subscriber::{Output, Telemetry};
 
@@ -22,7 +22,7 @@ struct Closed {
     id: u64,
     parent: Option<u64>,
     name: &'static str,
-    fields: Arc<Fields>,
+    fields: Arc<SpanFields>,
     opened: Instant,
     duration: Duration,
 }
@@ -189,15 +189,15 @@ mod tests {
     use std::time::{Duration, Instant};
 
     use super::{Closed, ClosedTree, render, tree_line};
-    use crate::fields::Fields;
     use crate::line::LineFormat;
+    use crate::scrub::SpanFields;
 
     fn span(id: u64, parent: Option<u64>, name: &'static str, opened: Instant) -> Closed {
         Closed {
             id,
             parent,
             name,
-            fields: Arc::new(Fields::default()),
+            fields: Arc::new(SpanFields::default()),
             opened,
             duration: Duration::from_millis(1),
         }

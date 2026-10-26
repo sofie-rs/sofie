@@ -6,7 +6,8 @@ use std::io::Write;
 
 use bytes::Bytes;
 use http::header::{ACCEPT_ENCODING, CONTENT_ENCODING, CONTENT_TYPE, VARY};
-use http::{HeaderMap, HeaderValue};
+use http::request::Parts;
+use http::{HeaderMap, HeaderValue, Method};
 use http_body_util::{BodyExt, Full};
 use hyper::body::Body;
 
@@ -122,13 +123,15 @@ fn is_compressible(response: &Response) -> bool {
             .is_some_and(|length| length >= THRESHOLD)
 }
 
-pub(crate) async fn compress(request: &HeaderMap, mut response: Response) -> Response {
+/// A HEAD answer is described as sent unencoded: compressing a body that is then dropped is
+/// wasted work, and its encoded length is known only by compressing.
+pub(crate) async fn compress(request: &Parts, mut response: Response) -> Response {
     #[cfg(feature = "engine")]
     if let Some(precompressed) = response
         .extensions_mut()
         .remove::<sofie_engine::Precompressed>()
     {
-        return with_precompressed(request, response, precompressed);
+        return with_precompressed(&request.headers, response, precompressed);
     }
     if !is_compressible(&response) {
         return response;
@@ -137,7 +140,9 @@ pub(crate) async fn compress(request: &HeaderMap, mut response: Response) -> Res
         VARY,
         HeaderValue::from_static("Accept-Encoding, Sec-Fetch-Site"),
     );
-    let Some(encoding) = Encoding::accepted(request).filter(|_| !is_cross_site(request)) else {
+    let headers = &request.headers;
+    let accepted = Encoding::accepted(headers).filter(|_| !is_cross_site(headers));
+    let Some(encoding) = accepted.filter(|_| request.method != Method::HEAD) else {
         return response;
     };
     let (mut parts, body) = response.into_parts();
@@ -199,15 +204,16 @@ mod tests {
     use super::*;
     use crate::answer::{self, JSON, TEXT};
 
-    fn request(headers: &[(&str, &str)]) -> HeaderMap {
-        let mut map = HeaderMap::new();
+    fn request(headers: &[(&str, &str)]) -> Parts {
+        asked(Method::GET, headers)
+    }
+
+    fn asked(method: Method, headers: &[(&str, &str)]) -> Parts {
+        let mut builder = http::Request::builder().method(method);
         for (name, value) in headers {
-            map.append(
-                http::HeaderName::from_bytes(name.as_bytes()).unwrap(),
-                HeaderValue::from_str(value).unwrap(),
-            );
+            builder = builder.header(*name, *value);
         }
-        map
+        builder.body(()).unwrap().into_parts().0
     }
 
     fn json_of(length: usize) -> Response {
@@ -221,7 +227,7 @@ mod tests {
 
     #[test]
     fn brotli_is_preferred_and_a_zero_quality_refuses() {
-        let accepted = |value| Encoding::accepted(&request(&[("accept-encoding", value)]));
+        let accepted = |value| Encoding::accepted(&request(&[("accept-encoding", value)]).headers);
 
         assert_eq!(accepted("gzip, deflate, br"), Some(Encoding::Brotli));
         assert_eq!(accepted("gzip, br;q=0"), Some(Encoding::Gzip));
@@ -258,6 +264,17 @@ mod tests {
             .read_to_string(&mut decompressed)
             .unwrap();
         assert_eq!(decompressed.len(), length);
+    }
+
+    #[tokio::test]
+    async fn a_head_answer_is_left_unencoded_with_the_same_vary() {
+        let asked = asked(Method::HEAD, &[("accept-encoding", "br, gzip")]);
+
+        let response = compress(&asked, json_of(4096)).await;
+
+        assert!(!response.headers().contains_key(CONTENT_ENCODING));
+        assert_eq!(response.headers()[VARY], "Accept-Encoding, Sec-Fetch-Site");
+        assert_eq!(body_of(response).await.len(), 4096);
     }
 
     #[tokio::test]
@@ -310,7 +327,7 @@ mod tests {
 
         let brotli = compress(&request(&[("accept-encoding", "gzip, br")]), served()).await;
         let gzip = compress(&request(&[("accept-encoding", "gzip")]), served()).await;
-        let identity = compress(&HeaderMap::new(), served()).await;
+        let identity = compress(&request(&[]), served()).await;
 
         assert_eq!(brotli.headers()[CONTENT_ENCODING], "br");
         assert_eq!(body_of(brotli).await, built.brotli);

@@ -121,7 +121,7 @@ impl Pipeline {
             )
             .await;
         #[cfg(feature = "compression")]
-        let response = crate::compression::compress(&request.headers, response).await;
+        let response = crate::compression::compress(&request, response).await;
         trace.finish(answer::secure(without_head_body(&request.method, response)))
     }
 
@@ -546,7 +546,7 @@ fn label<'r>(probe: Option<Probe>, lookup: &Lookup<'r>) -> Option<RouteLabel<'r>
 }
 
 /// The body is dropped here rather than left to each protocol's implementation; its length
-/// stays, as GET would send it.
+/// stays, as GET would send it in the encoding the headers name.
 fn without_head_body(method: &Method, response: Response) -> Response {
     if method != Method::HEAD {
         return response;

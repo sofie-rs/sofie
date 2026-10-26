@@ -962,6 +962,7 @@ fn sigterm_stops_sofie_mcp_and_reaps_the_app_it_started() {
 fn hung_up_mcp(shell_prefix: &str) -> (std::process::ExitStatus, bool) {
     use std::io::{BufRead, BufReader, Write};
     use std::process::Stdio;
+    use std::time::{Duration, Instant};
 
     let mut mcp = Command::new("sh")
         .arg("-c")
@@ -998,7 +999,18 @@ fn hung_up_mcp(shell_prefix: &str) -> (std::process::ExitStatus, bool) {
     if !shell_prefix.is_empty() {
         drop(stdin);
     }
-    (mcp.wait().unwrap(), answered_after)
+    let deadline = Instant::now() + Duration::from_secs(10);
+    let status = loop {
+        if let Some(status) = mcp.try_wait().unwrap() {
+            break status;
+        }
+        if Instant::now() >= deadline {
+            mcp.kill().unwrap();
+            panic!("sofie mcp still runs 10 seconds after its hangup");
+        }
+        std::thread::sleep(Duration::from_millis(50));
+    };
+    (status, answered_after)
 }
 
 #[cfg(unix)]

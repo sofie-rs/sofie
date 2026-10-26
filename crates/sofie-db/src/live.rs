@@ -52,7 +52,7 @@ impl fmt::Display for Topic {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Readers {
     Anyone,
     Owner(Uuid),
@@ -60,7 +60,8 @@ pub enum Readers {
     Unrestricted,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+/// Ordered by topic first, so sorted changes group by table.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct TableChange {
     pub topic: Topic,
     pub readers: Readers,
@@ -185,12 +186,11 @@ impl Changes {
         }
     }
 
-    pub(crate) fn announce(&self, driver: &Arc<dyn Driver>, mut changes: Vec<TableChange>) {
+    pub(crate) fn announce(&self, driver: &Arc<dyn Driver>, changes: Vec<TableChange>) {
         if changes.is_empty() {
             return;
         }
-        changes.sort_unstable_by_key(|change| change.topic);
-        changes.dedup();
+        let changes = distinct(changes);
         // Fails only while no screen listens, which is no failure.
         let _ = self.here.send(Announced::Changed(changes.clone().into()));
         let Some(notify) = driver.dialect().live_notify() else {
@@ -241,9 +241,7 @@ async fn send(
     notify: &'static str,
     instance: u64,
 ) {
-    let mut changes = std::mem::take(&mut *unpoisoned::lock(&outgoing));
-    changes.sort_unstable_by_key(|change| change.topic);
-    changes.dedup();
+    let changes = distinct(std::mem::take(&mut *unpoisoned::lock(&outgoing)));
     for payload in payloads(instance, &changes) {
         let params = [SqlValue::Text(payload)];
         if let Err(error) = query_values(driver.as_ref(), notify, &params).await {
@@ -257,6 +255,12 @@ async fn send(
 }
 
 /// `<instance> <topic>:<readers> …`, readers `*` for anyone, `!` for an unrestricted reach.
+fn distinct(mut changes: Vec<TableChange>) -> Vec<TableChange> {
+    changes.sort_unstable();
+    changes.dedup();
+    changes
+}
+
 fn payloads(instance: u64, changes: &[TableChange]) -> Vec<String> {
     let start = format!("{instance:016x}");
     let mut payloads = Vec::new();
@@ -384,6 +388,18 @@ mod tests {
             topic: Topic::named("shop", "order"),
             readers,
         }
+    }
+
+    #[test]
+    fn changes_of_interleaved_owners_are_announced_once_each() {
+        let changes = [OWNER, OTHER, OWNER, OTHER]
+            .map(|owner| change(Readers::Owner(owner)))
+            .to_vec();
+
+        assert_eq!(
+            distinct(changes),
+            [change(Readers::Owner(OWNER)), change(Readers::Owner(OTHER))]
+        );
     }
 
     #[test]

@@ -63,15 +63,19 @@ impl Telemetry {
     /// Only the fields are read here, since the event borrows them; the writer's thread formats.
     fn queue_line(&self, writer: &LogWriter, sample: Sample, event: &Event<'_>) {
         let innermost = self.explicit_or_entered(event.is_contextual(), event.parent());
-        let (scope, trace) = self.spans.scope(innermost.as_ref());
         let metadata = event.metadata();
         let level = *metadata.level();
         if level > Level::WARN
-            && trace.is_some_and(|trace| !sample.keeps(trace.trace_id))
+            && sample != Sample::EVERY
             && !is_product(metadata)
+            && innermost
+                .as_ref()
+                .and_then(|id| self.spans.nearest_trace(id))
+                .is_some_and(|trace| !sample.keeps(trace.traceparent().trace_id))
         {
             return;
         }
+        let (scope, trace) = self.spans.scope(innermost.as_ref());
         let fields = self.event_fields(event, innermost.as_ref());
         writer.send(PendingLine {
             level,

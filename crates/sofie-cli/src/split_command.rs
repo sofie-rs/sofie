@@ -5,7 +5,7 @@ use std::fs;
 use std::path::{Component, Path, PathBuf};
 
 use sofie_model::naming::{contract_package, relative_path};
-use sofie_model::{App, Module};
+use sofie_model::{App, Crate, Module};
 
 use crate::env_example::remote_prefix;
 use crate::gen_command::{GenError, GenMode, GenOutcome, io_error, read_existing, regenerated};
@@ -41,6 +41,8 @@ pub struct SplitPlan {
     pub calls_back: Vec<String>,
     /// Modules it calls that an earlier split already moved elsewhere.
     pub reaches: Vec<String>,
+    /// The contracts of `calls_back` and `reaches`, which the new app depends on.
+    pub called_contracts: Vec<Crate>,
     pub proxy: Vec<String>,
     pub shared_prefixes: Vec<String>,
     /// The app's test files naming the module's crate, which it no longer depends on.
@@ -134,7 +136,7 @@ fn plan(
             })
         })
         .collect();
-    let (calls_back, reaches) = called_modules(app, module);
+    let (calls_back, reaches, called_contracts) = called_modules(app, module);
     let (proxy, shared_prefixes) = proxy_prefixes(app, module);
     SplitPlan {
         contracts: crossing_traits(&module.contract_traits)
@@ -151,6 +153,7 @@ fn plan(
             .collect(),
         calls_back,
         reaches,
+        called_contracts,
         proxy,
         shared_prefixes,
         orphaned_tests,
@@ -167,7 +170,7 @@ fn plan(
 }
 
 /// Contracts the module depends on: of modules staying behind, or of ones already split off.
-fn called_modules(app: &App, module: &Module) -> (Vec<String>, Vec<String>) {
+fn called_modules(app: &App, module: &Module) -> (Vec<String>, Vec<String>, Vec<Crate>) {
     let dependencies = module
         .krate
         .dependencies
@@ -175,6 +178,7 @@ fn called_modules(app: &App, module: &Module) -> (Vec<String>, Vec<String>) {
         .chain(module.contract.iter().flat_map(|krate| &krate.dependencies));
     let mut calls_back = Vec::new();
     let mut reaches = Vec::new();
+    let mut contracts: Vec<Crate> = Vec::new();
     for dependency in dependencies {
         let staying = app.modules.iter().find(|other| {
             other.krate.package != module.krate.package
@@ -188,17 +192,26 @@ fn called_modules(app: &App, module: &Module) -> (Vec<String>, Vec<String>) {
             .remote
             .iter()
             .find(|remote| remote.contract.package == dependency.package);
-        if let Some(staying) = staying {
+        let contract = if let Some(staying) = staying {
             calls_back.push(staying.krate.crate_name.clone());
+            staying.contract.as_ref()
         } else if let Some(remote) = remote {
             reaches.push(remote.name.clone());
+            Some(&remote.contract)
+        } else {
+            None
+        };
+        if let Some(contract) = contract {
+            contracts.push(contract.clone());
         }
     }
     calls_back.sort();
     calls_back.dedup();
     reaches.sort();
     reaches.dedup();
-    (calls_back, reaches)
+    contracts.sort_by(|first, second| first.package.cmp(&second.package));
+    contracts.dedup_by(|first, second| first.package == second.package);
+    (calls_back, reaches, contracts)
 }
 
 /// Each route's path up to its first parameter: the prefixes a reverse proxy sends to the new app.
@@ -519,12 +532,8 @@ fn write_new_app(journal: &mut Journal, plan: &SplitPlan) -> Result<(), GenError
         .chain(&plan.reaches)
         .cloned()
         .collect();
-    for called in &remote {
-        let contract = contract_directory(plan, called);
-        dependencies.push_str(&path_dependency(
-            &contract_package(called),
-            &path(&contract),
-        ));
+    for contract in &plan.called_contracts {
+        dependencies.push_str(&path_dependency(&contract.package, &path(&contract.path)));
     }
     let package = kept_lines(&original, "[package]", |line| {
         !line.starts_with("name") && !line.starts_with("description")
@@ -564,20 +573,6 @@ fn kept_lines(text: &str, header: &str, keep: impl Fn(&str) -> bool) -> String {
             let _ = writeln!(kept, "{line}");
             kept
         })
-}
-
-/// Where a called module's contract lives: staying behind, or in the app an earlier split made.
-fn contract_directory(plan: &SplitPlan, module: &str) -> PathBuf {
-    let staying = plan.root.join("modules").join(module).join("contract");
-    if staying.is_dir() {
-        return staying;
-    }
-    plan.root
-        .join("split")
-        .join(module)
-        .join("modules")
-        .join(module)
-        .join("contract")
 }
 
 const APP_MEMBERS: [&str; 3] = ["app", "modules/*", "modules/*/contract"];
@@ -799,6 +794,7 @@ mod tests {
             events: Vec::new(),
             calls_back: Vec::new(),
             reaches: Vec::new(),
+            called_contracts: Vec::new(),
             proxy: vec!["/invoices".to_owned()],
             shared_prefixes: Vec::new(),
             orphaned_tests: Vec::new(),

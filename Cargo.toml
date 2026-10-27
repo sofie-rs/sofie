@@ -16,7 +16,7 @@ exclude = ["bench"]
 [workspace.package]
 edition = "2024"
 rust-version = "1.99"
-version = "0.1.0"
+version = "0.2.0"
 # Inherited only by crates `sofie new` writes inside the examples; the framework crates publish.
 publish = false
 license = "MIT OR Apache-2.0"
@@ -24,31 +24,31 @@ repository = "https://github.com/sofie-rs/sofie"
 homepage = "https://sofie.rs"
 
 [workspace.dependencies]
-sofie = { package = "sofie-framework", version = "0.1.0", path = "crates/sofie" }
-sofie-auth = { version = "0.1.0", path = "crates/sofie-auth" }
-sofie-billing = { version = "0.1.0", path = "crates/sofie-billing" }
-sofie-cache = { version = "0.1.0", path = "crates/sofie-cache" }
-sofie-client = { version = "0.1.0", path = "crates/sofie-client" }
-sofie-content = { version = "0.1.0", path = "crates/sofie-content" }
-sofie-check = { version = "0.1.0", path = "crates/sofie-check" }
-sofie-cli = { version = "0.1.0", path = "crates/sofie-cli" }
-sofie-core = { version = "0.1.0", path = "crates/sofie-core" }
-sofie-db = { version = "0.1.0", path = "crates/sofie-db" }
-sofie-engine = { version = "0.1.0", path = "crates/sofie-engine" }
-sofie-flags = { version = "0.1.0", path = "crates/sofie-flags" }
-sofie-identity = { version = "0.1.0", path = "crates/sofie-identity" }
-sofie-http = { version = "0.1.0", path = "crates/sofie-http", default-features = false }
-sofie-macros = { version = "0.1.0", path = "crates/sofie-macros" }
-sofie-mail = { version = "0.1.0", path = "crates/sofie-mail" }
-sofie-notify = { version = "0.1.0", path = "crates/sofie-notify" }
-sofie-model = { version = "0.1.0", path = "crates/sofie-model" }
-sofie-postgres = { version = "0.1.0", path = "crates/sofie-postgres", default-features = false }
-sofie-sqlite = { version = "0.1.0", path = "crates/sofie-sqlite" }
-sofie-storage = { version = "0.1.0", path = "crates/sofie-storage" }
-sofie-telemetry = { version = "0.1.0", path = "crates/sofie-telemetry" }
-sofie-tenancy = { version = "0.1.0", path = "crates/sofie-tenancy" }
-sofie-testing = { version = "0.1.0", path = "crates/sofie-testing" }
-sofie-values = { version = "0.1.0", path = "crates/sofie-values" }
+sofie = { package = "sofie-framework", version = "0.2.0", path = "crates/sofie" }
+sofie-auth = { version = "0.2.0", path = "crates/sofie-auth" }
+sofie-billing = { version = "0.2.0", path = "crates/sofie-billing" }
+sofie-cache = { version = "0.2.0", path = "crates/sofie-cache" }
+sofie-client = { version = "0.2.0", path = "crates/sofie-client" }
+sofie-content = { version = "0.2.0", path = "crates/sofie-content" }
+sofie-check = { version = "0.2.0", path = "crates/sofie-check" }
+sofie-cli = { version = "0.2.0", path = "crates/sofie-cli" }
+sofie-core = { version = "0.2.0", path = "crates/sofie-core" }
+sofie-db = { version = "0.2.0", path = "crates/sofie-db" }
+sofie-engine = { version = "0.2.0", path = "crates/sofie-engine" }
+sofie-flags = { version = "0.2.0", path = "crates/sofie-flags" }
+sofie-identity = { version = "0.2.0", path = "crates/sofie-identity" }
+sofie-http = { version = "0.2.0", path = "crates/sofie-http", default-features = false }
+sofie-macros = { version = "0.2.0", path = "crates/sofie-macros" }
+sofie-mail = { version = "0.2.0", path = "crates/sofie-mail" }
+sofie-notify = { version = "0.2.0", path = "crates/sofie-notify" }
+sofie-model = { version = "0.2.0", path = "crates/sofie-model" }
+sofie-postgres = { version = "0.2.0", path = "crates/sofie-postgres", default-features = false }
+sofie-sqlite = { version = "0.2.0", path = "crates/sofie-sqlite" }
+sofie-storage = { version = "0.2.0", path = "crates/sofie-storage" }
+sofie-telemetry = { version = "0.2.0", path = "crates/sofie-telemetry" }
+sofie-tenancy = { version = "0.2.0", path = "crates/sofie-tenancy" }
+sofie-testing = { version = "0.2.0", path = "crates/sofie-testing" }
+sofie-values = { version = "0.2.0", path = "crates/sofie-values" }
 
 # Argon2id in the PHC string format; salts come from our own random source, so no `getrandom`.
 argon2 = { version = "0.6.0", default-features = false, features = ["alloc", "password-hash"] }

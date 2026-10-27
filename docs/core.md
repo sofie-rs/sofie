@@ -75,6 +75,14 @@ one claimable at once with its attempts reset, in one statement that refuses
 a message that is not dead, and logs the replay at info with its id, name and
 previous attempts as its audit.
 
+A listener runs after the request that raised its event has answered, so it
+cannot refuse that request. A rule the request must refuse, such as one
+check-in per habit and day, is checked in one aggregate's method over its
+own fields or children: the aggregate's version refuses a commit that raced
+it with 409, and a unique index stays the backstop; a listener only projects. A unique index
+a listener trips is retried like any fault, since a find-or-create that
+lost a race passes on its retry, and is buried once its attempts run out.
+
 No Redis, no broker, no search engine in the core. Each can be added later as
 a plugin behind a gateway.
 

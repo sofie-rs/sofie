@@ -2350,9 +2350,8 @@ impl Area for Customer {
     type Principal = sofie_identity::Account;
 }
 
-impl sofie_identity::MemberArea for Customer {
-    const HOME: &'static str = "/account/orders";
-    const SIGN_UP: Option<&'static str> = Some("/sign-up");
+impl sofie_identity::SignUp for Customer {
+    const PATH: &'static str = "/sign-up";
 }
 ```
 

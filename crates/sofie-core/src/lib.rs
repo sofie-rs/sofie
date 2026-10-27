@@ -35,6 +35,7 @@ pub use field_name::is_field_name;
 pub use fnv::Fnv1a64;
 pub use instant::Instant;
 pub use jiff::Timestamp;
+/// Storage-level jiff types, without serde; apps take `sofie::prelude::Date` (feature `time`).
 pub use jiff::civil::{Date, DateTime};
 pub use local_database::is_local_database;
 pub use plural::plural;

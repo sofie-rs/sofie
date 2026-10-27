@@ -78,14 +78,14 @@ impl Money {
 
     /// The product is exact before it is rounded once, half away from zero.
     pub fn scale(self, numerator: i64, denominator: i64) -> Result<Money> {
+        if denominator <= 0 {
+            return Err(Error::internal_message(format!(
+                "cannot scale an amount by {numerator}/{denominator}: the denominator must be \
+                 positive"
+            )));
+        }
         let product = i128::from(self.minor) * i128::from(numerator);
-        let minor = divide_rounded(product, i128::from(denominator)).ok_or_else(|| {
-            Error::Rule(format!(
-                "cannot scale {} {} by {numerator}/{denominator}: the denominator must be \
-                 positive and the result fit an amount",
-                self.minor, self.currency
-            ))
-        })?;
+        let minor = divide_rounded(product, i128::from(denominator)).ok_or_else(too_large)?;
         Ok(Self::new(minor, self.currency))
     }
 
@@ -95,20 +95,21 @@ impl Money {
         operation: &str,
         apply: fn(i64, i64) -> Option<i64>,
     ) -> Result<Money> {
+        // Amounts reach arithmetic already in one currency, so a mix is the
+        // caller's bug, not something the person asking can correct.
         if self.currency != other.currency {
-            return Err(Error::Rule(format!(
+            return Err(Error::internal_message(format!(
                 "cannot {operation} {} and {} amounts",
                 self.currency, other.currency
             )));
         }
-        let minor = apply(self.minor, other.minor).ok_or_else(|| {
-            Error::Rule(format!(
-                "cannot {operation} {} and {} {}: the result overflows the amount",
-                self.minor, other.minor, self.currency
-            ))
-        })?;
+        let minor = apply(self.minor, other.minor).ok_or_else(too_large)?;
         Ok(Self::new(minor, self.currency))
     }
+}
+
+fn too_large() -> Error {
+    Error::Rule("The amount is too large.".to_owned())
 }
 
 #[cfg(test)]
@@ -130,23 +131,23 @@ mod tests {
     }
 
     #[test]
-    fn refuses_arithmetic_across_currencies() {
+    fn refuses_arithmetic_across_currencies_as_a_bug() {
         assert!(matches!(
             euros(1).checked_add(dollars(1)),
-            Err(Error::Rule(_))
+            Err(Error::Internal { .. })
         ));
         assert!(matches!(
             euros(1).checked_subtract(dollars(1)),
-            Err(Error::Rule(_))
+            Err(Error::Internal { .. })
         ));
     }
 
     #[test]
-    fn refuses_overflow() {
-        assert!(matches!(
-            euros(i64::MAX).checked_add(euros(1)),
-            Err(Error::Rule(_))
-        ));
+    fn refuses_overflow_without_showing_minor_units() {
+        assert_eq!(
+            format!("{:#}", euros(i64::MAX).checked_add(euros(1)).unwrap_err()),
+            "The amount is too large."
+        );
         assert!(matches!(
             euros(i64::MIN).checked_subtract(euros(1)),
             Err(Error::Rule(_))
@@ -210,7 +211,7 @@ mod tests {
         assert_eq!(euros(1000).scale(2, 3).unwrap(), euros(667));
         assert_eq!(euros(i64::MAX).scale(3, 3).unwrap(), euros(i64::MAX));
         assert!(matches!(euros(i64::MAX).scale(2, 1), Err(Error::Rule(_))));
-        assert!(matches!(euros(1).scale(1, 0), Err(Error::Rule(_))));
-        assert!(matches!(euros(1).scale(1, -2), Err(Error::Rule(_))));
+        assert!(matches!(euros(1).scale(1, 0), Err(Error::Internal { .. })));
+        assert!(matches!(euros(1).scale(1, -2), Err(Error::Internal { .. })));
     }
 }

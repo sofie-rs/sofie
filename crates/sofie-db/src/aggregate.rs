@@ -392,8 +392,7 @@ pub(crate) fn direct_owner<A: Aggregate>() -> Option<&'static str> {
     (A::owned_by(probe)?.kind == uuid_equals(column, probe)).then_some(column)
 }
 
-/// How many child kinds an aggregate holds, each one JSON column after its own fields; for
-/// sofie-testing, which rebuilds a record from its encoded fields.
+/// Each child kind is one JSON column after the aggregate's own fields; for sofie-testing.
 #[doc(hidden)]
 #[must_use]
 pub fn child_tables<A: Aggregate>() -> usize {

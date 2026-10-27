@@ -64,7 +64,7 @@ fn generate(root: &Path, original: &Path, generator: &Generator) -> ToolOutput {
     if !matches!(generator, Generator::NewModule(_) | Generator::Fix) {
         match regenerate(root) {
             Ok(written) if written.is_empty() => {
-                text.push_str("sofie gen: everything up to date\n");
+                let _ = writeln!(text, "sofie gen: {NOTHING_TO_WRITE}");
             }
             Ok(written) => {
                 let _ = writeln!(text, "sofie gen:\n  {}", written.join("\n  "));
@@ -134,6 +134,11 @@ fn step(root: &Path, original: &Path, generator: &Generator) -> Result<String, G
     Ok(text)
 }
 
+/// A route edit can leave nothing to write: a running `dev` or a `request` already
+/// regenerated, or the edit touched only what the wiring does not carry.
+const NOTHING_TO_WRITE: &str = "nothing to write; the generated files already match the code \
+     (a running `dev` or a `request` regenerates them too)";
+
 fn outcome_lines(outcomes: &[GenOutcome]) -> String {
     let lines: Vec<String> = outcomes
         .iter()
@@ -141,7 +146,7 @@ fn outcome_lines(outcomes: &[GenOutcome]) -> String {
         .map(|change| format!("  {change}"))
         .collect();
     if lines.is_empty() {
-        return "  everything up to date".to_owned();
+        return format!("  {NOTHING_TO_WRITE}");
     }
     lines.join("\n")
 }

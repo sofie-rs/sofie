@@ -529,7 +529,9 @@ const APP_TOOLS: &[AppTool] = &[
                       names of cookies set, the request's span tree and the body (cut at 16 KiB). \
                       `explain` on the route names the body it takes. sofie-identity's sign-up \
                       answers a taken address exactly like a new one and creates nothing, so \
-                      sign up with a fresh address.",
+                      sign up with a fresh address; signing up signs nobody in, so post the same \
+                      credentials to the area's sign-in route (`routes` lists \
+                      `sofie_identity.<area>.sign_in`) with the same `session`.",
         parameters: &[
             text("path", "The path with its query, such as `/orders?page=2`."),
             optional("method", Kind::Text, "`GET` when none."),
@@ -555,7 +557,8 @@ const APP_TOOLS: &[AppTool] = &[
                 "session",
                 Kind::Text,
                 "A cookie jar by name: sign in through the app's own routes with \
-                              one, then act as that principal by naming it again.",
+                              one, then act as that principal by naming it again. Jars live in \
+                              this `sofie mcp` process only: a new process starts signed out.",
             ),
         ],
         run: |session, arguments| {

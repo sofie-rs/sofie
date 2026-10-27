@@ -64,7 +64,8 @@ const STEPS: &[Step] = &[
     Step {
         name: "Run",
         guidance: "`dev` starts the app, `request` tries a route on it, `logs` and `traces` \
-                   show what it did; `task` and `db_status` run the app's binary once.",
+                   show what it did; `task` and `db_status` run the app's binary once. A `request` \
+                   `session` is signed in only for this `sofie mcp` process.",
         tools: &["request", "dev", "logs", "traces", "task", "db_status"],
     },
     Step {

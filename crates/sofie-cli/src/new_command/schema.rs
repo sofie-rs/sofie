@@ -51,7 +51,8 @@ pub(super) fn create_migration(
     edits.create(&folder.join("sqlite").join(file_name), &twin)
 }
 
-/// No `factory.rs`: one nothing calls yet is dead code, and with `sofie/factories` the derive writes the default one.
+/// No `factory.rs`: one nothing calls yet is dead code, and with `sofie/factories` the derive
+/// writes the default one; the module turns that feature on itself, so it builds alone too.
 pub(super) fn new_aggregate(
     edits: &mut Edits,
     module: &Module,
@@ -72,6 +73,7 @@ pub(super) fn new_aggregate(
             module.krate.crate_name
         )));
     }
+    edits.enable_framework_feature(&module.krate, "factories")?;
     edits.create(
         &module.krate.path.join("src").join(&folder).join("mod.rs"),
         &format!(

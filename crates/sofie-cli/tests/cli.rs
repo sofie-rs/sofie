@@ -619,6 +619,8 @@ fn a_new_aggregate_gives_the_contract_the_framework_its_generated_code_names() {
     );
     let manifest = fs::read_to_string(root.join("modules/catalog/contract/Cargo.toml")).unwrap();
     assert!(manifest.contains("sofie.workspace = true"), "{manifest}");
+    let module = fs::read_to_string(root.join("modules/catalog/Cargo.toml")).unwrap();
+    assert!(module.contains("\"factories\""), "{module}");
     assert_eq!(
         stdout(&check),
         "ok\n",

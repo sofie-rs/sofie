@@ -126,16 +126,24 @@ pub(crate) fn wire_generated_code(app: &App) -> Result<Vec<(PathBuf, String)>, G
     for module in &app.modules {
         applied.extend(export_generated(app, module)?);
     }
-    for module in app.modules.iter().filter(|module| !module.tasks.is_empty()) {
-        let manifest = module.krate.path.join("Cargo.toml");
-        let text = read(&manifest)?;
-        // A dependency written over several lines is left to the build's own error.
-        if let Some(edited) = with_feature_on(&text, "sofie", "tasks")
-            && edited != text
-        {
-            write(&manifest, &edited)?;
-            let change = format!("turned sofie's `tasks` on in {}", shown(app, &manifest));
-            applied.push((manifest, change));
+    for module in &app.modules {
+        // The derive writes an aggregate's default factory only with `factories` on in the
+        // crate's own build, which an app's features reach only when the app is built too.
+        let features = [
+            (!module.tasks.is_empty()).then_some("tasks"),
+            (!module.code.aggregates.is_empty()).then_some("factories"),
+        ];
+        for feature in features.into_iter().flatten() {
+            let manifest = module.krate.path.join("Cargo.toml");
+            let text = read(&manifest)?;
+            // A dependency written over several lines is left to the build's own error.
+            if let Some(edited) = with_feature_on(&text, "sofie", feature)
+                && edited != text
+            {
+                write(&manifest, &edited)?;
+                let change = format!("turned sofie's `{feature}` on in {}", shown(app, &manifest));
+                applied.push((manifest, change));
+            }
         }
     }
     let declares_tasks = app.modules.iter().any(|module| !module.tasks.is_empty());

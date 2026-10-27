@@ -192,22 +192,28 @@ impl Code {
         self.read_models.iter().find(|model| model.name == name)
     }
 
-    /// The module's own `#[derive(Value)]` types among `fields` that nothing gives a `Fixture`.
+    /// The module's own `#[derive(Value)]` types among `fields`.
     #[must_use]
-    pub fn values_without_fixture<'f>(&self, fields: &'f [FieldDeclaration]) -> Vec<&'f str> {
-        let mut missing: Vec<&str> = fields
+    pub fn values_in<'f>(&self, fields: &'f [FieldDeclaration]) -> Vec<&'f str> {
+        let mut values: Vec<&str> = fields
             .iter()
             .flat_map(|field| std::iter::once(&field.ty).chain(&field.ty.arguments))
             .map(|ty| ty.name.as_str())
             .filter(|ty| self.values.iter().any(|value| value == ty))
-            .filter(|ty| {
-                !self.methods.iter().any(|method| {
-                    method.owner == *ty && method.implements.as_deref() == Some("Fixture")
-                })
-            })
             .collect();
-        missing.sort_unstable();
-        missing.dedup();
+        values.sort_unstable();
+        values.dedup();
+        values
+    }
+
+    #[must_use]
+    pub fn values_without_fixture<'f>(&self, fields: &'f [FieldDeclaration]) -> Vec<&'f str> {
+        let mut missing = self.values_in(fields);
+        missing.retain(|ty| {
+            !self.methods.iter().any(|method| {
+                method.owner == *ty && method.implements.as_deref() == Some("Fixture")
+            })
+        });
         missing
     }
 

@@ -630,12 +630,22 @@ fn a_value_without_a_fixture_is_named_instead_of_scaffolded_into_tests_that_do_n
                  #[derive(Aggregate)]\npub struct Habit {\n    meta: Meta,\n    #[length(max = 40)]\n    \
                  name: HabitName,\n}\n";
     app.write("modules/catalog/src/habit.rs", habit);
+    app.write(
+        "sofie/Cargo.toml",
+        "[package]\nname = \"sofie\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n\
+         [features]\nfixtures = []\n",
+    );
+    app.write("sofie/src/lib.rs", "");
+    app.write(
+        "modules/catalog/Cargo.toml",
+        &manifest("catalog", "sofie = { path = \"../../sofie\" }\n"),
+    );
 
     let missing = scaffold_tests_at(app.root(), at(1_791_720_000)).unwrap();
     app.write(
         "modules/catalog/src/habit.rs",
         &format!(
-            "{habit}\nimpl sofie::values::Fixture for HabitName {{\n    fn fixture(_seed: &mut \
+            "{habit}\n#[cfg(feature = \"fixtures\")]\nimpl sofie::values::Fixture for HabitName {{\n    fn fixture(_seed: &mut \
              sofie::values::Seed) -> Self {{\n        Self(\"Read\".to_owned())\n    }}\n}}\n"
         ),
     );
@@ -649,6 +659,17 @@ fn a_value_without_a_fixture_is_named_instead_of_scaffolded_into_tests_that_do_n
     );
     let text = written_text(&missing, 0);
     assert!(!text.contains("habit_is_made_by_its_factory"), "{text}");
+    let module = fs::read_to_string(app.path("modules/catalog/Cargo.toml")).unwrap();
+    assert!(
+        module.contains("[features]\nfixtures = [\"sofie/fixtures\"]\n"),
+        "{module}"
+    );
+    let manifest = fs::read_to_string(app.path("app/Cargo.toml")).unwrap();
+    let (_, dev) = manifest.split_once("[dev-dependencies]").unwrap();
+    assert!(
+        dev.contains("catalog = { path = \"../modules/catalog\", features = [\"fixtures\"] }"),
+        "{manifest}"
+    );
     assert!(!text.contains("habit_name_keeps"), "{text}");
     assert!(
         written

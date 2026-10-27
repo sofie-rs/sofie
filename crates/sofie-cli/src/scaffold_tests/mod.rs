@@ -24,7 +24,7 @@ use crate::source_edits::{
     DEPENDENCIES, DEV_DEPENDENCIES, Journal, files_with_extension, path_dependency, read,
     toml_section, with_section_line,
 };
-use facts::{Fact, module_facts};
+use facts::{Fact, module_facts, needs_value_fixtures};
 
 const DIRECTORY: [&str; 2] = ["tests", "scaffolded"];
 const ROOT_FILE: &str = "main.rs";
@@ -161,6 +161,8 @@ pub(crate) fn scaffold_tests_at(root: &Path, now: Timestamp) -> Result<Scaffolde
 
 const TESTING_PACKAGE: &str = "sofie-testing";
 const IDENTITY_PACKAGE: &str = "sofie-identity";
+const FIXTURES: &str = "fixtures";
+const FEATURES: &str = "[features]";
 
 /// What the scaffolded files name besides the app and its modules, which a new app lacks.
 fn add_test_dependencies(
@@ -176,6 +178,7 @@ fn add_test_dependencies(
     let manifest = app.app.path.join("Cargo.toml");
     let original = read(&manifest)?;
     let mut text = with_contracts(app, &sources, &original)?;
+    text = with_module_fixtures(app, &text, journal, outcome)?;
     if sources.contains("sofie_testing::") && !names_dependency(&text, TESTING_PACKAGE) {
         let line = format!("{TESTING_PACKAGE}.workspace = true\n");
         text = with_workspace_dev_dependency(app, &text, TESTING_PACKAGE, &line, journal, outcome)?;
@@ -227,6 +230,59 @@ fn with_contracts(app: &App, sources: &str, manifest: &str) -> Result<String, Ge
         text = with_section_line(&text, DEV_DEPENDENCIES, &line);
     }
     Ok(text)
+}
+
+/// A hand-written `Fixture` sits behind the module's own `fixtures` feature,
+/// so a plain build, which lacks the trait, leaves it out.
+fn with_module_fixtures(
+    app: &App,
+    manifest: &str,
+    journal: &mut Journal,
+    outcome: &mut ScaffoldedTests,
+) -> Result<String, GenError> {
+    let mut text = manifest.to_owned();
+    for module in sorted::modules(app) {
+        if !needs_value_fixtures(module) {
+            continue;
+        }
+        add_fixtures_feature(&module.krate.path, journal, outcome)?;
+        let package = &module.krate.package;
+        let dev_names = toml_section(&text, DEV_DEPENDENCIES).is_some_and(|(start, end)| {
+            dependency_line_start(&text[start..end], package).is_some()
+        });
+        if !dev_names {
+            let path = relative_path(&app.app.path, &module.krate.path).ok_or_else(|| {
+                GenError::Usage(format!(
+                    "{} cannot name {} by a relative path",
+                    app.app.path.display(),
+                    module.krate.path.display()
+                ))
+            })?;
+            text = with_section_line(&text, DEV_DEPENDENCIES, &path_dependency(package, &path));
+        }
+        if let Some(edited) = with_feature_in(&text, DEV_DEPENDENCIES, package, FIXTURES) {
+            text = edited;
+        }
+    }
+    Ok(text)
+}
+
+fn add_fixtures_feature(
+    module: &Path,
+    journal: &mut Journal,
+    outcome: &mut ScaffoldedTests,
+) -> Result<(), GenError> {
+    let manifest = module.join("Cargo.toml");
+    let text = read(&manifest)?;
+    let declared = toml_section(&text, FEATURES)
+        .is_some_and(|(start, end)| dependency_line_start(&text[start..end], FIXTURES).is_some());
+    if declared {
+        return Ok(());
+    }
+    let line = format!("{FIXTURES} = [\"sofie/{FIXTURES}\"]\n");
+    journal.write(&manifest, with_section_line(&text, FEATURES, &line))?;
+    outcome.changed.push(manifest);
+    Ok(())
 }
 
 fn with_workspace_dev_dependency(

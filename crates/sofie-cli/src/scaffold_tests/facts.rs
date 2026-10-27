@@ -60,6 +60,15 @@ const VALUES: [(&str, &str); 19] = [
     ("Weight", "sofie::values::Weight"),
 ];
 
+/// A derived factory draws the module's own value types from their hand-written
+/// `Fixture`, which a plain build lacks the trait for.
+pub(super) fn needs_value_fixtures(module: &Module) -> bool {
+    let code = &module.code;
+    code.aggregates.iter().any(|aggregate| {
+        !writes_factory(&aggregate.file) && !code.values_in(&aggregate.fields).is_empty()
+    })
+}
+
 pub(crate) fn module_facts(app: &App, module: &Module, screens: &Screens) -> ModuleFacts {
     let requests = Requests {
         app,
@@ -183,7 +192,8 @@ fn aggregate_facts(requests: &Requests, aggregate: &Aggregate, facts: &mut Modul
             format!(
                 "{name}: no fixture, as {} has no `impl sofie::values::Fixture` (`fn \
                  fixture(seed: &mut sofie::values::Seed) -> Self`, drawing a value its `try_new` \
-                 takes); write one, then scaffold the tests again",
+                 takes); write one under `#[cfg(feature = \"fixtures\")]`, the module feature \
+                 the app's tests turn on, then scaffold the tests again",
                 types.join(", ")
             ),
         );

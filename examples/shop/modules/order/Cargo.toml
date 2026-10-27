@@ -7,7 +7,7 @@ version.workspace = true
 publish = false
 
 [dependencies]
-sofie = { workspace = true, default-features = false, features = ["engine"] }
+sofie = { workspace = true, default-features = false, features = ["engine", "factories"] }
 sofie-identity.workspace = true
 order-contract = { path = "contract" }
 

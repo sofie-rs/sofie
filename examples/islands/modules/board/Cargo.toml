@@ -7,7 +7,7 @@ version.workspace = true
 publish = false
 
 [dependencies]
-sofie = { workspace = true, features = ["islands"] }
+sofie = { workspace = true, features = ["islands", "factories"] }
 
 [lints]
 workspace = true

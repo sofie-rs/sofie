@@ -91,7 +91,11 @@ fn main() -> ExitCode {
         Some(Command::Fuzz(options, root)) => run_fuzz(&root, options),
         Some(Command::Seed(volume, root)) => run_seed(&root, volume),
         Some(Command::NewApp(name)) => {
-            report_outcomes(Path::new(&name), "gen", new_app(Path::new("."), &name))
+            let code = report_outcomes(Path::new(&name), "gen", new_app(Path::new("."), &name));
+            if code == ExitCode::SUCCESS {
+                print_app_next_steps(&name);
+            }
+            code
         }
         Some(Command::NewModule(name, root)) => {
             report_outcomes(&root, "gen", new_module(&root, &name))
@@ -368,6 +372,15 @@ fn root(rest: &[String]) -> Option<PathBuf> {
         [root] if !root.starts_with('-') => Some(PathBuf::from(root)),
         _ => None,
     }
+}
+
+/// The app does not start until `.env` holds a database and signing keys, which `new`
+/// leaves to the developer since both are secrets of their own machine.
+fn print_app_next_steps(name: &str) {
+    println!(
+        "\nnext:\n  cd {name}\n  cp .env.example .env    # set DATABASE_URL, and \
+         SOFIE_SIGNING_KEYS to `openssl rand -base64 32`\n  sofie dev"
+    );
 }
 
 fn report_outcomes(

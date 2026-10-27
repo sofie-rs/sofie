@@ -106,7 +106,7 @@ pub enum NewCode {
 const KEEP: &str = ".gitkeep";
 
 pub fn new_app(parent: &Path, name: &str) -> Result<Vec<GenOutcome>, GenError> {
-    let name = checked_package_name(name)?;
+    let name = checked_app_name(name)?;
     let root = parent.join(name);
     refuse_existing(&root)?;
     let crate_name = crate_name(name);
@@ -484,6 +484,26 @@ fn checked_package_name(name: &str) -> Result<&str, GenError> {
     Ok(name)
 }
 
+/// An app is a package only, never a Rust path, so it may take `-` between words as crates
+/// commonly do; its crate name, with `_`, is what has to be free.
+fn checked_app_name(name: &str) -> Result<&str, GenError> {
+    let plain = name.starts_with(|first: char| first.is_ascii_lowercase())
+        && name.split('-').all(|word| {
+            !word.is_empty()
+                && word.chars().all(|character| {
+                    character.is_ascii_lowercase() || character.is_ascii_digit() || character == '_'
+                })
+        });
+    if !plain {
+        return Err(GenError::Usage(format!(
+            "`{name}` is not a name `sofie new app` takes: start with a lowercase letter and use \
+             only lowercase letters, digits, `_` and single `-` between words"
+        )));
+    }
+    checked_package_name(&crate_name(name))?;
+    Ok(name)
+}
+
 fn refuse_keyword(name: &str, identifier: &str) -> Result<(), GenError> {
     if !RUST_KEYWORDS.contains(&identifier) {
         return Ok(());
@@ -621,7 +641,8 @@ const MODULE_LIBRARY: &str = "pub mod config;\npub mod module;\nmod wiring;\n\nm
 #[cfg(test)]
 mod tests {
     use super::{
-        Origin, PRELUDE_TYPES, checked_name, checked_package_name, checked_type_name, source_of,
+        Origin, PRELUDE_TYPES, checked_app_name, checked_name, checked_package_name,
+        checked_type_name, source_of,
     };
 
     #[test]
@@ -703,6 +724,20 @@ mod tests {
             );
         }
         assert_eq!(checked_package_name("shop").unwrap(), "shop");
+    }
+
+    #[test]
+    fn an_app_name_takes_single_hyphens_between_words() {
+        assert_eq!(
+            checked_app_name("restarts-pilot").unwrap(),
+            "restarts-pilot"
+        );
+        assert_eq!(checked_app_name("shop_2").unwrap(), "shop_2");
+        for name in ["-shop", "shop-", "re--start", "Shop", "2shop", "shop.app"] {
+            let refused = checked_app_name(name).unwrap_err().to_string();
+            assert!(refused.contains("single `-`"), "{name}: {refused}");
+        }
+        assert!(checked_app_name("proc-macro").is_err());
     }
 
     #[test]

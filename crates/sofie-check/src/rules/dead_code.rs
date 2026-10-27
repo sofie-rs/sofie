@@ -126,8 +126,9 @@ fn item_findings<'model>(
                 item.name
             ),
             fix: format!(
-                "delete it, or list it in dead-code-allow.toml as `[[item]]` of package \
-                 `{package}` with the reason it stays"
+                "delete it, or list it in dead-code-allow.toml as `[[item]]` with \
+                 `package = \"{package}\"`, `name = \"{}\"` and a `reason` it stays",
+                item.name
             ),
         })
 }

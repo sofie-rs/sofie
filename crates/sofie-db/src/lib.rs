@@ -93,8 +93,8 @@ pub mod worker;
 pub use across::{Across, Guard, GuardCheck};
 pub use aggregate::{
     Aggregate, Field, JsonOf, JsonProbe, Meta, RaisedEvent, ReadsNoText, ReadsText, Serializes,
-    SerializesNot, Source, TextOf, WritesJson, WritesNoJson, read_columns, sensitive_count,
-    sensitive_names,
+    SerializesNot, Source, TextOf, WritesJson, WritesNoJson, child_tables, read_columns,
+    sensitive_count, sensitive_names,
 };
 #[cfg(feature = "testing")]
 pub use arrivals::{keep_raised, raised};

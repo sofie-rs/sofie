@@ -71,6 +71,12 @@ fn behaviors_with_arguments_and_children_describe_the_table() {
 }
 
 #[test]
+fn a_rebuilt_record_reads_one_json_column_per_child_kind() {
+    assert_eq!(sofie::db::child_tables::<WishList>(), 1);
+    assert_eq!(sofie::db::child_tables::<Shop>(), 0);
+}
+
+#[test]
 fn a_joined_read_model_replies_its_creation_time() {
     let created = Timestamp::from_second(1_760_000_000).unwrap();
     let values = vec![

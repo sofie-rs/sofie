@@ -295,8 +295,12 @@ fn fields<A: Aggregate>(record: &A) -> Vec<SqlValue> {
     fields
 }
 
+/// The children come back empty and unchanged, so saving the rebuilt record leaves the
+/// stored child rows alone.
 fn with_fields_of<A: Aggregate>(record: &A, other: &A) -> A {
-    A::decode(record.meta().clone(), &mut RowReader::new(&fields(other)))
+    let mut row = fields(other);
+    row.extend((0..sofie_db::child_tables::<A>()).map(|_| SqlValue::Json(Json::Array(Vec::new()))));
+    A::decode(record.meta().clone(), &mut RowReader::new(&row))
         .unwrap_or_else(|error| panic!("rebuilding a {}: {error:?}", A::NAME))
 }
 

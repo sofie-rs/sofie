@@ -373,7 +373,7 @@ fn generate_tools_on_the_shop_dry_run_on_a_copy_and_leave_it_untouched() {
         "  change app/src/wiring.rs\n",
         "  create modules/billing/src/module.rs\n",
         "  create docs/gen/modules/billing.md\n",
-        "created module `billing`",
+        "what the generators reported on a scratch copy, not this app:\ncreated module `billing`",
         "what it would write:\n",
         "create modules/billing/src/module.rs\n@@ -0,0 +1,",
     ] {

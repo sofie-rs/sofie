@@ -419,6 +419,7 @@ impl Drop for Scratch {
 }
 
 /// What a dry run answers: the changes, the generator's own report, then each change's diff.
+/// That report is in the past tense of the copy it ran on, so it is labelled as such.
 pub(super) fn dry_report(text: &str, changes: &[Change]) -> String {
     let listed = if changes.is_empty() {
         "  nothing".to_owned()
@@ -431,7 +432,9 @@ pub(super) fn dry_report(text: &str, changes: &[Change]) -> String {
     };
     let diffs: Vec<String> = changes.iter().map(Change::diff).collect();
     format!(
-        "dry run, nothing was written; it would:\n{listed}\n\n{text}\nwhat it would write:\n{}",
+        "dry run, nothing was written; it would:\n{listed}\n\n\
+         what the generators reported on a scratch copy, not this app:\n{text}\n\
+         what it would write:\n{}",
         diffs.join("\n\n")
     )
 }

@@ -2741,3 +2741,32 @@ fn a_module_building_a_cross_owner_check_by_hand_is_reported() {
     assert_contains(&findings[0].message, "`actions::peek`");
     assert_contains(&findings[0].fix, "`<Aggregate>::across(&read)`");
 }
+
+#[test]
+fn an_aggregate_sharing_another_aggregate_s_folder_is_a_finding() {
+    let mut exams = module("exams", "modules/exams");
+    for (name, file) in [
+        ("Exam", "modules/exams/src/exam/mod.rs"),
+        ("Question", "modules/exams/src/exam/mod.rs"),
+        ("Answer", "modules/exams/src/answer.rs"),
+        ("Sheet", "modules/exams/src/answer/mod.rs"),
+        ("Grade", "modules/exams/src/grade/mod.rs"),
+    ] {
+        exams
+            .code
+            .aggregates
+            .push(aggregate(name, Vec::new(), file));
+    }
+
+    let findings: Vec<Finding> = check(&app_with(vec![exams]))
+        .into_iter()
+        .filter(|finding| finding.rule.name() == "aggregate-folder")
+        .collect();
+
+    let named: Vec<&str> = findings
+        .iter()
+        .map(|finding| finding.message.split('`').nth(1).unwrap())
+        .collect();
+    assert_eq!(named, ["Sheet", "Question"], "{findings:?}");
+    assert_contains(&findings[1].fix, "src/question/mod.rs");
+}

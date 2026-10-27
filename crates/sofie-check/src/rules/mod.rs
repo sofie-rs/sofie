@@ -1,4 +1,5 @@
 mod actions;
+mod aggregate_folder;
 mod allowances;
 mod bindings;
 mod clients;
@@ -51,6 +52,7 @@ pub use names::missing_gen_exports;
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Rule {
     ActionInput,
+    AggregateFolder,
     AppDependency,
     AreaDefinition,
     AreaPrefix,
@@ -119,6 +121,7 @@ impl Rule {
     pub fn name(self) -> &'static str {
         match self {
             Self::ActionInput => "action-input",
+            Self::AggregateFolder => "aggregate-folder",
             Self::AppDependency => "app-dependency",
             Self::AreaDefinition => "area-definition",
             Self::AreaPrefix => "area-prefix",
@@ -231,6 +234,7 @@ pub fn check(app: &App, screens: &Screens) -> Vec<Finding> {
     findings.extend(exposed::check_exposed(&app.modules));
     findings.extend(exposed::check_mirrors(&app.modules));
     findings.extend(names::check_names(app));
+    findings.extend(aggregate_folder::check_aggregate_folders(&app.modules));
     findings.extend(registrations::check_registrations(app));
     findings.extend(raw_sql::check_raw_sql(&app.modules));
     findings.extend(constraints::check_constraints(&app.modules, &migrations));

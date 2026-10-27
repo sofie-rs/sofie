@@ -99,7 +99,7 @@ impl<A: Area, I: Input + Send + 'static> Resolve<RequestContext<A>> for CsvRows<
     fn resolve(context: &mut RequestContext<A>) -> impl Future<Output = Result<Self>> + Send {
         let body = context.matched.body.take();
         std::future::ready(
-            body.ok_or_else(|| Error::BadRequest("the request body was already read".to_owned()))
+            body.ok_or_else(crate::context::body_already_read)
                 .and_then(|body| {
                     let text = std::str::from_utf8(&body)
                         .map_err(|_| Error::BadRequest("the CSV is not UTF-8".to_owned()))?;

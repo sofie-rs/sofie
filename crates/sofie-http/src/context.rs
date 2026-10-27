@@ -38,15 +38,11 @@ pub(crate) struct Matched {
 // Kept off the per-area `RequestContext`, so each app compiles the body parse once.
 impl Matched {
     fn bound(&self, name: &str) -> Result<Uuid> {
-        let value = parameter(&self.parameters, name).ok_or(Error::NotFound)?;
-        value.parse().map_err(|_| Error::NotFound)
+        bound_id(&self.parameters, name)
     }
 
     fn input(&mut self) -> Result<serde_json::Value> {
-        let body = self
-            .body
-            .take()
-            .ok_or_else(|| Error::BadRequest("the request body was already read".to_owned()))?;
+        let body = self.body.take().ok_or_else(body_already_read)?;
         if self.encoding == Encoding::Form {
             return crate::form::parse(&body).map(serde_json::Value::Object);
         }
@@ -71,6 +67,19 @@ impl Matched {
             ..self.clone()
         }
     }
+}
+
+/// A malformed id is a URL that names nothing; a missing parameter is a
+/// handler bound to a route without it.
+fn bound_id(parameters: &[(String, String)], name: &str) -> Result<Uuid> {
+    let value = parameter(parameters, name)
+        .ok_or_else(|| Error::internal_message(format!("the route has no `{name}` parameter")))?;
+    value.parse().map_err(|_| Error::NotFound)
+}
+
+/// Two extractors taking the body is a handler bug, not the request's.
+pub(crate) fn body_already_read() -> Error {
+    Error::internal_message("the request body was already read")
 }
 
 pub(crate) fn parameter<'p>(parameters: &'p [(String, String)], name: &str) -> Option<&'p str> {
@@ -135,3 +144,19 @@ impl<A: Area, M> Context for RequestContext<A, M> {
 }
 
 impl<A: Area> Writes for RequestContext<A> {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_malformed_id_names_nothing_and_a_missing_parameter_is_a_bug() {
+        let parameters = vec![("id".to_owned(), "not-a-uuid".to_owned())];
+
+        assert!(matches!(bound_id(&parameters, "id"), Err(Error::NotFound)));
+        assert!(matches!(
+            bound_id(&parameters, "order"),
+            Err(Error::Internal { .. })
+        ));
+    }
+}

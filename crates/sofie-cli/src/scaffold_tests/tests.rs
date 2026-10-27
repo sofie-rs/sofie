@@ -618,3 +618,43 @@ fn a_dry_run_names_the_file_by_the_moment_s_form_and_the_real_run_by_its_moment(
         "nothing new\n"
     );
 }
+
+#[test]
+fn a_value_without_a_fixture_is_named_instead_of_scaffolded_into_tests_that_do_not_compile() {
+    let app = app();
+    app.write(
+        "modules/catalog/src/lib.rs",
+        "mod habit;\nmod product;\n\npub use habit::Habit;\npub use product::{Product, ProductStatus};\n",
+    );
+    let habit = "use sofie::prelude::*;\n\n#[derive(Value)]\npub struct HabitName(String);\n\n\
+                 #[derive(Aggregate)]\npub struct Habit {\n    meta: Meta,\n    #[length(max = 40)]\n    \
+                 name: HabitName,\n}\n";
+    app.write("modules/catalog/src/habit.rs", habit);
+
+    let missing = scaffold_tests_at(app.root(), at(1_791_720_000)).unwrap();
+    app.write(
+        "modules/catalog/src/habit.rs",
+        &format!(
+            "{habit}\nimpl sofie::values::Fixture for HabitName {{\n    fn fixture(_seed: &mut \
+             sofie::values::Seed) -> Self {{\n        Self(\"Read\".to_owned())\n    }}\n}}\n"
+        ),
+    );
+    let written = scaffold_tests_at(app.root(), at(1_791_720_060)).unwrap();
+
+    assert!(
+        missing.uncovered.iter().any(|gap| gap.starts_with(
+            "catalog: Habit: no fixture, as `HabitName` has no `impl sofie::values::Fixture`"
+        )),
+        "{missing:?}"
+    );
+    let text = written_text(&missing, 0);
+    assert!(!text.contains("habit_is_made_by_its_factory"), "{text}");
+    assert!(!text.contains("habit_name_keeps"), "{text}");
+    assert!(
+        written
+            .uncovered
+            .iter()
+            .all(|gap| !gap.contains("HabitName")),
+        "{written:?}"
+    );
+}

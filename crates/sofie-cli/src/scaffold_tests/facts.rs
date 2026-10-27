@@ -172,6 +172,24 @@ fn aggregate_facts(requests: &Requests, aggregate: &Aggregate, facts: &mut Modul
         body: format!("sofie_testing::assert_schema::<{path}>(&app).await;"),
         on_app: true,
     });
+    let unmade = requests
+        .module
+        .code
+        .values_without_fixture(&aggregate.fields);
+    if derived && !unmade.is_empty() {
+        let types: Vec<String> = unmade.iter().map(|ty| format!("`{ty}`")).collect();
+        facts.uncover(
+            name,
+            format!(
+                "{name}: no fixture, as {} has no `impl sofie::values::Fixture` (`fn \
+                 fixture(seed: &mut sofie::values::Seed) -> Self`, drawing a value its `try_new` \
+                 takes); write one, then scaffold the tests again",
+                types.join(", ")
+            ),
+        );
+        constraints(requests, aggregate, false, &unmade, facts);
+        return;
+    }
     if derived {
         facts.facts.push(Fact {
             subject: name.clone(),
@@ -181,7 +199,7 @@ fn aggregate_facts(requests: &Requests, aggregate: &Aggregate, facts: &mut Modul
             on_app: true,
         });
     }
-    constraints(requests, aggregate, derived, facts);
+    constraints(requests, aggregate, derived, &unmade, facts);
     let made = requests.two_records(aggregate, derived);
     let Some(made) = made else {
         let reason = match requests.creation_permission(name) {
@@ -211,19 +229,35 @@ fn aggregate_facts(requests: &Requests, aggregate: &Aggregate, facts: &mut Modul
     }
 }
 
-fn constraints(requests: &Requests, aggregate: &Aggregate, derived: bool, facts: &mut ModuleFacts) {
+/// `fixture` says whether a second record can be made, for `unique`; a boundary needs a
+/// `Fixture` of its field's own type, which `unmade` lists as missing.
+fn constraints(
+    requests: &Requests,
+    aggregate: &Aggregate,
+    fixture: bool,
+    unmade: &[&str],
+    facts: &mut ModuleFacts,
+) {
     let name = &aggregate.name;
     let snake = snake_case(name);
     let path = requests.path(aggregate);
     for declared in &aggregate.fields {
         let field = &declared.name;
+        let types = std::iter::once(&declared.ty).chain(&declared.ty.arguments);
+        if types
+            .into_iter()
+            .any(|ty| unmade.contains(&ty.name.as_str()))
+        {
+            continue;
+        }
         for constraint in &declared.bounds {
             let text = format!("constraint {name}.{field} {constraint}");
-            if constraint == "unique" && !derived {
+            if constraint == "unique" && !fixture {
                 facts.uncover(
                     name,
                     format!(
-                        "{name}.{field} unique: no fixture to make a second record with, as its factory is written by hand"
+                        "{name}.{field} unique: no fixture to make a second record with, as its \
+                         factory is written by hand or a field's type has no `Fixture`"
                     ),
                 );
                 continue;

@@ -172,6 +172,8 @@ pub struct Code {
     pub aggregates: Vec<Aggregate>,
     pub inputs: Vec<InputDeclaration>,
     pub enums: Vec<EnumDeclaration>,
+    /// The `#[derive(Value)]` types, which unlike enums get no derived `Fixture`.
+    pub values: Vec<String>,
     pub raw_sql: Vec<RawSql>,
     pub translation_keys: Vec<KeyLiteral>,
     pub features: FeatureCode,
@@ -188,6 +190,25 @@ impl Code {
     #[must_use]
     pub fn read_model(&self, name: &str) -> Option<&ReadModel> {
         self.read_models.iter().find(|model| model.name == name)
+    }
+
+    /// The module's own `#[derive(Value)]` types among `fields` that nothing gives a `Fixture`.
+    #[must_use]
+    pub fn values_without_fixture<'f>(&self, fields: &'f [FieldDeclaration]) -> Vec<&'f str> {
+        let mut missing: Vec<&str> = fields
+            .iter()
+            .flat_map(|field| std::iter::once(&field.ty).chain(&field.ty.arguments))
+            .map(|ty| ty.name.as_str())
+            .filter(|ty| self.values.iter().any(|value| value == ty))
+            .filter(|ty| {
+                !self.methods.iter().any(|method| {
+                    method.owner == *ty && method.implements.as_deref() == Some("Fixture")
+                })
+            })
+            .collect();
+        missing.sort_unstable();
+        missing.dedup();
+        missing
     }
 
     #[must_use]
@@ -258,6 +279,9 @@ impl Code {
             }
             Item::Enum(enumeration) if derives(&enumeration.attrs, "Enum") => {
                 self.enums.push(enum_of(enumeration, module_path));
+            }
+            Item::Struct(structure) if derives(&structure.attrs, "Value") => {
+                self.values.push(structure.ident.to_string());
             }
             _ => {}
         }

@@ -12,7 +12,7 @@ use crate::http_client::CookieJars;
 use crate::inputs::{clock_seed, valid_case};
 use crate::local_app::{LocalApp, bench_member};
 use crate::source_edits::{files_with_extension, read};
-use crate::targets::{Target, member_areas, targets};
+use crate::targets::{Target, Targets, member_areas, targets};
 
 const SEEDS: &str = "seeds";
 const SHOWN_REFUSAL: usize = 300;
@@ -36,14 +36,18 @@ pub struct SeededRoute {
 /// is posted first, then `volume` generated inputs per route.
 pub fn seed(root: &Path, volume: usize) -> Result<SeedReport, GenError> {
     let app = sofie_model::load(root).map_err(GenError::Model)?;
-    let creating: Vec<Target> = targets(&app)?
+    let found = targets(&app)?;
+    let files = seed_files(&app, &found)?;
+    let creating: Vec<Target> = found
         .targets
         .into_iter()
-        .filter(Target::is_creating)
+        .filter(|target| {
+            target.not_postable().is_none()
+                && (files.contains_key(&target.name) || (volume > 0 && !target.fields.is_empty()))
+        })
         .collect();
-    let files = seed_files(&app, &creating)?;
     let mut report = SeedReport { routes: Vec::new() };
-    if creating.is_empty() || (volume == 0 && files.is_empty()) {
+    if creating.is_empty() {
         return Ok(report);
     }
     let local = LocalApp::start(root, "seed")?;
@@ -62,7 +66,8 @@ pub fn seed(root: &Path, volume: usize) -> Result<SeedReport, GenError> {
         for body in fixed {
             seeded.post(&local, &jars, target, &body.to_string());
         }
-        for _ in 0..volume {
+        let generated = if target.fields.is_empty() { 0 } else { volume };
+        for _ in 0..generated {
             let case = valid_case(&target.fields, &mut seed);
             seeded.post(&local, &jars, target, &case.body);
         }
@@ -104,16 +109,16 @@ impl SeededRoute {
 
 /// `seeds/<area>.<handler>.json` beside a module's `src/`: a JSON array of
 /// inputs to that route.
-fn seed_files(app: &App, creating: &[Target]) -> Result<BTreeMap<String, Vec<Value>>, GenError> {
+fn seed_files(app: &App, found: &Targets) -> Result<BTreeMap<String, Vec<Value>>, GenError> {
     let mut files = BTreeMap::new();
     for module in &app.modules {
         let directory = module.krate.path.join(SEEDS);
         for file in files_with_extension(&directory, "json")? {
             let route = format!("{}.{}", module.krate.crate_name, file_stem(&file));
-            if !creating.iter().any(|target| target.name == route) {
+            if let Some(reason) = unseedable(found, &route) {
                 return Err(GenError::App(format!(
-                    "{}: no creating route `{route}`; a seed file is named \
-                     `<area>.<handler>.json` after a POST route taking an input",
+                    "{}: cannot seed `{route}`: {reason}; a seed file is named \
+                     `<area>.<handler>.json` after a POST route without path parameters",
                     file.display()
                 )));
             }
@@ -128,6 +133,21 @@ fn seed_files(app: &App, creating: &[Target]) -> Result<BTreeMap<String, Vec<Val
         }
     }
     Ok(files)
+}
+
+/// The first reason a seed file's route cannot take its inputs.
+fn unseedable(found: &Targets, route: &str) -> Option<String> {
+    if let Some(target) = found.targets.iter().find(|target| target.name == route) {
+        return target.not_postable().map(str::to_owned);
+    }
+    if let Some(skipped) = found.skipped.iter().find(|skipped| {
+        skipped
+            .strip_prefix(route)
+            .is_some_and(|rest| rest.starts_with(':'))
+    }) {
+        return Some(skipped[route.len() + 1..].trim().to_owned());
+    }
+    Some("no route has that name (`sofie routes` lists them)".to_owned())
 }
 
 /// Sorted; none when the directory does not exist.
@@ -151,5 +171,54 @@ impl fmt::Display for SeedReport {
             }
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use sofie_model::Method;
+
+    use super::*;
+
+    fn target(name: &str, method: Method, path: &str) -> Target {
+        Target {
+            name: name.to_owned(),
+            module: "exams".to_owned(),
+            method,
+            path: path.to_owned(),
+            area: "web".to_owned(),
+            member: None,
+            fields: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn a_seed_file_names_why_its_route_takes_no_inputs() {
+        let found = Targets {
+            targets: vec![
+                target("exams.web.add_question", Method::Post, "/questions"),
+                target("exams.web.questions", Method::Get, "/questions"),
+                target("exams.web.answer", Method::Post, "/questions/{id}/answers"),
+            ],
+            skipped: vec!["exams.admin.add: area `admin` has no literal prefix".to_owned()],
+        };
+
+        assert_eq!(unseedable(&found, "exams.web.add_question"), None);
+        assert_eq!(
+            unseedable(&found, "exams.web.questions").as_deref(),
+            Some("it is not a POST route")
+        );
+        assert_eq!(
+            unseedable(&found, "exams.web.answer").as_deref(),
+            Some("its path takes a parameter")
+        );
+        assert_eq!(
+            unseedable(&found, "exams.admin.add").as_deref(),
+            Some("area `admin` has no literal prefix")
+        );
+        assert!(
+            unseedable(&found, "exams.web.missing")
+                .is_some_and(|reason| reason.contains("no route"))
+        );
     }
 }

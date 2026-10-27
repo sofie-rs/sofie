@@ -72,10 +72,22 @@ pub(crate) fn targets(app: &App) -> Result<Targets, GenError> {
 impl Target {
     /// What `sofie seed` fills and `sofie fuzz` gives the other member records with.
     pub(crate) fn is_creating(&self) -> bool {
-        self.method == Method::Post
-            && path_parameters(&self.path).is_empty()
-            && self.module != IDENTITY
-            && !self.fields.is_empty()
+        self.not_postable().is_none() && !self.fields.is_empty()
+    }
+
+    /// Why a seed file's own inputs cannot be posted here; those need no
+    /// fields the model reads.
+    pub(crate) fn not_postable(&self) -> Option<&'static str> {
+        if self.method != Method::Post {
+            return Some("it is not a POST route");
+        }
+        if !path_parameters(&self.path).is_empty() {
+            return Some("its path takes a parameter");
+        }
+        if self.module == IDENTITY {
+            return Some("sofie-identity's routes are not seeded");
+        }
+        None
     }
 }
 

@@ -117,12 +117,24 @@ fn route(app: &App, site: &RouteSite) -> String {
         lines.extend(flow_lines(&endpoint_flow(app, site)));
     }
     for screen in shown_screens(site) {
-        lines.push(format!(
-            "  screen: {}",
-            site.area.screen_file(&screen).display()
-        ));
+        lines.push(screen_line(site, &screen));
     }
     lines.join("\n")
+}
+
+/// A resource's screen is built in until the area has a file of its key.
+fn screen_line(site: &RouteSite, screen: &str) -> String {
+    let file = site.area.screen_file(screen);
+    if !site.route.is_resource() || site.area.screens.contains(&file) {
+        return format!("  screen: {}", file.display());
+    }
+    format!(
+        "  screen: {screen}, built in; {} replaces it (`sofie scaffold screen {}/{}/{screen}` \
+         writes the built-in one there)",
+        file.display(),
+        site.module.krate.crate_name,
+        site.area.area
+    )
 }
 
 fn flow_lines(flow: &Flow) -> Vec<String> {
@@ -1185,6 +1197,37 @@ mod tests {
             "flag order.split\n  declared: shop/modules/order/src/module.rs:5\n  \
              retire after: 30 days from 2026-09-01\n  hides route: order.console.cancel_order\n  \
              skips job: order.listeners.audit"
+        );
+    }
+
+    #[test]
+    fn a_resource_screen_is_built_in_until_the_area_has_its_file() {
+        let mut exams = module("exams", "app/modules/exams");
+        let index = sofie_model::Route {
+            screen: Some("question_index".to_owned()),
+            handler: ["sofie", "resource", "list_questions"]
+                .map(str::to_owned)
+                .to_vec(),
+            ..route(Method::Get, "/questions", "queries::unused", 3)
+        };
+        exams.areas.push(area(&exams, "web", vec![index]));
+        let file = exams.areas[0].screen_file("question_index");
+        let built_in =
+            explain(&app("app", vec![exams.clone()]), "exams.web.list_questions").join("\n");
+        exams.areas[0].screens.push(file.clone());
+        let replaced = explain(&app("app", vec![exams]), "exams.web.list_questions").join("\n");
+
+        assert!(
+            built_in.contains(&format!(
+                "  screen: question_index, built in; {} replaces it (`sofie scaffold screen \
+                 exams/web/question_index`",
+                file.display()
+            )),
+            "{built_in}"
+        );
+        assert!(
+            replaced.ends_with(&format!("  screen: {}", file.display())),
+            "{replaced}"
         );
     }
 

@@ -406,10 +406,14 @@ impl<S> Served<S> {
     }
 }
 
-/// An idle keep-alive connection ends in hyper's header timeout, and a client may
-/// reset or drop a connection at any time: neither is a protocol violation.
+/// An idle keep-alive connection ends in hyper's header timeout, a slow network stalls a TLS
+/// handshake past its own, and a client may reset or drop a connection at any time: none is a
+/// protocol violation.
 fn ends_routinely(error: &(dyn std::error::Error + 'static)) -> bool {
     std::iter::successors(Some(error), |error| error.source()).any(|cause| {
+        if cause.is::<tokio::time::error::Elapsed>() {
+            return true;
+        }
         if let Some(hyper) = cause.downcast_ref::<hyper::Error>() {
             return hyper.is_timeout()
                 || hyper.is_incomplete_message()
@@ -556,14 +560,18 @@ mod tests {
         assert!(answer.contains("connection: close"), "{answer}");
     }
 
-    #[test]
-    fn a_reset_or_timed_out_connection_ends_routinely() {
+    #[tokio::test(start_paused = true)]
+    async fn a_reset_or_timed_out_connection_ends_routinely() {
         for kind in [
             std::io::ErrorKind::ConnectionReset,
             std::io::ErrorKind::TimedOut,
         ] {
             assert!(ends_routinely(&std::io::Error::from(kind)), "{kind:?}");
         }
+        let stalled_handshake = tokio::time::timeout(Duration::ZERO, std::future::pending::<()>())
+            .await
+            .unwrap_err();
+        assert!(ends_routinely(&stalled_handshake));
         assert!(!ends_routinely(&std::io::Error::from(
             std::io::ErrorKind::InvalidData
         )));

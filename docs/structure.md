@@ -2043,7 +2043,8 @@ one walks templates the same way.
   `SOFIE_TLS_CERTIFICATE` (the chain, leaf first) and `SOFIE_TLS_KEY` (PKCS#8,
   PKCS#1 or SEC1), both PEM files read at start; one without the other
   refuses to start. rustls with ring, TLS 1.2 and 1.3, HTTP/2 by ALPN, 10 s
-  for a handshake; a failed handshake counts for the shield. A renewed
+  for a handshake; a failed handshake counts for the shield, one that ran
+  out of time does not (a slow network, not an attack). A renewed
   certificate is picked up without a restart: at most once a minute a
   handshake compares the files' modification times and, if they changed,
   reads and pairs them again; a pair that fails keeps the certificate held
@@ -2450,8 +2451,10 @@ signed in as the session's account, if any, and every request made in such a ses
 info with `impersonation.account` and `impersonation.impersonator` (account ids only). The
 impersonated session adds or removes no passkey,
 OAuth connection or second factor, sees no factor being set up, ends no
-session, exports nothing and closes no account (a `Rule` refusal),
-so nothing it does outlasts it. A member of the impersonating area is never
+session, revokes no token, exports nothing and closes no account (a `Rule`
+refusal), so nothing it does outlasts it. Removing the impersonator's
+membership of any area, closing its account or ending all its sessions ends
+the impersonations it started. A member of the impersonating area is never
 impersonated, nor a member whose role's grants in its area are not all covered
 by the impersonator's own permissions, the rule granting follows. The member's
 permissions at the start are kept (`impersonation.granted`); once the member
@@ -2570,7 +2573,9 @@ acts as its account there. Logs name a token only by its id. With
 sofie-identity's `token-screens`, `tokens::screen::routes::<A>` mounts `/tokens`
 in a token area: each principal lists the tokens its own account issued and
 revokes one (`sofie_identity.access_token.*.read` and `.delete`); another
-account's token is not found. Issuing has no screen yet.
+account's token is not found. Issuing has no screen yet. Like every account
+screen (`sessions`, `two_factor`, `passkeys`), it mounts only in an
+`AccountArea`, one whose principal is the account itself.
 
 An area's access follows from its principal, so the two cannot disagree:
 `Visitor` makes it `Public`, an aggregate such as `Account` `Owned` and

@@ -4,6 +4,7 @@ use sofie::prelude::*;
 
 use super::{AccessToken, AccessTokenId};
 use crate::account_of;
+use crate::signing_in::OwnSession;
 
 const READ: Permission = Permission::new("sofie_identity.access_token.*.read");
 const REVOKE: Permission = Permission::new("sofie_identity.access_token.*.delete");
@@ -53,6 +54,7 @@ struct Revoking {
 
 async fn revoke_own<A: Area>(
     principal: Principal<A>,
+    _own: OwnSession,
     read: Read,
     revoking: Revoking,
 ) -> Result<AccessToken> {

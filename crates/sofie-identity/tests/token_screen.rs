@@ -89,3 +89,84 @@ async fn a_principal_lists_and_revokes_only_its_own_tokens() {
     let held = tokens::list(&app.db().read(), grace).await.unwrap();
     assert_eq!(held.len(), 1);
 }
+
+#[cfg(feature = "impersonation")]
+struct Partner;
+
+#[cfg(feature = "impersonation")]
+impl Area for Partner {
+    const NAME: &'static str = "partner";
+    const PREFIX: &'static str = "/partner";
+    const SIGN_IN: &'static str = "/partner/sign-in";
+    type Principal = sofie_identity::Permitted;
+}
+
+#[cfg(feature = "impersonation")]
+impl sofie_identity::MemberArea for Partner {
+    const HOME: &'static str = "/partner";
+    const SIGN_UP: Option<&'static str> = Some("/partner/sign-up");
+}
+
+#[cfg(feature = "impersonation")]
+#[tokio::test]
+async fn an_impersonation_revokes_none_of_the_members_tokens() {
+    let app = sofie_testing::start(
+        |db: Db| async move {
+            db.schema().migrate(&[sofie_identity::migrations()]).await?;
+            let mut screens = sofie::http::Screens::default();
+            screens.add_builtin(sofie_identity::module(&[]).screens)?;
+            Ok(App::new(db)
+                .screens(screens)
+                .membership(Memberships)
+                .area::<Web>("sofie_identity", sofie_identity::routes::<Console>)
+                .area::<Web>("sofie_identity", sofie_identity::routes::<Partner>)
+                .area::<Console>(
+                    "sofie_identity",
+                    sofie_identity::impersonation::routes::<Console, Partner>,
+                )
+                .area::<Partner>("sofie_identity", tokens::screen::routes::<Partner>))
+        },
+        sofie::worker::Worker::new,
+    )
+    .await;
+    let (grace, staff) = support::joined::<Console>(&app, "grace@example.com").await;
+    support::grant_role(
+        &app,
+        grace,
+        "support",
+        &[
+            "sofie_identity.impersonation.*.*",
+            "sofie_identity.access_token.*.*",
+        ],
+    )
+    .await;
+    let (ada, _) = support::joined::<Partner>(&app, "ada@example.com").await;
+    support::grant_role_in(
+        &app,
+        Partner::NAME,
+        ada,
+        "holder",
+        &["sofie_identity.access_token.*.*"],
+    )
+    .await;
+    let token = issued(&app, ada).await;
+    let as_ada = app
+        .post("/console/impersonation")
+        .session(&staff)
+        .accept_json()
+        .json(&json!({ "email": "ada@example.com", "reason": "ticket 42: tokens" }))
+        .await
+        .session()
+        .expect("a session as the member");
+
+    let refused = app
+        .post("/partner/tokens")
+        .session(&as_ada)
+        .accept_json()
+        .json(&json!({ "token": token.to_string() }))
+        .await;
+
+    assert_eq!(refused.status, 422, "{}", refused.body);
+    assert!(refused.body.contains("impersonation"), "{}", refused.body);
+    assert_eq!(tokens::list(&app.db().read(), ada).await.unwrap().len(), 1);
+}

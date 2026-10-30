@@ -95,7 +95,8 @@ impl Outcome for SignedIn {
     feature = "oauth",
     feature = "totp",
     feature = "account-data",
-    feature = "session-screens"
+    feature = "session-screens",
+    feature = "token-screens"
 ))]
 pub(crate) struct OwnSession;
 
@@ -104,7 +105,8 @@ pub(crate) struct OwnSession;
     feature = "oauth",
     feature = "totp",
     feature = "account-data",
-    feature = "session-screens"
+    feature = "session-screens",
+    feature = "token-screens"
 ))]
 impl<A: Area, M> Resolve<RequestContext<A, M>> for OwnSession {
     #[cfg_attr(

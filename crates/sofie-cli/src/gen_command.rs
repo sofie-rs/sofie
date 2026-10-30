@@ -90,7 +90,10 @@ pub fn gen_app(root: &Path, mode: GenMode) -> Result<Vec<GenOutcome>, GenError> 
 }
 
 /// The checked model the generated code was rendered from, so docs need not load it again.
-fn generated_app(root: &Path, mode: GenMode) -> Result<(App, Vec<GenOutcome>), GenError> {
+pub(crate) fn generated_app(
+    root: &Path,
+    mode: GenMode,
+) -> Result<(App, Vec<GenOutcome>), GenError> {
     let mut app = sofie_model::load(root).map_err(GenError::Model)?;
     let mut outcomes = Vec::new();
     if mode == GenMode::Write {

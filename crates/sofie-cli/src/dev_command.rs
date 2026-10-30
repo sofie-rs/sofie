@@ -6,11 +6,12 @@ use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 
 use sofie_check::report;
+use sofie_model::App;
 
 use crate::cargo::{self, Diagnostics};
 use crate::child_process::{ChildProcess, ProcessGroup, stop_on_interrupt};
 use crate::clients::build_clients;
-use crate::gen_command::{GenError, GenMode, gen_app, io_error};
+use crate::gen_command::{GenError, GenMode, generated_app, io_error};
 use crate::islands::{IslandMode, build_islands};
 use crate::local_app::{database_urls, remote_database_key};
 use crate::log_buffer::LogBuffer;
@@ -147,9 +148,10 @@ impl DevApp {
         // Taken before cargo runs: what gen wrote is not a change of its own,
         // but a file saved during the build is.
         self.built = snapshot(&self.root)?;
-        let built = generated.and_then(|()| self.compile());
+        let built = generated.and_then(|app| Ok((app, self.compile()?)));
         self.build_failed = built.is_err();
-        self.restart(&built?)
+        let (app, executable) = built?;
+        self.restart(&app, &executable)
     }
 
     /// The pid when it restarted.
@@ -191,10 +193,10 @@ impl DevApp {
         }
     }
 
-    fn generate(&self) -> Result<(), GenError> {
-        match gen_app(&self.root, GenMode::Write) {
+    fn generate(&self) -> Result<App, GenError> {
+        match generated_app(&self.root, GenMode::Write) {
             Err(GenError::Check(findings)) => Err(GenError::App(report(&self.root, &findings))),
-            result => result.map(drop),
+            result => result.map(|(app, _)| app),
         }
     }
 
@@ -212,16 +214,15 @@ impl DevApp {
         cargo::build(&self.root, DEVELOPMENT, self.diagnostics())
     }
 
-    fn restart(&mut self, executable: &Path) -> Result<u32, GenError> {
+    fn restart(&mut self, app: &App, executable: &Path) -> Result<u32, GenError> {
         let directory = executable.parent().unwrap_or(&self.root).join("sofie-dev");
-        let app = sofie_model::load(&self.root).map_err(GenError::Model)?;
         build_islands(
-            &app,
+            app,
             &directory.join("islands"),
             IslandMode::Development,
             self.diagnostics(),
         )?;
-        build_development_clients(&app, &directory, self.diagnostics())?;
+        build_development_clients(app, &directory, self.diagnostics())?;
         self.stop();
         let mut command = app_command(&self.root, executable)?;
         command
@@ -283,7 +284,7 @@ impl DevApp {
 
 /// Served instead of the embedded bundles while the app runs under `sofie dev`.
 fn build_development_clients(
-    app: &sofie_model::App,
+    app: &App,
     directory: &Path,
     diagnostics: Diagnostics,
 ) -> Result<(), GenError> {

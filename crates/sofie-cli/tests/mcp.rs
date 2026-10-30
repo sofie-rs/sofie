@@ -887,20 +887,21 @@ fn answering_app() -> TemporaryDirectory {
         "app/Cargo.toml",
         &manifest("interrupted", "sofie = { path = \"../sofie\" }\n"),
     );
+    directory.write("app/src/main.rs", "fn main() {\n    sofie::answer();\n}\n");
     directory.write(
-        "app/src/main.rs",
-        "use std::io::{Read, Write};\n\nfn main() {\n    \
+        "sofie/Cargo.toml",
+        &format!("{}\n[features]\ndevelopment = []\n", manifest("sofie", "")),
+    );
+    // In the framework's stand-in, as `sofie check` refuses a socket in the app's own code.
+    directory.write(
+        "sofie/src/lib.rs",
+        "use std::io::{Read, Write};\n\npub fn answer() {\n    \
          let address = std::env::var(\"SOFIE_ADDRESS\").unwrap();\n    \
          for stream in std::net::TcpListener::bind(address).unwrap().incoming() {\n        \
          let mut stream = stream.unwrap();\n        let _ = stream.read(&mut [0; 1024]);\n        \
          let _ = stream.write_all(b\"HTTP/1.1 200 OK\\r\\ncontent-length: 0\\r\\nconnection: \
          close\\r\\n\\r\\n\");\n    }\n}\n",
     );
-    directory.write(
-        "sofie/Cargo.toml",
-        &format!("{}\n[features]\ndevelopment = []\n", manifest("sofie", "")),
-    );
-    directory.write("sofie/src/lib.rs", "");
     directory.write("modules/.gitkeep", "");
     directory.write(
         ".env",

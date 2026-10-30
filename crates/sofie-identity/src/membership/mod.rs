@@ -128,7 +128,7 @@ impl Outcome for MembershipRemoved {
             dialect.placeholder(1)
         );
         let id = SqlValue::Uuid(self.membership.id().uuid());
-        plan.push(Step::statement(sql, vec![id], Some(1)));
+        plan.push_as::<Membership>(Step::statement(sql, vec![id], Some(1)));
         #[cfg(feature = "sessions")]
         self.ended.plan(plan)?;
         Ok(())

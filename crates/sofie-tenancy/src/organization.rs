@@ -333,7 +333,7 @@ impl<T> Held<T> {
 
 impl<T: Outcome> Outcome for Held<T> {
     fn plan(&self, plan: &mut Plan<'_>) -> Result<()> {
-        plan.push(taken(plan, self.organization, None));
+        plan.push_as::<Organization>(taken(plan, self.organization, None));
         self.change.plan(plan)?;
         let Some((mut condition, mut params)) = condition(plan, &self.kept) else {
             return Ok(());
@@ -344,7 +344,7 @@ impl<T: Outcome> Outcome for Held<T> {
         if let Some(demoted) = &self.demoted {
             condition.push_str(&demoted.rule(plan, &mut params));
         }
-        plan.push(taken(plan, self.organization, Some((condition, params))));
+        plan.push_as::<Organization>(taken(plan, self.organization, Some((condition, params))));
         Ok(())
     }
 

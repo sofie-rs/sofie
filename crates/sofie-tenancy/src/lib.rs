@@ -49,12 +49,20 @@ pub const fn migrations() -> Migrations {
         MODULE_NAME,
         sofie::db::embed!(
             "migrations",
-            ["0001_organizations.sql", "0002_organization_deleted.sql"]
+            [
+                "0000_module_role.sql",
+                "0001_organizations.sql",
+                "0002_organization_deleted.sql"
+            ]
         ),
     )
     .sqlite(sofie::db::embed!(
         "migrations/sqlite",
-        ["0001_organizations.sql", "0002_organization_deleted.sql"]
+        [
+            "0000_module_role.sql",
+            "0001_organizations.sql",
+            "0002_organization_deleted.sql"
+        ]
     ))
     .aggregates(AGGREGATES)
 }

@@ -14,6 +14,7 @@ use support::{Console, Member};
 mod support;
 
 const OWN_SESSIONS: Permission = Permission::new("sofie_identity.account_session.*.update");
+const OWN_ACCOUNT: Permission = Permission::new("sofie_identity.account.*.update");
 const ROUTE_PERMISSIONS: &[RoutePermission] = &[
     RoutePermission {
         method: "GET",
@@ -29,6 +30,21 @@ const ROUTE_PERMISSIONS: &[RoutePermission] = &[
         method: "POST",
         path: "/console/sessions/others",
         permission: OWN_SESSIONS,
+    },
+    RoutePermission {
+        method: "GET",
+        path: "/console/account-data",
+        permission: OWN_ACCOUNT,
+    },
+    RoutePermission {
+        method: "POST",
+        path: "/console/account-data/export",
+        permission: OWN_ACCOUNT,
+    },
+    RoutePermission {
+        method: "POST",
+        path: "/console/account-data/close",
+        permission: OWN_ACCOUNT,
     },
 ];
 
@@ -80,6 +96,10 @@ async fn started() -> TestApp {
                 .area::<Member>(
                     "sofie_identity",
                     sofie_identity::account_data::routes::<Member>,
+                )
+                .area::<Console>(
+                    "sofie_identity",
+                    sofie_identity::account_data::routes::<Console>,
                 )
                 .area::<Member>("shop", |routes: &mut Routes<Member>| {
                     routes.get("/who", who);
@@ -559,4 +579,109 @@ async fn stopping_after_the_impersonators_own_session_ended_only_signs_out() {
         .await
         .assert_status(401);
     assert_raised::<ImpersonationEnded>(&app);
+}
+
+#[tokio::test]
+async fn removing_the_impersonators_membership_ends_the_impersonations_it_started() {
+    let app = started().await;
+    let (grace, staff) = support::joined::<Console>(&app, "grace@example.com").await;
+    support::joined::<Member>(&app, "ada@example.com").await;
+    grant_impersonation(&app, grace).await;
+    let ada = impersonate(&app, &staff, "ada@example.com")
+        .await
+        .session()
+        .unwrap();
+
+    let mut removed = sofie_identity::remove_membership(
+        &app.db().read(),
+        grace,
+        Console::NAME,
+        app.db().clock().now(),
+    )
+    .await
+    .unwrap();
+    app.db().commit(&mut removed).await.unwrap();
+
+    app.get("/account/who")
+        .session(&ada)
+        .accept_json()
+        .await
+        .assert_status(401);
+    assert_eq!(assert_raised::<ImpersonationEnded>(&app).len(), 1);
+}
+
+#[tokio::test]
+async fn closing_an_impersonated_account_ends_the_impersonation_on_the_record() {
+    let app = started().await;
+    let (grace, staff) = support::joined::<Console>(&app, "grace@example.com").await;
+    let (_, own) = support::joined::<Member>(&app, "ada@example.com").await;
+    grant_impersonation(&app, grace).await;
+    let ada = impersonate(&app, &staff, "ada@example.com")
+        .await
+        .session()
+        .unwrap();
+
+    app.post("/account/account-data/close")
+        .session(&own)
+        .accept_json()
+        .json(&json!({ "email": "ada@example.com" }))
+        .await
+        .assert_ok();
+
+    app.get("/account/who")
+        .session(&ada)
+        .accept_json()
+        .await
+        .assert_status(401);
+    let open = app
+        .query(
+            "SELECT count(*) FROM sofie_identity.impersonation WHERE ended_at IS NULL",
+            &[],
+        )
+        .await;
+    assert_eq!(open, [vec![sofie::core::SqlValue::Int(0)]]);
+    assert_eq!(assert_raised::<ImpersonationEnded>(&app).len(), 1);
+}
+
+#[tokio::test]
+async fn closing_the_impersonators_account_ends_the_impersonations_it_started() {
+    let app = started().await;
+    let (grace, staff) = support::joined::<Console>(&app, "grace@example.com").await;
+    support::grant_role(
+        &app,
+        grace,
+        "support",
+        &[
+            "sofie_identity.impersonation.*.*",
+            "sofie_identity.account.*.update",
+        ],
+    )
+    .await;
+    support::joined::<Member>(&app, "ada@example.com").await;
+    let ada = impersonate(&app, &staff, "ada@example.com")
+        .await
+        .session()
+        .unwrap();
+
+    app.post("/console/account-data/close")
+        .session(&staff)
+        .accept_json()
+        .json(&json!({ "email": "grace@example.com" }))
+        .await
+        .assert_ok();
+
+    app.get("/account/who")
+        .session(&ada)
+        .accept_json()
+        .await
+        .assert_status(401);
+    let kept_devices = app
+        .query(
+            "SELECT count(*) FROM sofie_identity.account_session \
+             WHERE account = $1 AND (device IS NOT NULL OR ended_at IS NULL)",
+            &[sofie::core::SqlValue::Uuid(grace.uuid())],
+        )
+        .await;
+    assert_eq!(kept_devices, [vec![sofie::core::SqlValue::Int(0)]]);
+    assert_eq!(assert_raised::<ImpersonationEnded>(&app).len(), 1);
 }

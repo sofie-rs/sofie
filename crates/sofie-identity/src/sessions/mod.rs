@@ -271,13 +271,21 @@ pub(crate) async fn ending_all(
     ending(read, which, now).await
 }
 
-/// Each of the account's live sessions in `area`, ended: for a membership of it removed,
-/// committed with the removal.
+/// Each of the account's live sessions in `area`, and those of the impersonations it started,
+/// ended: for a membership of it removed, committed with the removal.
 pub async fn ending_in(read: &Read, account: AccountId, area: &str, now: Instant) -> Result<Ended> {
     let which = AccountSession::query()
         .where_(AccountSession::ACCOUNT.eq(account))
         .where_(AccountSession::AREA.eq(area.to_owned()));
-    ending(read, which, now).await
+    #[cfg_attr(not(feature = "impersonation"), expect(unused_mut))]
+    let mut ended = ending(read, which, now).await?;
+    #[cfg(feature = "impersonation")]
+    {
+        let started = crate::impersonation::sessions_started_by(read, account).await?;
+        let impersonated = AccountSession::query().where_(AccountSession::SESSION.in_(started));
+        ended.add(ending(read, impersonated, now).await?);
+    }
+    Ok(ended)
 }
 
 /// The accounts' live sessions in `area` signed in as `principal`, ended: for accounts no
@@ -301,6 +309,14 @@ pub async fn ending_as(
 pub struct Ended {
     sessions: Vec<AccountSession>,
     impersonations: Impersonations,
+}
+
+#[cfg(feature = "impersonation")]
+impl Ended {
+    fn add(&mut self, other: Self) {
+        self.sessions.extend(other.sessions);
+        self.impersonations.ended.extend(other.impersonations.ended);
+    }
 }
 
 impl sofie::db::Outcome for Ended {
@@ -349,20 +365,20 @@ pub(crate) async fn exported(read: &Read, account: AccountId) -> Result<sofie::s
     ))
 }
 
-/// Every session ends, and no record keeps the device it was on.
+/// Every session ends as signing out everywhere ends them, and no record keeps the device it
+/// was on.
 #[cfg(feature = "account-data")]
-pub(crate) async fn closing(
-    read: &Read,
-    account: AccountId,
-    now: Instant,
-) -> Result<Vec<AccountSession>> {
-    let mut sessions = AccountSession::query()
+pub(crate) async fn closing(read: &Read, account: AccountId, now: Instant) -> Result<Ended> {
+    let mut ended = ending_all(read, account, None, now).await?;
+    let earlier = AccountSession::query()
         .where_(AccountSession::ACCOUNT.eq(account))
+        .where_(AccountSession::ENDED_AT.is_not_null())
+        .where_(AccountSession::DEVICE.is_not_null())
         .all(read)
         .await?;
-    for session in &mut sessions {
-        session.end(now);
+    ended.sessions.extend(earlier);
+    for session in &mut ended.sessions {
         session.device = None;
     }
-    Ok(sessions)
+    Ok(ended)
 }

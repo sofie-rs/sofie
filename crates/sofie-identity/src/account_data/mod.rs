@@ -13,7 +13,7 @@ use crate::account::Account;
 pub use crate::account::Closable;
 use crate::membership::Membership;
 use crate::signing_in::OwnSession;
-use crate::{AccountId, MemberArea, account_of};
+use crate::{AccountId, MemberArea, Unscoped, account_of};
 
 #[cfg(feature = "notify")]
 pub use notifications::Notifications;
@@ -163,7 +163,7 @@ pub struct Closing {
     email: Email,
 }
 
-pub struct Closed {
+struct Closed {
     account: Account,
     records: Vec<Box<dyn Closable>>,
 }
@@ -186,15 +186,16 @@ impl Outcome for Closed {
     }
 }
 
+/// Unscoped, as the sessions of the impersonations the account started are its members'.
 async fn close<A: MemberArea>(
     principal: Principal<A>,
     _own: OwnSession,
     closing: Closing,
     read: Read,
+    unscoped: Unscoped,
     others: Extensions<dyn PersonalData>,
     session: Session,
-    clock: Clock,
-) -> Result<Closed> {
+) -> Result<()> {
     let id = account_of(&principal);
     let mut account = Account::stored(&read, id).await?;
     if *account.email() != closing.email {
@@ -205,11 +206,11 @@ async fn close<A: MemberArea>(
     let mut records: Vec<Box<dyn Closable>> = Vec::new();
     #[cfg(feature = "account-links")]
     records.push(Box::new(
-        crate::account_link::closing(&read, id, clock.now()).await?,
+        crate::account_link::closing(&read, id, unscoped.0.clock().now()).await?,
     ));
     #[cfg(feature = "sessions")]
     records.push(Box::new(
-        crate::sessions::closing(&read, id, clock.now()).await?,
+        crate::sessions::closing(&unscoped.0.read(), id, unscoped.0.clock().now()).await?,
     ));
     #[cfg(feature = "passkeys")]
     records.push(Box::new(crate::passkeys::removing(&read, id).await?));
@@ -222,10 +223,9 @@ async fn close<A: MemberArea>(
     for data in others.iter() {
         records.extend(data.closing(&read, id.uuid()).await?);
     }
-    #[cfg(not(any(feature = "sessions", feature = "account-links")))]
-    let _ = clock;
+    unscoped.0.commit(&mut Closed { account, records }).await?;
     session.sign_out();
-    Ok(Closed { account, records })
+    Ok(())
 }
 
 #[cfg(feature = "notify")]

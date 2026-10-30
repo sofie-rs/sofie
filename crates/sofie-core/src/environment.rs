@@ -2,7 +2,6 @@ use std::env::VarError;
 
 use crate::{Error, Result};
 
-/// `None` when unset; a value that is not Unicode is refused, naming the variable.
 pub fn environment_variable(name: &str) -> Result<Option<String>> {
     unicode(name, std::env::var(name))
 }

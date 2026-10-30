@@ -2,9 +2,8 @@ use std::fmt;
 
 use serde::de::{self, Visitor};
 
-/// Through the parser, so a request cannot build the value without the check; the text is read in
-/// place, borrowed or not, so no string is allocated. A refusal is written in its alternate form:
-/// the field being read already names the value.
+/// Through the parser, so a request cannot build the value without the check; a refusal is
+/// written in its alternate form, as the field being read already names the value.
 pub fn deserialize_parsed<'de, V, M: fmt::Display, D: serde::Deserializer<'de>>(
     deserializer: D,
     expected: &'static str,

@@ -160,7 +160,6 @@ impl fmt::Debug for Uuid {
     }
 }
 
-/// Written whole, so a serializer that builds a string allocates it once.
 impl Serialize for Uuid {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         serializer.serialize_str(self.hex().as_str())

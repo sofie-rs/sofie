@@ -4,7 +4,6 @@ use serde_json::{Map, Number};
 
 use crate::{Instant, Timestamp, Uuid, Value};
 
-/// What a screen reads of a value: borrowed from it, so reading allocates nothing.
 #[derive(Clone, Copy)]
 pub enum Shown<'a> {
     Null,

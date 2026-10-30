@@ -893,7 +893,9 @@ impl Payments for Stripe {
   exception, no redirect, no credentials in the URL, and a connection of its
   own, closed after the request. A host that resolves to no public address
   is refused with one message whatever it resolved to, or whether it
-  resolved at all, so a user cannot map the internal network.
+  resolved at all, so a user cannot map the internal network; a failed
+  lookup carries that message as `Unavailable` and is retried, so a resolver
+  outage is not read as a refusal.
 - **Traced and measured.** Each call of an adapter's method is a `gateway`
   span named `<vendor>.<method>` (`stripe.charge`) with its outcome; each
   request under it an `http.client` span with the peer host, port, method,
@@ -1103,7 +1105,9 @@ The `sofie-mail` crate, behind the `sofie` facade's `mail` feature, off by defau
   the worker buries at once; one to the greeting, EHLO, STARTTLS or AUTH is
   the server's or the settings', so it stays `Unavailable`. A 5xx to
   `RCPT TO` leaves that recipient out and the others still get the mail; a
-  mail every recipient refused is sent to no one and buried. A 550, 551 or
+  mail every recipient refused is sent to no one and buried. Recipients
+  deferred with a 4xx while others took the mail are queued again five
+  minutes later, past a greylisting server's wait. A 550, 551 or
   553 there (not an enhanced 5.7.x, a refusal by policy) suppresses the
   address as a provider's hard bounce would, committed after the job is
   recorded as sent, so a failure there never sends the mail again.

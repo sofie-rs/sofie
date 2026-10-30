@@ -9,8 +9,8 @@ use super::{framework_source, refuse_existing};
 use crate::gen_command::GenError;
 use crate::rustfmt::format_rust;
 use crate::source_edits::{
-    DEPENDENCIES, Journal, add_import, declared_module, insert_at, path_dependency, read,
-    toml_section, with_dependency_line,
+    DEPENDENCIES, InlineFeatures, Journal, add_import, declared_module, inline_features, insert_at,
+    path_dependency, read, toml_section, with_dependency_line, without_toml_comment,
 };
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -302,7 +302,7 @@ pub(crate) fn with_feature_in(
         .find('\n')
         .map_or(manifest.len(), |index| offset + index);
     let line = &manifest[offset..line_end];
-    let dependency = without_comment(line).trim_end();
+    let dependency = without_toml_comment(line).trim_end();
     let edited = with_feature(dependency, &format!("\"{feature}\""))?;
     Some(format!(
         "{}{edited}{}{}",
@@ -310,26 +310,6 @@ pub(crate) fn with_feature_in(
         &line[dependency.len()..],
         &manifest[line_end..]
     ))
-}
-
-/// A `#` inside a quoted string starts no comment.
-fn without_comment(line: &str) -> &str {
-    let mut quote = None;
-    let mut escaped = false;
-    for (index, character) in line.char_indices() {
-        match quote {
-            None if character == '#' => return &line[..index],
-            None if matches!(character, '"' | '\'') => quote = Some(character),
-            Some('"') if character == '\\' && !escaped => {
-                escaped = true;
-                continue;
-            }
-            Some(open) if character == open && !escaped => quote = None,
-            _ => {}
-        }
-        escaped = false;
-    }
-    line
 }
 
 /// A new app's workspace declares only `sofie` and `sofie-cli`, so a framework crate a
@@ -391,34 +371,35 @@ pub(crate) fn dependency_line_start(section: &str, package: &str) -> Option<usiz
 }
 
 fn with_feature(line: &str, feature: &str) -> Option<String> {
-    if line.contains(feature) {
-        return Some(line.to_owned());
-    }
     if let Some(package) = line.trim_end().strip_suffix(".workspace = true") {
         return Some(format!(
             "{package} = {{ workspace = true, features = [{feature}] }}"
         ));
     }
-    if let Some(list) = line.find("features = [") {
-        let open = list + "features = [".len();
-        let close = open + line[open..].find(']')?;
-        let separator = if line[open..close].trim().is_empty() {
-            ""
-        } else {
-            ", "
-        };
-        return Some(format!(
-            "{}{separator}{feature}{}",
-            line[..close].trim_end(),
-            &line[close..]
-        ));
+    match inline_features(line) {
+        InlineFeatures::Array(array) => {
+            let listed = &line[array.start + 1..array.end - 1];
+            if listed.split(',').any(|listed| listed.trim() == feature) {
+                return Some(line.to_owned());
+            }
+            let separator = if listed.trim().is_empty() { "" } else { ", " };
+            let close = array.end - 1;
+            Some(format!(
+                "{}{separator}{feature}{}",
+                line[..close].trim_end(),
+                &line[close..]
+            ))
+        }
+        InlineFeatures::Unreadable => None,
+        InlineFeatures::Absent => {
+            let close = line.rfind('}')?;
+            Some(format!(
+                "{}, features = [{feature}] {}",
+                line[..close].trim_end(),
+                &line[close..]
+            ))
+        }
     }
-    let close = line.rfind('}')?;
-    Some(format!(
-        "{}, features = [{feature}] {}",
-        line[..close].trim_end(),
-        &line[close..]
-    ))
 }
 
 #[cfg(test)]
@@ -447,6 +428,14 @@ mod tests {
             (
                 "sofie = { workspace = true, features = [\"tasks\"] }",
                 "sofie = { workspace = true, features = [\"tasks\"] }",
+            ),
+            (
+                "sofie = { workspace = true, features=[\"config\"] }",
+                "sofie = { workspace = true, features=[\"config\", \"tasks\"] }",
+            ),
+            (
+                "sofie = { workspace = true, features = [\"tasks-extra\"] }",
+                "sofie = { workspace = true, features = [\"tasks-extra\", \"tasks\"] }",
             ),
         ] {
             let manifest = format!(

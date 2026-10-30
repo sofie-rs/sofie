@@ -2,6 +2,7 @@
 
 use std::fs;
 use std::io::ErrorKind;
+use std::ops::Range;
 use std::path::{Path, PathBuf};
 
 use sofie_model::{ModuleDeclaration, module_declaration};
@@ -164,6 +165,59 @@ fn table_header(line: &str) -> Option<String> {
             .filter(|character| !character.is_whitespace())
             .collect(),
     )
+}
+
+/// The `features` of a one-line dependency, past its comment: never the `features` of
+/// `default-features`, spaced as written.
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) enum InlineFeatures {
+    Absent,
+    /// From `[` through `]`.
+    Array(Range<usize>),
+    /// A `features` key whose array does not open and close on the line.
+    Unreadable,
+}
+
+pub(crate) fn inline_features(line: &str) -> InlineFeatures {
+    let content = without_toml_comment(line);
+    let Some(key_end) = content
+        .match_indices("features")
+        .map(|(at, key)| (at, at + key.len()))
+        .find(|(at, end)| {
+            let before = content[..*at].trim_end();
+            (before.ends_with('{') || before.ends_with(','))
+                && content[*end..].trim_start().starts_with('=')
+        })
+        .map(|(_, end)| end)
+    else {
+        return InlineFeatures::Absent;
+    };
+    let value = content[key_end..].trim_start()[1..].trim_start();
+    let open = content.len() - value.len();
+    match value.strip_prefix('[').and_then(|rest| rest.find(']')) {
+        Some(close) => InlineFeatures::Array(open..open + close + 2),
+        None => InlineFeatures::Unreadable,
+    }
+}
+
+/// A `#` inside a quoted string starts no comment.
+pub(crate) fn without_toml_comment(line: &str) -> &str {
+    let mut quote = None;
+    let mut escaped = false;
+    for (index, character) in line.char_indices() {
+        match quote {
+            None if character == '#' => return &line[..index],
+            None if matches!(character, '"' | '\'') => quote = Some(character),
+            Some('"') if character == '\\' && !escaped => {
+                escaped = true;
+                continue;
+            }
+            Some(open) if character == open && !escaped => quote = None,
+            _ => {}
+        }
+        escaped = false;
+    }
+    line
 }
 
 /// Joins an existing `use` of the same path when there is one; rustfmt then sorts the names.
@@ -530,7 +584,10 @@ mod tests {
 
     use sofie_model::testing::TemporaryDirectory;
 
-    use super::{Journal, add_dependency, declare_module, with_dependency_line, with_section_line};
+    use super::{
+        InlineFeatures, Journal, add_dependency, declare_module, inline_features,
+        with_dependency_line, with_section_line,
+    };
     use crate::gen_command::GenError;
 
     #[test]
@@ -684,5 +741,32 @@ mod tests {
         assert_eq!(fs::read_to_string(&moved).unwrap(), "order\n");
         assert!(!directory.path("modules/new").exists());
         assert!(!directory.path("split").exists());
+    }
+
+    #[test]
+    fn finds_a_dependency_s_feature_array_however_it_is_spaced() {
+        for line in [
+            "sofie = { workspace = true, features = [\"config\"] }",
+            "sofie = {workspace=true,features=[\"config\"]} # features = []",
+            "sofie = { default-features = false, features =[ \"config\" ] }",
+        ] {
+            let InlineFeatures::Array(range) = inline_features(line) else {
+                panic!("{line}");
+            };
+            assert!(line[range.clone()].starts_with('['), "{line}");
+            assert!(line[range].ends_with(']'), "{line}");
+        }
+        assert_eq!(
+            inline_features("sofie = { path = \"a#features = []\" }"),
+            InlineFeatures::Absent
+        );
+        assert_eq!(
+            inline_features("sofie = { default-features = false }"),
+            InlineFeatures::Absent
+        );
+        assert_eq!(
+            inline_features("sofie = { features = [\"a\","),
+            InlineFeatures::Unreadable
+        );
     }
 }

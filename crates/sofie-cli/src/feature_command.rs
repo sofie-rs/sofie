@@ -8,6 +8,7 @@ use serde_json::Value;
 
 use crate::cargo;
 use crate::gen_command::{GenError, io_error};
+use crate::source_edits::{InlineFeatures, inline_features, without_toml_comment};
 
 const FACADE_PACKAGE: &str = "sofie-framework";
 
@@ -183,7 +184,7 @@ fn feature_list(text: &str) -> Result<FeatureList, String> {
     for line in text.split_inclusive('\n') {
         let start = offset;
         offset += line.len();
-        let content = without_comment(line).trim();
+        let content = without_toml_comment(line).trim();
         if content.starts_with('[') {
             if section == "dependencies.sofie" {
                 break;
@@ -221,13 +222,8 @@ fn key_of(content: &str) -> Option<&str> {
     Some(key.trim())
 }
 
-/// Feature names and paths hold no `#`, so the first one starts a comment.
-fn without_comment(line: &str) -> &str {
-    line.split_once('#').map_or(line, |(before, _)| before)
-}
-
 fn inline_list(line: &str, start: usize) -> Result<FeatureList, String> {
-    let content = without_comment(line);
+    let content = without_toml_comment(line);
     let Some(close) = content.rfind('}') else {
         return Err(
             "the `sofie` dependency is a version string; write it as an inline table, \
@@ -235,29 +231,17 @@ fn inline_list(line: &str, start: usize) -> Result<FeatureList, String> {
                 .to_owned(),
         );
     };
-    let Some(key) = features_key(content) else {
-        return Ok(FeatureList::InlineEntry(
+    match inline_features(line) {
+        InlineFeatures::Array(array) => {
+            Ok(FeatureList::Array(start + array.start..start + array.end))
+        }
+        InlineFeatures::Absent => Ok(FeatureList::InlineEntry(
             start + content[..close].trim_end().len(),
-        ));
-    };
-    let open = content[key..].find('[').map(|found| key + found);
-    let close = open.and_then(|open| content[open..].find(']').map(|found| open + found));
-    match (open, close) {
-        (Some(open), Some(close)) => Ok(FeatureList::Array(start + open..start + close + 1)),
-        _ => Err("the `sofie` dependency's `features` is no array on one line".to_owned()),
+        )),
+        InlineFeatures::Unreadable => {
+            Err("the `sofie` dependency's `features` is no array on one line".to_owned())
+        }
     }
-}
-
-/// Not the `features` of `default-features`.
-fn features_key(content: &str) -> Option<usize> {
-    content
-        .match_indices("features")
-        .map(|(at, _)| at)
-        .find(|at| {
-            let before = content[..*at].trim_end();
-            let after = content[at + "features".len()..].trim_start();
-            (before.ends_with('{') || before.ends_with(',')) && after.starts_with('=')
-        })
 }
 
 fn array_from(text: &str, open: usize) -> Result<FeatureList, String> {
@@ -329,6 +313,11 @@ mod tests {
         assert_eq!(
             added,
             manifest.replace("\"postgres\"]", "\"postgres\", \"i18n\"]")
+        );
+        let tight = "[dependencies]\nsofie = {workspace=true,features=[\"engine\"]}\n";
+        assert_eq!(
+            edited(tight, "i18n", FeatureChange::Add),
+            tight.replace("\"engine\"]", "\"engine\", \"i18n\"]")
         );
         assert_eq!(
             removed,

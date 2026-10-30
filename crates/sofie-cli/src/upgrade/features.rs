@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 
 use super::{Change, Planned};
 use crate::gen_command::{GenError, io_error};
-use crate::source_edits::read;
+use crate::source_edits::{InlineFeatures, inline_features, read};
 
 const NAME: &str = "concurrent-indexes-dropped";
 const CHANGE: &str =
@@ -86,11 +86,16 @@ fn without_dropped(line: &str) -> Option<String> {
     if !names_sofie || !line.contains(DROPPED) {
         return None;
     }
-    let open = line.find("features = [")? + "features = [".len();
-    let close = open + line[open..].find(']')?;
-    let kept: Vec<&str> = line[open..close]
-        .split(',')
-        .map(str::trim)
+    let InlineFeatures::Array(array) = inline_features(line) else {
+        return None;
+    };
+    let (open, close) = (array.start + 1, array.end - 1);
+    let listed: Vec<&str> = line[open..close].split(',').map(str::trim).collect();
+    if !listed.contains(&DROPPED) {
+        return None;
+    }
+    let kept: Vec<&str> = listed
+        .into_iter()
         .filter(|feature| !feature.is_empty() && *feature != DROPPED)
         .collect();
     Some(format!(
@@ -133,5 +138,14 @@ mod tests {
         );
         assert_eq!(changes.len(), 1);
         assert_eq!(changes[0].line, 2);
+        let tight = "[dependencies]\nsofie = {workspace=true,features=[\"concurrent-indexes\"]}\n";
+        assert_eq!(
+            upgraded(tight).unwrap().0,
+            "[dependencies]\nsofie = {workspace=true,features=[]}\n"
+        );
+        assert!(
+            upgraded("[dependencies]\nsofie = { workspace = true } # \"concurrent-indexes\"\n")
+                .is_none()
+        );
     }
 }

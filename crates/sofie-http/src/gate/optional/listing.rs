@@ -802,7 +802,7 @@ mod tests {
             panic!("{refused:?}");
         };
         let fields: Vec<&str> = errors.iter().map(|error| error.field.as_str()).collect();
-        assert_eq!(fields, ["starts_at.gt", "status", "id"]);
+        assert_eq!(fields, ["id", "starts_at.gt", "status"]);
     }
 
     #[tokio::test]

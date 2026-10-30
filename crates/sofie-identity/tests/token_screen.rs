@@ -35,14 +35,14 @@ async fn member(app: &TestApp, email: &str) -> (AccountId, TestSession) {
     (account, session)
 }
 
-async fn issued(app: &TestApp, account: AccountId) -> AccessTokenId {
+async fn issued<A: Area>(app: &TestApp, account: AccountId) -> AccessTokenId {
     let expires_at = app
         .db()
         .clock()
         .now()
         .checked_add(Duration::from_hours(24))
         .unwrap();
-    let mut issued = tokens::issue::<Console>(&app.db().read(), account, &[], expires_at)
+    let mut issued = tokens::issue::<A>(&app.db().read(), account, &[], expires_at)
         .await
         .unwrap();
     app.db().commit(&mut issued).await.unwrap();
@@ -54,9 +54,9 @@ async fn a_principal_lists_and_revokes_only_its_own_tokens() {
     let app = started().await;
     let (ada, session) = member(&app, "ada@example.com").await;
     let (grace, _) = member(&app, "grace@example.com").await;
-    let kept = issued(&app, ada).await;
-    let revoked = issued(&app, ada).await;
-    let foreign = issued(&app, grace).await;
+    let kept = issued::<Console>(&app, ada).await;
+    let revoked = issued::<Console>(&app, ada).await;
+    let foreign = issued::<Console>(&app, grace).await;
 
     let page = app.get("/console/tokens").session(&session).await;
     assert_eq!(page.status, 200, "{}", page.body);
@@ -149,7 +149,7 @@ async fn an_impersonation_revokes_none_of_the_members_tokens() {
         &["sofie_identity.access_token.*.*"],
     )
     .await;
-    let token = issued(&app, ada).await;
+    let token = issued::<Partner>(&app, ada).await;
     let as_ada = app
         .post("/console/impersonation")
         .session(&staff)

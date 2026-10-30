@@ -83,7 +83,7 @@ impl ClientParts {
             keys: owned(found.keys),
             counted: owned(found.counted),
             recorded: found.recorded,
-            forms: found.forms.into_iter().map(ClientForm::of).collect(),
+            forms: merged_forms(found.forms),
             enums: owned(found.enums),
             #[cfg(all(feature = "listing", any(feature = "gates", feature = "i18n")))]
             tables: found.tables,
@@ -155,7 +155,58 @@ fn owned(names: BTreeSet<&str>) -> BTreeSet<String> {
     names.into_iter().map(str::to_owned).collect()
 }
 
+/// Forms in an `{#if}`'s branches may share an id, by which alone the client looks one up, so
+/// they are described as one.
+fn merged_forms(forms: Vec<&crate::catalog::Form>) -> Vec<ClientForm> {
+    let mut merged: Vec<ClientForm> = Vec::new();
+    for form in forms.into_iter().map(ClientForm::of) {
+        match merged.iter_mut().find(|known| known.id == form.id) {
+            Some(known) => known.merge(form),
+            None => merged.push(form),
+        }
+    }
+    merged
+}
+
 impl ClientForm {
+    fn merge(&mut self, other: Self) {
+        self.multipart |= other.multipart;
+        let submits = self.submit_count();
+        let mut after_fields = self
+            .parts
+            .iter()
+            .rposition(|part| matches!(part, ClientFormPart::Field { .. }))
+            .map_or(0, |index| index + 1);
+        let mut other_submits = 0;
+        for part in other.parts {
+            match part {
+                ClientFormPart::Submit => other_submits += 1,
+                ClientFormPart::Field {
+                    ref description, ..
+                } if self.has_field(description) => {}
+                field @ ClientFormPart::Field { .. } => {
+                    self.parts.insert(after_fields, field);
+                    after_fields += 1;
+                }
+            }
+        }
+        self.parts
+            .extend((submits..other_submits).map(|_| ClientFormPart::Submit));
+    }
+
+    fn submit_count(&self) -> usize {
+        self.parts
+            .iter()
+            .filter(|part| matches!(part, ClientFormPart::Submit))
+            .count()
+    }
+
+    fn has_field(&self, description: &Value) -> bool {
+        self.parts.iter().any(|part| {
+            matches!(part, ClientFormPart::Field { description: known, .. } if known["name"] == description["name"])
+        })
+    }
+
     fn of(form: &crate::catalog::Form) -> Self {
         let parts = form
             .parts
@@ -468,7 +519,7 @@ fn conventions(_language: Language<'_>) -> Value {
 
 #[cfg(test)]
 mod tests {
-    use serde_json::json;
+    use serde_json::{Value, json};
     use sofie_values::{Control, FormField, Input};
 
     use crate::Template;
@@ -484,6 +535,27 @@ mod tests {
         let view = super::client_parts(&template).view(crate::language::Language::plain());
 
         assert_eq!(serde_json::to_value(&view).unwrap(), view.to_value());
+    }
+
+    #[test]
+    fn forms_sharing_an_id_in_two_branches_are_described_as_one() {
+        let template = Template::parse(
+            "screen",
+            "{#if data.a}<Form id=\"f\" post=\"/f\"><Field name=\"a\" /><Submit label=\"Go\" />\
+             </Form>{:else}<Form id=\"f\" post=\"/f\"><Field name=\"b\" /><Field name=\"a\" />\
+             <Submit label=\"Go\" /><Submit label=\"Later\" /></Form>{/if}",
+        )
+        .unwrap();
+
+        let view = super::plain_client_view(&template);
+        let parts = view["forms"]["f"]["parts"].as_array().unwrap();
+        let shapes: Vec<Value> = parts
+            .iter()
+            .map(|part| part["field"]["name"].clone())
+            .collect();
+
+        assert_eq!(shapes, [json!("a"), json!("b"), Value::Null, Value::Null]);
+        assert_eq!(parts[3], json!({ "submit": 1 }));
     }
 
     #[test]

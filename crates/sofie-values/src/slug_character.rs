@@ -16,7 +16,7 @@ pub fn is_slug_character(character: char) -> bool {
 }
 
 /// The enclosing marks (Me) draw a circle or a sign around what comes before them.
-fn is_word_mark(character: char) -> bool {
+pub(crate) fn is_word_mark(character: char) -> bool {
     is_combining_mark(character)
         && !matches!(
             character,

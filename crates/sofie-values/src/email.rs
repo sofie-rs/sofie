@@ -3,6 +3,8 @@ use std::fmt;
 use sofie_core::{Error, Result};
 use unicode_normalization::{UnicodeNormalization, is_nfc};
 
+use crate::slug_character::is_word_mark;
+
 const MAXIMUM_LENGTH: usize = 254;
 const MAXIMUM_LOCAL_LENGTH: usize = 64;
 const MAXIMUM_LABEL_LENGTH: usize = 63;
@@ -20,8 +22,10 @@ impl Email {
         if trimmed.len() > MAXIMUM_LENGTH {
             return Err(invalid_email("must be at most 254 bytes"));
         }
-        // NFC, so `josé` typed composed or decomposed is one address and one account.
-        Self::from_normalized(trimmed.to_lowercase().nfc().collect())
+        // NFC, so `josé` typed composed or decomposed is one address and one account; `İ` folds
+        // to `i` rather than `i` plus a dot above, so `İlker` and `ilker` are one account too.
+        let lowercase = trimmed.replace('\u{130}', "i").to_lowercase();
+        Self::from_normalized(lowercase.nfc().collect())
     }
 
     fn from_stored(text: String) -> Result<Self> {
@@ -80,6 +84,11 @@ fn validate_parts(local: &str, domain: &str) -> Result<()> {
             "must use only letters, digits and !#$%&'*+-/=?^_`{|}~ before the @",
         ));
     }
+    if !marks_follow_letters(local) {
+        return Err(invalid_email(
+            "must put combining marks only after a letter before the @",
+        ));
+    }
     if local.split('.').any(str::is_empty) {
         return Err(invalid_email(
             "must not start or end the part before the @ with a dot, or repeat a dot in it",
@@ -101,6 +110,11 @@ fn validate_parts(local: &str, domain: &str) -> Result<()> {
             "must have at most 63 bytes between the dots of the domain",
         ));
     }
+    if !marks_follow_letters(domain) {
+        return Err(invalid_email(
+            "must put combining marks only after a letter in the domain",
+        ));
+    }
     if !domain.split('.').all(is_domain_label) {
         return Err(invalid_email(
             "must use only letters, digits and inner hyphens between the dots of the domain",
@@ -112,7 +126,21 @@ fn validate_parts(local: &str, domain: &str) -> Result<()> {
 /// RFC 5322 `atext` and dots; non-ASCII letters as RFC 6531 allows. Quoted local parts are
 /// refused: no mail provider hands them out.
 fn is_local_character(character: char) -> bool {
-    character.is_alphanumeric() || "!#$%&'*+-/=?^_`{|}~.".contains(character)
+    is_word_character(character) || "!#$%&'*+-/=?^_`{|}~.".contains(character)
+}
+
+/// Marks such as the dot lowercasing leaves on `i`, a Hindi virama or a Thai tone mark.
+fn is_word_character(character: char) -> bool {
+    character.is_alphanumeric() || is_word_mark(character)
+}
+
+fn marks_follow_letters(part: &str) -> bool {
+    let mut follows_letter = false;
+    part.chars().all(|character| {
+        let allowed = follows_letter || !is_word_mark(character);
+        follows_letter = is_word_character(character);
+        allowed
+    })
 }
 
 /// A host name label; non-ASCII letters are an internationalized domain before punycode.
@@ -121,7 +149,7 @@ fn is_domain_label(label: &str) -> bool {
         && !label.ends_with('-')
         && label
             .chars()
-            .all(|character| character.is_alphanumeric() || character == '-')
+            .all(|character| is_word_character(character) || character == '-')
 }
 
 fn invalid_email(message: &str) -> Error {
@@ -166,6 +194,11 @@ mod tests {
             ),
             ("Jürgen@München.de", "jürgen@münchen.de"),
             ("jose\u{301}@example.com", "jos\u{E9}@example.com"),
+            ("İlker@gmail.com", "ilker@gmail.com"),
+            ("i\u{307}lker@gmail.com", "i\u{307}lker@gmail.com"),
+            ("नमस्ते@example.com", "नमस्ते@example.com"),
+            ("ผู้ใช้@example.com", "ผู้ใช้@example.com"),
+            ("jane@हिन्दी.com", "jane@हिन्दी.com"),
         ];
         for (input, normalized) in samples {
             assert_eq!(Email::parse(input).unwrap().as_str(), normalized);
@@ -189,7 +222,22 @@ mod tests {
             stored("jose\u{301}@example.com").ok().as_deref(),
             Some("jos\u{E9}@example.com")
         );
+        assert_eq!(
+            stored("İlker@gmail.com").ok().as_deref(),
+            Some("ilker@gmail.com")
+        );
         assert!(stored("jane").is_err());
+    }
+
+    #[test]
+    fn refuses_a_combining_mark_that_follows_no_letter() {
+        let samples = [
+            "\u{307}jane@example.com",
+            "jane.\u{301}doe@example.com",
+            "jane@\u{94D}example.com",
+            "jane@exa-\u{94D}mple.com",
+        ];
+        assert_refused(Email::parse, &samples);
     }
 
     #[test]

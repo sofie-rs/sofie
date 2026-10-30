@@ -1,6 +1,5 @@
 use std::process::Command;
 
-/// Cargo unifies features across a workspace build, which may turn sofie's `development` on.
 fn built_for_development() -> bool {
     let output = Command::new(env!("CARGO_BIN_EXE_shop"))
         .args(["serve", "--at", "never"])

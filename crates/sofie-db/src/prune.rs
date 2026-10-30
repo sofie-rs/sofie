@@ -129,11 +129,17 @@ impl<A: Aggregate> Outcome for Pruned<A> {
             #[cfg(feature = "contracts")]
             if let Some(name) = self.events.change {
                 let change = crate::change_event::pruned_change(meta);
-                plan.raise_one(name, change);
+                plan.events.push(crate::RaisedEvent {
+                    name,
+                    payload: change,
+                });
             }
             if let Some(name) = self.events.pruned {
                 let pruned = serde_json::json!({"id": meta.id(), "version": meta.version() + 1});
-                plan.raise_one(name, pruned);
+                plan.events.push(crate::RaisedEvent {
+                    name,
+                    payload: pruned,
+                });
             }
             #[cfg(feature = "cache")]
             plan.announcements.changed(crate::ChangedRecord {

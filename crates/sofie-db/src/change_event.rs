@@ -57,7 +57,10 @@ fn queue_change<A: Aggregate>(payload: Map<String, Value>, plan: &mut Plan<'_>) 
     let name = A::CHANGED.ok_or_else(|| {
         Error::internal_message(format!("`{}` names no change event; derive it", A::NAME))
     })?;
-    plan.raise_one(name, Value::Object(payload));
+    plan.events.push(crate::RaisedEvent {
+        name,
+        payload: Value::Object(payload),
+    });
     Ok(())
 }
 

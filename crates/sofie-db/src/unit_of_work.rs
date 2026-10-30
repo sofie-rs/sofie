@@ -37,7 +37,8 @@ impl<A: Aggregate> Outcome for A {
         };
         for field in A::UNIQUE {
             let index = format!("{}_{field}", write.table.name);
-            plan.unique_column(A::MODULE, &index, field);
+            plan.unique_fields
+                .push(crate::outcome::UniqueField::column(A::MODULE, index, field));
         }
         for (behavior, _) in &write.table.behaviors {
             behavior.planned(&write, plan)?;

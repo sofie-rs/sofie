@@ -17,7 +17,7 @@ pub struct Plan<'d> {
     guards: Vec<Step>,
     guard_checks: Vec<Arc<GuardCheck>>,
     pub(crate) events: Vec<RaisedEvent>,
-    unique_fields: Vec<UniqueField>,
+    pub(crate) unique_fields: Vec<UniqueField>,
     queues_messages: bool,
     pub(crate) heard: Option<Arc<Known>>,
     pub(crate) announcements: crate::commit::Announcements,
@@ -142,11 +142,6 @@ impl<'d> Plan<'d> {
         self.events.extend_from_slice(events);
     }
 
-    #[cfg(any(feature = "contracts", feature = "publishing", feature = "retention"))]
-    pub(crate) fn raise_one(&mut self, name: &'static str, payload: Value) {
-        self.events.push(RaisedEvent { name, payload });
-    }
-
     pub(crate) fn queue<'a>(
         &mut self,
         kind: MessageKind,
@@ -197,16 +192,6 @@ impl<'d> Plan<'d> {
         });
     }
 
-    /// `<table>_<column>`, or `<table>_<column>_key` as Postgres names an inline `UNIQUE`.
-    pub(crate) fn unique_column(&mut self, module: &'static str, index: &str, field: &'static str) {
-        self.unique_fields.push(UniqueField {
-            index: Cow::Owned(index.to_owned()),
-            module: Some(module),
-            field,
-            message: TAKEN,
-        });
-    }
-
     pub(crate) fn into_parts(mut self) -> Result<Planned> {
         let events = std::mem::take(&mut self.events);
         // A listener's job is queued with `ON CONFLICT`, which needs SELECT a module role lacks.
@@ -232,6 +217,18 @@ impl<'d> Plan<'d> {
             queues_messages: self.queues_messages,
             announcements: self.announcements,
         })
+    }
+}
+
+impl UniqueField {
+    /// `<table>_<column>`, or `<table>_<column>_key` as Postgres names an inline `UNIQUE`.
+    pub(crate) fn column(module: &'static str, index: String, field: &'static str) -> Self {
+        Self {
+            index: Cow::Owned(index),
+            module: Some(module),
+            field,
+            message: TAKEN,
+        }
     }
 }
 

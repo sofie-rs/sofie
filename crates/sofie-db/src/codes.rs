@@ -36,7 +36,11 @@ impl Behavior for Slugged {
     /// A slug taken now is no longer another record's previous one; a deleted record keeps none.
     fn planned(&self, write: &Write<'_>, plan: &mut Plan<'_>) -> Result<()> {
         let index = format!("{}_slug", write.table.name);
-        plan.unique_column(write.table.schema, &index, self.from);
+        plan.unique_fields.push(crate::outcome::UniqueField::column(
+            write.table.schema,
+            index,
+            self.from,
+        ));
         let table = record_table(write);
         if write.deleted() == (false, true) {
             let params = vec![table, SqlValue::Uuid(write.id)];

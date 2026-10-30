@@ -286,7 +286,14 @@ async fn a_role_this_database_never_set_up_is_not_entered() {
         .unwrap();
 
     db.commit(&mut Item::<Gamma>::new()).await.unwrap();
+    let read = db
+        .read()
+        .sql::<Item<Gamma>>("SELECT id, version FROM roles_gamma.items")
+        .all()
+        .await
+        .unwrap();
 
+    assert_eq!(read.len(), 2);
     let postgres = Postgres::connect(database.url()).unwrap();
     assert_eq!(
         sofie_db::query_values(&postgres, "SELECT count(*) FROM roles_gamma.items", &[])

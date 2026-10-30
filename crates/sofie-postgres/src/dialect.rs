@@ -37,19 +37,8 @@ impl Dialect for Postgres {
     }
 
     #[cfg(feature = "module-roles")]
-    /// Entered only where the role migration `sofie gen` writes gave the role its schema in
-    /// this database: roles belong to the whole server, so another database may have made it.
     fn enter_role(&self, module: Option<&str>) -> Option<String> {
-        Some(match module {
-            Some(module) => {
-                let name = module.replace('\'', "''");
-                format!(
-                    "SELECT set_config('role', '{name}', true) FROM pg_namespace \
-                     WHERE nspname = '{name}' AND pg_get_userbyid(nspowner) = '{name}'"
-                )
-            }
-            None => "RESET ROLE".to_owned(),
-        })
+        Some(module.map_or_else(|| "RESET ROLE".to_owned(), entering_role))
     }
 
     fn nested_rows(&self, columns: &str, from: &str) -> String {
@@ -104,6 +93,17 @@ impl Dialect for Postgres {
     fn live_notify(&self) -> Option<&'static str> {
         Some("SELECT 1 FROM pg_notify('sofie_live', $1)")
     }
+}
+
+/// Entered only where the role migration `sofie gen` writes gave the role its schema in this
+/// database: roles belong to the whole server, so another database may have made it.
+#[cfg(feature = "raw-sql")]
+pub(crate) fn entering_role(module: &str) -> String {
+    let name = module.replace('\'', "''");
+    format!(
+        "SELECT set_config('role', '{name}', true) FROM pg_namespace \
+         WHERE nspname = '{name}' AND pg_get_userbyid(nspowner) = '{name}'"
+    )
 }
 
 #[cfg(test)]

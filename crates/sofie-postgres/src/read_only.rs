@@ -1,5 +1,5 @@
 use sofie_core::{Error, Result, SqlValue};
-use sofie_db::{BoxFuture, Dialect, RowSink, join_all, traced_statement};
+use sofie_db::{BoxFuture, RowSink, join_all, traced_statement};
 
 use crate::rows::read_rows;
 use crate::transaction::{OpenTransaction, first_failure, simple};
@@ -13,7 +13,7 @@ impl Postgres {
         params: &[SqlValue],
         rows: &mut dyn RowSink,
     ) -> Result<()> {
-        let enter_role = role.map(|role| format!("SET LOCAL ROLE {}", self.quote(role)));
+        let enter_role = role.map(crate::dialect::entering_role);
         let connection = self.connection().await?;
         let statement = prepared(&connection, sql).await?;
         let mut open = OpenTransaction {

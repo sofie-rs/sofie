@@ -5,6 +5,7 @@ use sofie_values::{Instant, Locale, Money, Present};
 
 use super::conventions::{self, Conventions, NEUTRAL};
 use super::{CountedKeys, Message, Part, Translations, Variant, negotiate};
+use crate::message::{is_exactly_one, number_of};
 
 static PLAIN: LazyLock<Translations> =
     LazyLock::new(|| Translations::new(&["en"]).expect("the engine's own translations parse"));
@@ -323,15 +324,13 @@ impl PluralRule {
         reason = "a whole count's remainders are whole, so exact"
     )]
     pub(crate) fn is_one(self, count: Option<Shown<'_>>) -> bool {
-        let Some(count) = number_of(count).map(f64::abs) else {
-            return false;
-        };
+        let absolute = number_of(count).map(f64::abs);
         match self {
-            Self::OneIsOne => (count - 1.0).abs() < f64::EPSILON,
-            Self::OneIsZeroOrOne => count < 2.0,
-            Self::OneEndsInOneNotEleven => {
+            Self::OneIsOne => is_exactly_one(count),
+            Self::OneIsZeroOrOne => absolute.is_some_and(|count| count < 2.0),
+            Self::OneEndsInOneNotEleven => absolute.is_some_and(|count| {
                 count.fract() == 0.0 && count % 10.0 == 1.0 && count % 100.0 != 11.0
-            }
+            }),
             Self::OtherOnly => false,
         }
     }
@@ -344,18 +343,5 @@ impl PluralRule {
             Self::OneEndsInOneNotEleven => "one-ends-in-one-not-eleven",
             Self::OtherOnly => "other-only",
         }
-    }
-}
-
-#[expect(
-    clippy::cast_precision_loss,
-    reason = "only whether the count is 0, 1 or below 2 is read"
-)]
-fn number_of(count: Option<Shown<'_>>) -> Option<f64> {
-    match count? {
-        Shown::Integer(integer) => Some(integer as f64),
-        Shown::Float(float) => Some(float),
-        Shown::Number(number) => number.as_f64(),
-        _ => None,
     }
 }

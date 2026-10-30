@@ -100,16 +100,9 @@ pub(crate) struct Recorded {
 }
 
 impl Recorded {
-    /// The source language is English (`sofie_model::naming::SOURCE_LANGUAGE`), whose `one` is
-    /// exactly 1.
+    /// The source language is English (`sofie_model::naming::SOURCE_LANGUAGE`).
     pub(crate) fn counted(&self, count: Option<Shown<'_>>) -> &Message {
-        let number = match count {
-            Some(Shown::Integer(count)) => return self.pick(count == 1),
-            Some(Shown::Number(count)) => count.as_f64(),
-            Some(Shown::Float(count)) => Some(count),
-            _ => None,
-        };
-        self.pick(number.is_some_and(|number| (number - 1.0).abs() < f64::EPSILON))
+        self.pick(is_exactly_one(count))
     }
 
     fn pick(&self, is_one: bool) -> &Message {
@@ -117,6 +110,24 @@ impl Recorded {
             Some(one) if is_one => one,
             _ => &self.other,
         }
+    }
+}
+
+/// CLDR's `one` of English and the languages like it, read from the count's absolute value.
+pub(crate) fn is_exactly_one(count: Option<Shown<'_>>) -> bool {
+    number_of(count).is_some_and(|count| (count.abs() - 1.0).abs() < f64::EPSILON)
+}
+
+#[expect(
+    clippy::cast_precision_loss,
+    reason = "only whether the count is 0, 1 or below 2 is read"
+)]
+pub(crate) fn number_of(count: Option<Shown<'_>>) -> Option<f64> {
+    match count? {
+        Shown::Integer(integer) => Some(integer as f64),
+        Shown::Float(float) => Some(float),
+        Shown::Number(number) => number.as_f64(),
+        _ => None,
     }
 }
 
@@ -169,6 +180,10 @@ mod tests {
 
         assert!(matches!(
             recorded.counted(Some(Shown::Integer(1))).parts(),
+            [Part::Text(text)] if text == "one order"
+        ));
+        assert!(matches!(
+            recorded.counted(Some(Shown::Integer(-1))).parts(),
             [Part::Text(text)] if text == "one order"
         ));
         for count in [Some(Shown::Integer(2)), Some(Shown::Integer(0)), None] {

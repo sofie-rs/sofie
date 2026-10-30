@@ -11,7 +11,6 @@ use crate::throttle::Requester;
 
 /// A few megabytes: past it a new block is refused, so a flood of addresses cannot exhaust memory.
 const MAX_BLOCKS: usize = 65_536;
-const ID_LENGTH: usize = 16;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(crate) enum Key {
@@ -94,12 +93,7 @@ impl Key {
 
     /// Keyed, so an address shown by its network is not found again by trying each one in it.
     pub(crate) fn id(self, keys: &SigningKeys) -> String {
-        truncated(keys.sign(Signed::ShieldBlock, self.stored().as_bytes()))
-    }
-
-    fn is_named_by(self, id: &str, keys: &SigningKeys) -> bool {
-        keys.signatures(Signed::ShieldBlock, self.stored().as_bytes())
-            .any(|signature| truncated(signature) == id)
+        keys.sign(Signed::ShieldBlock, self.stored().as_bytes())
     }
 
     pub(crate) fn shown(self) -> String {
@@ -112,11 +106,6 @@ impl Key {
             }
         }
     }
-}
-
-fn truncated(mut signature: String) -> String {
-    signature.truncate(ID_LENGTH);
-    signature
 }
 
 /// Enough to tell networks apart, too little to name a subscriber.
@@ -168,7 +157,7 @@ impl Blocks {
         let key = unpoisoned::read(&self.table)
             .keys()
             .copied()
-            .find(|key| key.is_named_by(id, keys))?;
+            .find(|key| keys.verifies(Signed::ShieldBlock, key.stored().as_bytes(), id))?;
         let mut table = unpoisoned::write(&self.table);
         table.remove(&key)?;
         self.size.store(table.len(), Ordering::Relaxed);
@@ -300,7 +289,6 @@ mod tests {
     fn a_block_id_says_nothing_without_the_apps_keys() {
         let key = address("198.51.100.77");
 
-        assert_eq!(key.id(&keys(1)).len(), ID_LENGTH);
         assert_eq!(key.id(&keys(1)), key.id(&keys(1)));
         assert_ne!(key.id(&keys(1)), key.id(&keys(2)));
     }

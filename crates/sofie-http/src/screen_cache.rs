@@ -29,12 +29,14 @@ impl<A: Area> PageRoute<'_, A> {
 }
 
 /// The principal too: a permitted area reaches everything for every principal, yet a loader
-/// may still answer by who asks.
+/// may still answer by who asks. A listing refuses a bad filter to a JSON caller alone.
 #[derive(PartialEq, Eq, Hash)]
 struct Key {
     target: String,
     reach: Reach,
     principal: Option<Uuid>,
+    #[cfg(feature = "listing")]
+    prefers_json: bool,
 }
 
 /// Its topics are never `Every`, which nothing keeps.
@@ -76,6 +78,8 @@ impl ScreenCache {
             target: asked.to_string(),
             reach: matched.reach,
             principal: matched.session.principal(),
+            #[cfg(feature = "listing")]
+            prefers_json: matched.prefers_json,
         };
         let hearing = sofie_db::hears_other_instances(db);
         let before = match unpoisoned::lock(&self.kept).hit(&key, hearing) {
@@ -315,6 +319,8 @@ mod tests {
             target: target.to_owned(),
             reach: Reach::All,
             principal: None,
+            #[cfg(feature = "listing")]
+            prefers_json: false,
         }
     }
 

@@ -172,6 +172,50 @@ async fn a_cached_screen_loads_again_only_for_another_reach_query_or_a_change() 
     );
 }
 
+/// A listing answers a bad filter with a 422 to a JSON caller and an error on the page otherwise.
+#[cfg(feature = "listing")]
+mod by_caller {
+    use super::*;
+
+    static CALLER_LOADS: AtomicUsize = AtomicUsize::new(0);
+
+    async fn count_by_caller(read: Read) -> Result<Count> {
+        Note::query().all(&read).await?;
+        Ok(Count(CALLER_LOADS.fetch_add(1, Ordering::SeqCst) + 1))
+    }
+
+    fn caller_routes(routes: &mut Routes<Members>) {
+        routes
+            .screen("/counted", "counted", count_by_caller)
+            .cached(Duration::from_secs(60));
+    }
+
+    #[tokio::test]
+    async fn a_page_kept_for_a_browser_is_not_the_answer_to_a_json_caller() {
+        let screens =
+            sofie_http::screens_from_sources(&[("notes/members/counted", "<p>{data.loads}</p>")]);
+        let app = App::new(Db::new(FakeDriver::default()))
+            .screens(screens.unwrap())
+            .area("notes", web_routes)
+            .area("notes", caller_routes);
+        let server = TestServer::start(app).await;
+        let member = signed_in(&server, "/sign-in").await;
+
+        let page = server
+            .get("/members/counted")
+            .header("cookie", &member)
+            .await;
+        let json = server
+            .get("/members/counted")
+            .header("cookie", &member)
+            .accept_json()
+            .await;
+
+        assert!(page.body.contains("<p>1</p>"), "{}", page.body);
+        assert_eq!(json.json()["loads"], 2, "{}", json.body);
+    }
+}
+
 /// A hit reads no rows, so a tag taken from one would match any later content.
 #[cfg(all(feature = "etag", not(feature = "development")))]
 mod tagged {

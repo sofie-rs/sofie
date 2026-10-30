@@ -18,7 +18,7 @@ async fn hello() -> Result<()> {
 
 async fn lift_all(blocks: ShieldBlocks) -> Result<()> {
     for block in blocks.active() {
-        blocks.lift(block.id).await?;
+        blocks.lift(&block.id).await?;
     }
     Ok(())
 }

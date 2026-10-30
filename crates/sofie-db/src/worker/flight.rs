@@ -2,7 +2,7 @@ use std::future::poll_fn;
 use std::pin::{Pin, pin};
 use std::task::Poll;
 
-use sofie_core::Result;
+use sofie_core::{Result, SqlValue};
 use tokio::time::{Instant, sleep};
 
 use super::handling::{self, Handled};
@@ -21,6 +21,7 @@ enum Event {
 
 /// Without `signals` it drains: it ends once a claim finds nothing.
 pub(super) async fn work(worker: &Worker, mut signals: Option<Signals<'_>>) -> Result<Drained> {
+    let mine = SqlValue::Json(worker.registry.known().to_json());
     let mut running: Vec<BoxFuture<'_, Handled>> = Vec::new();
     let mut claiming: Option<BoxFuture<'_, Result<Vec<Claimed>>>> = None;
     let mut poll = pin!(sleep(POLL_INTERVAL));
@@ -30,7 +31,7 @@ pub(super) async fn work(worker: &Worker, mut signals: Option<Signals<'_>>) -> R
     loop {
         if more && !stopped && claiming.is_none() && running.len() < worker.in_flight {
             (asked, finished_meanwhile) = (worker.in_flight - running.len(), false);
-            claiming = Some(Box::pin(claim(worker, asked, draining)));
+            claiming = Some(Box::pin(claim(worker, &mine, asked, draining)));
         }
         let idle = running.is_empty() && claiming.is_none();
         if idle && (stopped || (draining && !more)) {
@@ -107,7 +108,12 @@ pub(super) async fn work(worker: &Worker, mut signals: Option<Signals<'_>>) -> R
 
 /// Draining looks for every local schedule due, so a test that moved the clock sees it fire.
 #[cfg_attr(not(feature = "local-time"), expect(unused_variables))]
-async fn claim(worker: &Worker, limit: usize, draining: bool) -> Result<Vec<Claimed>> {
+async fn claim(
+    worker: &Worker,
+    mine: &SqlValue,
+    limit: usize,
+    draining: bool,
+) -> Result<Vec<Claimed>> {
     let now = worker.db.clock().now().timestamp();
     worker
         .registry
@@ -119,9 +125,8 @@ async fn claim(worker: &Worker, limit: usize, draining: bool) -> Result<Vec<Clai
         crate::contracts::fire_due(&worker.db, now).await?;
     }
     let limit = i64::try_from(limit).unwrap_or(i64::MAX);
-    let mine = worker.registry.known();
     let held_until = now.checked_sub(UNHEARD_KEPT_FOR).map_err(|error| {
         sofie_core::Error::internal("computing when unhandled messages stop waiting", error)
     })?;
-    crate::messages::claim_known(&worker.db, LEASE, limit, &mine, held_until).await
+    crate::messages::claim_known(&worker.db, LEASE, limit, mine, held_until).await
 }

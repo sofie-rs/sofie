@@ -165,7 +165,8 @@ impl Messages {
 
     pub async fn claim(&self, lease: Duration, limit: i64) -> Result<Vec<Claimed>> {
         let now = self.db.clock().now().timestamp();
-        claim_known(&self.db, lease, limit, &Known::default(), now).await
+        let nothing_known = SqlValue::Json(Known::default().to_json());
+        claim_known(&self.db, lease, limit, &nothing_known, now).await
     }
 
     /// A conflict means the claim was lost: another worker took the message after its lease ran out.
@@ -293,14 +294,14 @@ pub(crate) async fn claim_known(
     db: &Db,
     lease: Duration,
     limit: i64,
-    mine: &Known,
+    mine: &SqlValue,
     held_until: Timestamp,
 ) -> Result<Vec<Claimed>> {
     let params = [
         milliseconds(lease)?,
         SqlValue::Timestamp(db.clock().now().timestamp()),
         SqlValue::Int(limit),
-        SqlValue::Json(mine.to_json()),
+        mine.clone(),
         SqlValue::Timestamp(held_until),
     ];
     let sql = db.driver().dialect().messages().claim;

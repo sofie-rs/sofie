@@ -16,6 +16,8 @@ use crate::transport::{Envelope, Refused, Transport};
 use crate::{Mail, Setup};
 
 pub(crate) const JOB: &str = "sofie_mail.deliver";
+/// Greylisting servers defer a new sender for a few minutes, so an earlier retry is deferred again.
+const DEFERRED_RETRY_AFTER: Duration = Duration::from_mins(5);
 
 #[cfg(feature = "metrics")]
 static SEND_DURATION: sofie_telemetry::metrics::Instrument = sofie_telemetry::metrics::Instrument {
@@ -96,8 +98,12 @@ fn later(delivery: &Delivery, deferred: &[Refused]) -> Result<Option<Queued>> {
     }
     let to = deferred.iter().map(|refused| refused.recipient().clone());
     let mail = delivery.mail.clone().sent_to(to.collect(), None);
-    let now = delivery.db.clock().now();
-    Jobs::queue_named_at(JOB, &mail, now).map(Some)
+    let due = delivery
+        .db
+        .clock()
+        .now()
+        .checked_add(DEFERRED_RETRY_AFTER)?;
+    Jobs::queue_named_at(JOB, &mail, due).map(Some)
 }
 
 fn replies(refused: &[Refused]) -> String {

@@ -272,9 +272,21 @@ async fn a_recipient_refused_for_now_holds_the_mail_from_nobody_else() {
     let left = deliveries_left(&app).await;
     assert_eq!(left.len(), 1, "{left:?}");
     assert_eq!(
-        left[0][1],
-        SqlValue::Bool(false),
+        left[0][..2],
+        [SqlValue::Int(0), SqlValue::Bool(false)],
         "bob's mail waits for a retry"
+    );
+    let due = app
+        .query(
+            "SELECT available_at > now() + interval '4 minutes' FROM sofie.messages \
+             WHERE name = 'sofie_mail.deliver'",
+            &[],
+        )
+        .await;
+    assert_eq!(
+        due[0][0],
+        SqlValue::Bool(true),
+        "a greylisting server is not asked again at once"
     );
     assert_eq!(held(&app, "bob@example.com").await, Vec::<Scope>::new());
 }

@@ -12,9 +12,11 @@ use tokio::sync::mpsc;
 
 use crate::backoff::Backoff;
 use crate::cache::State;
+use crate::key::widened_tag;
 
 pub(crate) const CHANNEL: &str = "sofie_cache";
-/// Postgres refuses a notification payload of 8000 bytes; past this, peers drop everything.
+/// Postgres refuses a notification payload of 8000 bytes; past this, record tags widen to their
+/// aggregate's, and past that again peers drop everything.
 const LONGEST_NOTIFICATION: usize = 7900;
 /// Redis takes far longer messages; this bounds what each subscriber reads at once.
 #[cfg(feature = "redis")]
@@ -40,6 +42,22 @@ impl Dropped {
         let payload = self.encoded();
         if payload.len() <= longest {
             return payload;
+        }
+        let widened = Self {
+            from: self.from.clone(),
+            keys: self.keys.clone(),
+            tags: self
+                .tags
+                .iter()
+                .map(|tag| widened_tag(tag))
+                .collect::<BTreeSet<_>>()
+                .into_iter()
+                .collect(),
+            everything: false,
+        }
+        .encoded();
+        if widened.len() <= longest {
+            return widened;
         }
         let everything = Self {
             from: self.from.clone(),
@@ -152,6 +170,15 @@ impl Pending {
                     self.length += name.len() + 3;
                 }
             }
+        }
+        if self.length > LONGEST_NOTIFICATION {
+            self.tags = self.tags.iter().map(|tag| widened_tag(tag)).collect();
+            self.length = self
+                .keys
+                .iter()
+                .chain(&self.tags)
+                .map(|name| name.len() + 3)
+                .sum();
         }
         if self.length > LONGEST_NOTIFICATION {
             self.everything = true;
@@ -334,11 +361,31 @@ mod tests {
         }
 
         let pending = unpoisoned::lock(&batched.pending);
-        assert!(pending.everything);
+        assert!(!pending.everything);
         assert!(
             pending.tags.len() * 40 < LONGEST_NOTIFICATION,
             "{}",
             pending.tags.len()
+        );
+        assert!(pending.tags.contains("shop.order/*"), "{:?}", pending.tags);
+    }
+
+    #[test]
+    fn a_drop_of_too_many_records_widens_to_their_aggregates() {
+        let dropped = Dropped {
+            from: "a".to_owned(),
+            tags: (0..1000)
+                .map(|record| format!("shop.order/{record:032}"))
+                .chain(["shop.order/*".to_owned(), "shop.address/7".to_owned()])
+                .collect(),
+            ..Dropped::default()
+        };
+
+        let payload = dropped.payload(LONGEST_NOTIFICATION);
+
+        assert_eq!(
+            payload,
+            r#"{"from":"a","tags":["shop.address/*","shop.order/*"]}"#
         );
     }
 }

@@ -48,6 +48,36 @@ fn files_in(root: &Root) -> Vec<String> {
 }
 
 #[tokio::test]
+async fn a_partial_file_a_killed_process_left_a_day_ago_is_removed_at_start() {
+    let root = root();
+    std::fs::create_dir_all(&root.0).unwrap();
+    let day_ago = std::time::SystemTime::now() - Duration::from_hours(25);
+    let abandoned = format!("{}.1.partial", StorageKey::generate().unwrap());
+    let uploading = format!("{}.2.partial", StorageKey::generate().unwrap());
+    let stored = StorageKey::generate().unwrap().to_string();
+    for (name, modified) in [
+        (&abandoned, day_ago),
+        (&uploading, std::time::SystemTime::now()),
+        (&stored, day_ago),
+    ] {
+        let file = std::fs::File::create(root.0.join(name)).unwrap();
+        file.set_modified(modified).unwrap();
+    }
+
+    let _ = storage(&root);
+
+    let mut kept = vec![uploading, stored];
+    kept.sort();
+    for _ in 0..100 {
+        if files_in(&root) == kept {
+            return;
+        }
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+    panic!("left behind: {:?}", files_in(&root));
+}
+
+#[tokio::test]
 async fn a_file_written_in_chunks_appears_whole_under_its_key_once_finished() {
     let root = root();
     let (storage, _) = storage(&root);

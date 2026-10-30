@@ -19,6 +19,8 @@ const EXPIRES: &str = "?expires=";
 const SIGNATURE: &str = "&signature=";
 const NAME: &str = "&name=";
 const PARTIAL: &str = "partial";
+/// Longer than any upload takes, so a partial file this old was left by a killed process.
+const ABANDONED_AFTER: Duration = Duration::from_hours(24);
 
 pub struct Local {
     root: Arc<Path>,
@@ -35,6 +37,8 @@ impl Local {
                 error,
             )
         })?;
+        let swept = root.clone();
+        std::thread::spawn(move || remove_abandoned(&swept));
         Ok(Self {
             root: root.into(),
             keys,
@@ -147,6 +151,38 @@ impl Store for Local {
             fresh_for: Duration::from_secs(u64::try_from(expires - now.as_second()).ok()?),
         })
     }
+}
+
+fn remove_abandoned(root: &Path) {
+    let entries = match std::fs::read_dir(root) {
+        Ok(entries) => entries,
+        Err(error) => {
+            tracing::warn!(error.kind = "storage", error = %error, "listing the storage root for abandoned partial files failed");
+            return;
+        }
+    };
+    for entry in entries {
+        if let Err(error) = entry.and_then(|entry| remove_if_abandoned(&entry.path())) {
+            tracing::warn!(error.kind = "storage", error = %error, "removing an abandoned partial file failed");
+        }
+    }
+}
+
+fn remove_if_abandoned(path: &Path) -> std::io::Result<()> {
+    if path
+        .extension()
+        .is_none_or(|extension| extension != PARTIAL)
+    {
+        return Ok(());
+    }
+    let age = std::fs::metadata(path)?
+        .modified()?
+        .elapsed()
+        .unwrap_or_default();
+    if age < ABANDONED_AFTER {
+        return Ok(());
+    }
+    std::fs::remove_file(path)
 }
 
 /// The filename `download_url` wrote; anything else is refused.

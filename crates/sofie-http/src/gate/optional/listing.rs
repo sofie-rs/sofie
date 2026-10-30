@@ -22,6 +22,9 @@ use sofie_db::Resolve;
 
 /// Read by the listing itself, so no field of its query `Q` may take one.
 const RESERVED: [&str; 4] = [PAGE, SIZE, SORT, FILTER];
+/// Each set of filters is its own SQL text and so its own prepared statement; with no field and
+/// operator twice and a fixed order, a caller cannot make them without end.
+const MAX_FILTERS: usize = 16;
 
 /// A path parameter naming a field filters too, so a child is listed only under its own parent.
 /// `Q` reads the query's other parameters, as [`crate::Query`] does; `()` reads none.
@@ -215,9 +218,10 @@ fn asked<T: Source, Q: Input + FieldNames>(query: &str) -> Result<Listing<T, Q>>
                 asked_parameters.insert(key, Value::String(value));
             }
             _ if crate::query::is_tracking_key(&key) && !selects::<T>(parameter_name(&key)) => {}
-            _ => filters.push(filter_of::<T>(key, value)?),
+            _ => add_filter(&mut filters, filter_of::<T>(key, value)?)?,
         }
     }
+    filters.sort_by(|first, second| first.key.cmp(&second.key));
     let (parameters, refused_parameters) = read_parameters(&asked_parameters)?;
     Ok(Listing {
         narrowed: T::query(),
@@ -304,6 +308,25 @@ fn filter_of<T: Source>(key: String, value: String) -> Result<Filter> {
         operator,
         value,
     })
+}
+
+fn add_filter(filters: &mut Vec<Filter>, filter: Filter) -> Result<()> {
+    if filters
+        .iter()
+        .any(|held| held.field == filter.field && held.operator == filter.operator)
+    {
+        return Err(Error::BadRequest(format!(
+            "a list is filtered by `{}` once at most",
+            filter.key
+        )));
+    }
+    if filters.len() == MAX_FILTERS {
+        return Err(Error::BadRequest(format!(
+            "a list takes at most {MAX_FILTERS} filters"
+        )));
+    }
+    filters.push(filter);
+    Ok(())
 }
 
 fn operator_named(name: &str) -> Result<Operator> {
@@ -610,6 +633,39 @@ mod tests {
                 "starts_at": {"type": "datetime-local"},
             })
         );
+    }
+
+    #[test]
+    fn a_list_takes_each_filter_once_in_one_order_and_a_bounded_number_of_them() {
+        let one_way = asked::<Booking, ()>("status=OPEN&note.contains=a").unwrap();
+        let other_way = asked::<Booking, ()>("note.contains=b&status=PAID").unwrap();
+        let keys = |listing: &Listing<Booking>| -> Vec<String> {
+            listing
+                .filters
+                .iter()
+                .map(|filter| filter.key.clone())
+                .collect()
+        };
+        assert_eq!(keys(&one_way), keys(&other_way));
+
+        let repeated = asked::<Booking, ()>("status.ne=OPEN&status.ne=PAID");
+        assert!(matches!(repeated, Err(Error::BadRequest(_))));
+        assert!(asked::<Booking, ()>("status.ne=OPEN&status=PAID").is_ok());
+
+        let mut filters = Vec::new();
+        let added: Vec<bool> = (0..=MAX_FILTERS)
+            .map(|index| {
+                let filter = Filter {
+                    key: format!("field_{index}"),
+                    field: format!("field_{index}"),
+                    operator: Operator::Equals,
+                    value: "a".to_owned(),
+                };
+                add_filter(&mut filters, filter).is_ok()
+            })
+            .collect();
+        assert_eq!(added.iter().filter(|added| **added).count(), MAX_FILTERS);
+        assert!(!added[MAX_FILTERS]);
     }
 
     #[test]

@@ -264,7 +264,8 @@ framework owns. No frontend framework's release can break an app.
   operators their column type offers; a value is read as its type reads
   JSON text, so `rate.gte=19` is 19 %, a value the type refuses is that
   filter's error, and only a type without a text reader is read by its
-  column type) answers `Listed<T>`, `{items, page, size, has_next, sort,
+  column type; a field and operator twice, or more than 16 filters, is a
+  400) answers `Listed<T>`, `{items, page, size, has_next, sort,
   filter, query, controls, errors}`; a `Table` over it with `sort="…"` and
   `filter="…"` links each column, a filter form (a select of an enum's variants, a date-time
   picker for an instant, else a search box) and the neighbouring pages,

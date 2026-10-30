@@ -2446,8 +2446,9 @@ signs in as a member of a member area with a reason (`sofie new impersonation
 PERMITTED MEMBER` mounts `impersonation::routes` and `stop_routes`). Every use is
 an `impersonation` row the member owns and raises `ImpersonationStarted` and
 `ImpersonationEnded`; the session is listed to the member as impersonated,
-ends by itself after thirty minutes, and `/impersonation/stop` signs the
-impersonator back in. sofie-http's `SessionRecord::Live` carries `impersonator`, the account
+ends by itself after thirty minutes, and `/impersonation/stop` resumes the
+impersonator's own session if still live (`Session::resume`: same id, first sign-in kept, so
+no recent sign-in is faked), else signs out. sofie-http's `SessionRecord::Live` carries `impersonator`, the account
 signed in as the session's account, if any, and every request made in such a session is logged at
 info with `impersonation.account` and `impersonation.impersonator` (account ids only). The
 impersonated session adds or removes no passkey,

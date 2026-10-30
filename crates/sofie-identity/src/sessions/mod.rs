@@ -61,10 +61,29 @@ impl AccountSession {
     }
 
     #[cfg(feature = "impersonation")]
+    pub(crate) fn resumable(&self, account: AccountId, area: &str) -> Option<Resumable> {
+        if self.account != account || self.area != area || self.ended_at.is_some() {
+            return None;
+        }
+        Some(Resumable {
+            session: self.session,
+            principal: self.principal.unwrap_or_else(|| account.uuid()),
+            signed_in_at: self.created_at()?,
+        })
+    }
+
+    #[cfg(feature = "impersonation")]
     pub(crate) fn impersonated(&mut self, by: &Email, until: Instant) {
         self.device = Some(format!("Impersonated by {}", by.as_str()));
         self.expires_at = Some(until);
     }
+}
+
+#[cfg(feature = "impersonation")]
+pub(crate) struct Resumable {
+    pub(crate) session: Uuid,
+    pub(crate) principal: Uuid,
+    pub(crate) signed_in_at: Instant,
 }
 
 pub(crate) fn started(
@@ -176,7 +195,7 @@ pub async fn account_of(read: &Read, session: Uuid) -> Result<Option<AccountId>>
         .map(|record| record.account))
 }
 
-async fn recorded(read: &Read, session: Uuid) -> Result<Option<AccountSession>> {
+pub(crate) async fn recorded(read: &Read, session: Uuid) -> Result<Option<AccountSession>> {
     AccountSession::query()
         .where_(AccountSession::SESSION.eq(session))
         .first(read)

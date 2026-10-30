@@ -303,29 +303,31 @@ where
         .ok_or_else(|| Error::Rule(NOT_IMPERSONATING.to_owned()))?;
     impersonation.end(clock.now())?;
     let sessions = crate::sessions::ending_current(&read, &session, &clock).await?;
-    let signed_in = if returns::<S>(&unscoped.0.read(), &impersonation).await? {
-        Some(sign_in::<S>(&session, impersonation.impersonator, &clock)?)
-    } else {
-        session.sign_out();
-        None
-    };
-    unscoped
-        .0
-        .commit(&mut (impersonation, sessions, signed_in))
-        .await
+    match returning::<S>(&unscoped.0.read(), &impersonation).await? {
+        Some(resumed) => crate::signing_in::resume::<S>(&session, &resumed),
+        None => session.sign_out(),
+    }
+    unscoped.0.commit(&mut (impersonation, sessions)).await
 }
 
 /// The member's session outlives a password reset or "sign out everywhere" of the
-/// impersonator's account, so only the impersonator's own session still live signs it back in.
-async fn returns<S: Area>(read: &Read, impersonation: &Impersonation) -> Result<bool> {
+/// impersonator's account, so only the impersonator's own session, still live, is signed
+/// back in: never a new one, which would pass for a recent sign-in.
+async fn returning<S: Area>(
+    read: &Read,
+    impersonation: &Impersonation,
+) -> Result<Option<crate::sessions::Resumable>> {
     let Some(started_from) = impersonation.started_from else {
-        return Ok(false);
+        return Ok(None);
     };
     let impersonator = impersonation.impersonator;
-    if crate::sessions::account_of(read, started_from).await? != Some(impersonator) {
-        return Ok(false);
-    }
-    Ok(held(read, impersonator, S::NAME).await?.is_some())
+    let Some(resumed) = crate::sessions::recorded(read, started_from)
+        .await?
+        .and_then(|record| record.resumable(impersonator, S::NAME))
+    else {
+        return Ok(None);
+    };
+    Ok(held(read, impersonator, S::NAME).await?.map(|_| resumed))
 }
 
 #[cfg(feature = "account-data")]

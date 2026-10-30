@@ -65,6 +65,17 @@ pub fn sign_in_for<A: Area>(
     })
 }
 
+/// Signs the impersonator's own session back in, so stopping proves no recent sign-in.
+#[cfg(feature = "impersonation")]
+pub(crate) fn resume<A: Area>(session: &Session, resumed: &crate::sessions::Resumable) {
+    session.resume::<A>(
+        RIGHT,
+        resumed.session,
+        Id::from_uuid(resumed.principal),
+        resumed.signed_in_at.timestamp(),
+    );
+}
+
 #[cfg(feature = "impersonation")]
 impl SignedIn {
     pub(crate) fn session(&self) -> sofie::db::Uuid {

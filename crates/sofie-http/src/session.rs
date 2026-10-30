@@ -148,6 +148,8 @@ enum Change {
         session: Uuid,
         area: &'static str,
         principal: Uuid,
+        /// A session signed back in keeps when it first signed in; a new one signs in now.
+        issued_at: Option<Timestamp>,
     },
     SignOut,
 }
@@ -207,8 +209,29 @@ impl Session {
             session,
             area: A::NAME,
             principal: principal.uuid(),
+            issued_at: None,
         });
         Ok(session)
+    }
+
+    /// Under the session's own id and first sign-in, so neither its absolute lifetime nor
+    /// its age restarts: a check for a recent sign-in does not trust it anew.
+    pub fn resume<A: Area>(
+        &self,
+        right: SignInRight,
+        session: Uuid,
+        principal: Id<PrincipalRecord<A>>,
+        issued_at: Timestamp,
+    ) {
+        let SignInRight { sealed: () } = right;
+        #[cfg(feature = "product-events")]
+        sofie_telemetry::attach_principal(&tracing::Span::current(), principal.uuid());
+        self.request(Change::SignIn {
+            session,
+            area: A::NAME,
+            principal: principal.uuid(),
+            issued_at: Some(issued_at),
+        });
     }
 
     #[must_use]
@@ -547,13 +570,12 @@ impl RequestSession {
                 session,
                 area,
                 principal,
-            }) => cookies
-                .sealed_session(
-                    keys,
-                    &SessionClaims::new(session, area, principal, now),
-                    now,
-                )
-                .map(Some),
+                issued_at,
+            }) => {
+                let claims = SessionClaims::new(session, area, principal, now)
+                    .issued_at(issued_at.unwrap_or(now));
+                cookies.sealed_session(keys, &claims, now).map(Some)
+            }
             Some(Change::SignOut) => cookies.session_removal().map(Some),
             None => self.refreshed_cookie(sessions, now),
         }

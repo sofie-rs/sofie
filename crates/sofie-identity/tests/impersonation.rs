@@ -46,6 +46,26 @@ const ROUTE_PERMISSIONS: &[RoutePermission] = &[
         path: "/console/account-data/close",
         permission: OWN_ACCOUNT,
     },
+    RoutePermission {
+        method: "GET",
+        path: "/console/two-factor",
+        permission: OWN_ACCOUNT,
+    },
+    RoutePermission {
+        method: "POST",
+        path: "/console/two-factor/start",
+        permission: OWN_ACCOUNT,
+    },
+    RoutePermission {
+        method: "POST",
+        path: "/console/two-factor/confirm",
+        permission: OWN_ACCOUNT,
+    },
+    RoutePermission {
+        method: "POST",
+        path: "/console/two-factor/disable",
+        permission: OWN_ACCOUNT,
+    },
 ];
 
 struct Who(Option<String>);
@@ -92,6 +112,10 @@ async fn started() -> TestApp {
                 .area::<Member>(
                     "sofie_identity",
                     sofie_identity::two_factor::routes::<Member>,
+                )
+                .area::<Console>(
+                    "sofie_identity",
+                    sofie_identity::two_factor::routes::<Console>,
                 )
                 .area::<Member>(
                     "sofie_identity",
@@ -190,6 +214,71 @@ async fn a_permitted_principal_signs_in_as_a_member_and_back_on_the_record() {
     let raised = assert_raised::<ImpersonationStarted>(&app);
     assert_eq!(raised[0].reason, "ticket 42: cart is empty");
     assert_raised::<ImpersonationEnded>(&app);
+}
+
+async fn start_two_factor(app: &TestApp, session: &TestSession) -> TestResponse {
+    app.post("/console/two-factor/start")
+        .session(session)
+        .accept_json()
+        .await
+}
+
+async fn stopped(app: &TestApp, member: &TestSession) -> TestSession {
+    let stopped = app
+        .post("/account/impersonation/stop")
+        .session(member)
+        .accept_json()
+        .await;
+    stopped.assert_status(204);
+    stopped.session().expect("the impersonator signed back in")
+}
+
+#[tokio::test]
+async fn stopping_resumes_the_impersonators_own_session_as_old_as_it_was() {
+    let app = started().await;
+    let (grace, staff) = support::joined::<Console>(&app, "grace@example.com").await;
+    support::grant_role(
+        &app,
+        grace,
+        "support",
+        &[
+            "sofie_identity.impersonation.*.*",
+            "sofie_identity.account.*.update",
+        ],
+    )
+    .await;
+    support::joined::<Member>(&app, "ada@example.com").await;
+
+    let ada = impersonate(&app, &staff, "ada@example.com")
+        .await
+        .session()
+        .unwrap();
+    let back = stopped(&app, &ada).await;
+    start_two_factor(&app, &back).await.assert_ok();
+
+    app.clock().advance(Duration::from_mins(11)).unwrap();
+    let ada = impersonate(&app, &back, "ada@example.com")
+        .await
+        .session()
+        .unwrap();
+    let back = stopped(&app, &ada).await;
+    let refused = start_two_factor(&app, &back).await;
+
+    assert_eq!(refused.status, 422, "{}", refused.body);
+    assert!(refused.body.contains("Sign in again"), "{}", refused.body);
+    json(&app, "/console/impersonation", &staff).await;
+    let live = app
+        .query(
+            "SELECT count(*) FROM sofie_identity.account_session \
+             WHERE account = $1 AND ended_at IS NULL",
+            &[sofie::core::SqlValue::Uuid(grace.uuid())],
+        )
+        .await;
+    assert_eq!(
+        live,
+        [vec![sofie::core::SqlValue::Int(1)]],
+        "no session left behind"
+    );
 }
 
 #[tokio::test]

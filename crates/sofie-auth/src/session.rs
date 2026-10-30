@@ -46,6 +46,15 @@ impl SessionClaims {
         }
     }
 
+    /// For a session signed back in, which keeps its first sign-in's absolute lifetime.
+    #[must_use]
+    pub fn issued_at(self, at: Timestamp) -> Self {
+        Self {
+            issued_at: at.as_second(),
+            ..self
+        }
+    }
+
     #[must_use]
     pub fn session(&self) -> Uuid {
         self.session
@@ -441,6 +450,26 @@ pub(crate) mod tests {
             Err(OpenError::Expired)
         );
         assert_eq!(active.remaining_seconds(at(29 * day)), day);
+    }
+
+    #[test]
+    fn a_session_signed_back_in_keeps_its_first_sign_ins_lifetime() {
+        let keys = keys(1);
+        let day = 24 * HOUR;
+        let resumed = SessionClaims::new(
+            Uuid::new_v4().unwrap(),
+            "member",
+            Uuid::now_v7().unwrap(),
+            at(29 * day),
+        )
+        .issued_at(at(0));
+        let sealed = resumed.seal(&keys).unwrap();
+
+        assert_eq!(resumed.remaining_seconds(at(29 * day)), day);
+        assert_eq!(
+            SessionClaims::open(&keys, &sealed, at(30 * day)),
+            Err(OpenError::Expired)
+        );
     }
 
     #[test]

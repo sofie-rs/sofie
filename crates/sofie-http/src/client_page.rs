@@ -2,18 +2,31 @@
 //! alone for the area's runtime, and a refused form's errors in the request's language.
 
 use http::StatusCode;
+use serde::Serialize;
 use serde_json::{Map, Value, json};
-use sofie_core::{FieldError, Result};
+use sofie_core::{Error, FieldError, Result};
 use sofie_db::Reply;
-use sofie_engine::{ClientBundle, ClientLinks, ClientShell};
+use sofie_engine::{ClientBundle, ClientLinks, ClientShell, ClientView};
 
 use crate::answer::{self, JSON, Refusal, Response};
 use crate::caller::Caller;
 use crate::language::Language;
 use crate::screen::{ScreenPage, new_nonce, with_policy};
 
+/// Serialized once, borrowing the cached view rather than copying it into a `Value`.
+#[derive(Serialize)]
+struct Envelope<'a> {
+    screen: &'a str,
+    title: &'a str,
+    language: &'a str,
+    data: Value,
+    instants: Value,
+    view: ClientView,
+    navigation: Value,
+}
+
 /// The loader's JSON is the screen's data as `application/json` answers it.
-fn envelope(screen: &ScreenPage<'_>, reply: Result<Reply>) -> Result<Value> {
+fn envelope<'a>(screen: &'a ScreenPage<'a>, reply: Result<Reply>) -> Result<Envelope<'a>> {
     let (mut data, typed) = match reply? {
         Reply::Json(data) => (data, None),
         typed => (typed.to_json()?, Some(typed)),
@@ -28,20 +41,25 @@ fn envelope(screen: &ScreenPage<'_>, reply: Result<Reply>) -> Result<Value> {
         .map_or(Value::Null, |shown| {
             sofie_engine::instant_fields(shown, &data)
         });
-    Ok(json!({
-        "screen": screen.template.name(),
-        "title": screen.title,
-        "language": screen.language.tag(),
-        "data": data,
-        "instants": instants,
-        "view": rendering.client_view(),
-        "navigation": screen.navigation_entries(),
-    }))
+    Ok(Envelope {
+        screen: screen.template.name(),
+        title: screen.title,
+        language: screen.language.tag(),
+        data,
+        instants,
+        view: rendering.client_view(),
+        navigation: screen.navigation_entries(),
+    })
+}
+
+fn serializing(error: serde_json::Error) -> Error {
+    Error::internal("serializing a client screen's envelope", error)
 }
 
 pub(crate) fn enveloped(screen: &ScreenPage<'_>, reply: Result<Reply>) -> Response {
     let answered = envelope(screen, reply)
-        .map(|envelope| answer::response(StatusCode::OK, Some(JSON), envelope.to_string()));
+        .and_then(|envelope| serde_json::to_string(&envelope).map_err(serializing))
+        .map(|body| answer::response(StatusCode::OK, Some(JSON), body));
     answer::or_failure(answered, Caller::Screen)
 }
 
@@ -50,7 +68,7 @@ pub(crate) fn shell(
     bundle: &ClientBundle,
     reply: Result<Reply>,
 ) -> Result<Response> {
-    let envelope = envelope(screen, reply)?;
+    let envelope = serde_json::to_value(envelope(screen, reply)?).map_err(serializing)?;
     let nonce = new_nonce()?;
     let links = links(bundle);
     let html = ClientShell {

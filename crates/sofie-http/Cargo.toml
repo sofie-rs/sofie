@@ -90,7 +90,7 @@ islands = ["engine", "sofie-engine/islands"]
 # Client areas: screens compiled into Svelte or React components, served as a
 # page shell with the first screen's envelope and answering later navigations
 # with `application/vnd.sofie.screen+json`.
-clients = ["engine", "gates", "sofie-engine/clients"]
+clients = ["engine", "gates", "sofie-engine/clients", "dep:serde", "serde/derive"]
 # `sofie dev`: debug builds reload a page when the server restarts or a
 # template changes, and load rebuilt islands again (`/_sofie/dev/…`); release
 # builds leave it out.

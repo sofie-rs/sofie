@@ -273,8 +273,8 @@ pub(crate) struct Gated<'a> {
 #[cfg(feature = "engine")]
 impl Gated<'_> {
     #[cfg(feature = "clients")]
-    pub(crate) fn client_view(&self) -> serde_json::Value {
-        self.rendering.client_view()
+    pub(crate) fn client_view(&self) -> sofie_engine::ClientView {
+        self.rendering.serializable_client_view()
     }
 
     #[cfg(all(feature = "clients", feature = "listing"))]

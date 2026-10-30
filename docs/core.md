@@ -970,7 +970,8 @@ file), text held to 64 KiB whatever the route allows. Only a route with
 GIF, WebP, PDF) is refused as a field error and deleted. A file arrives as
 an `Upload` field of an `Input` (key, sanitized file name, type, size),
 sealed with a key of the process so a JSON body cannot name a stored file;
-the files of a request answered with an error are deleted. A form whose
+a file is kept once the action that took it commits, even if what follows
+the commit fails; every other file of the request is deleted. A form whose
 input has an `Upload` is rendered with `enctype="multipart/form-data"` and
 a file control. CSRF and the session apply as to any form post.
 

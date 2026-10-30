@@ -51,6 +51,8 @@ pub(crate) async fn committed(
     db.commit_with(&mut *outcome, Vec::new(), matched.reach)
         .await?;
     matched.session.committed();
+    #[cfg(feature = "uploads")]
+    crate::uploads::committed();
     outcome.into_reply()
 }
 

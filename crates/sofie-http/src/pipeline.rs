@@ -413,7 +413,7 @@ impl Pipeline {
         #[cfg(not(feature = "uploads"))]
         let answer = answer.await;
         #[cfg(feature = "uploads")]
-        received.stored.settle(answer.status()).await;
+        received.stored.settle().await;
         #[cfg(feature = "gates")]
         found.gates.record();
         Ok(answer)

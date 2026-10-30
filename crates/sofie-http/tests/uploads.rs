@@ -151,6 +151,10 @@ async fn serve() -> (TestServer, Root) {
                 .post("/photos/closed", refuse_photo)
                 .file_limit(1024)
                 .then_screen("photos", "photos");
+            routes
+                .post("/photos/filed", add_photo)
+                .file_limit(1024)
+                .then_redirect("/photos/{missing}");
             routes.get("/", front_page);
         });
     (TestServer::start(app).await, root)
@@ -364,6 +368,26 @@ async fn the_files_of_a_refused_request_are_deleted() {
 
     answer.assert_status(422);
     assert_eq!(root.files(), Vec::<String>::new());
+}
+
+#[tokio::test]
+async fn the_files_of_a_committed_action_are_kept_when_what_follows_it_fails() {
+    let (server, root) = serve().await;
+
+    let answer = server
+        .post("/photos/filed")
+        .header(
+            "content-type",
+            &format!("multipart/form-data; boundary={BOUNDARY}"),
+        )
+        .body(multipart(&[
+            Part::Text("title", "Filed"),
+            Part::File("photo", "cat.png", "image/png", PNG),
+        ]))
+        .await;
+
+    answer.assert_status(500);
+    assert_eq!(root.files().len(), 1, "{:?}", root.files());
 }
 
 #[tokio::test]

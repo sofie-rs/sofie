@@ -37,7 +37,20 @@ const FORM_TIME: Duration = Duration::from_mins(10);
 
 tokio::task_local! {
     /// What the handler's input took, as the input is read through serde, which carries nothing.
-    static TAKEN: Arc<Mutex<HashSet<StorageKey>>>;
+    static TAKEN: Arc<Mutex<Taken>>;
+}
+
+#[derive(Default)]
+struct Taken {
+    keys: HashSet<StorageKey>,
+    committed: bool,
+}
+
+/// A record the commit wrote may name a taken upload, so whatever is answered after it, such as
+/// a follow-up page that fails, keeps the file.
+pub(crate) fn committed() {
+    // Outside a request's handler, such as in a test, no stored file waits to be settled.
+    let _outside_a_request = TAKEN.try_with(|taken| unpoisoned::lock(taken).committed = true);
 }
 
 /// A file received with the request, already in the app's [`Storage`]. Only the framework makes
@@ -144,7 +157,7 @@ impl<'de> Deserialize<'de> for Upload {
         }
         // Outside a request's handler, such as in a test, no stored file waits to be settled.
         let _outside_a_request = TAKEN.try_with(|taken| {
-            unpoisoned::lock(taken).insert(upload.key.clone());
+            unpoisoned::lock(taken).keys.insert(upload.key.clone());
         });
         Ok(upload)
     }
@@ -180,14 +193,14 @@ fn seal_keys() -> Result<&'static SigningKeys> {
     Ok(KEYS.get_or_init(|| generated))
 }
 
-/// The files stored while reading a request, deleted unless its handler succeeds with an input
+/// The files stored while reading a request, deleted unless its handler commits with an input
 /// that took them; a request cut by its timeout or a panic drops them unsettled, so they are
 /// deleted then too.
 #[derive(Default)]
 pub(crate) struct Stored {
     storage: Option<Storage>,
     keys: Vec<StorageKey>,
-    taken: Arc<Mutex<HashSet<StorageKey>>>,
+    taken: Arc<Mutex<Taken>>,
 }
 
 impl Stored {
@@ -195,11 +208,13 @@ impl Stored {
         TAKEN.scope(Arc::clone(&self.taken), handler).await
     }
 
-    pub(crate) async fn settle(mut self, status: StatusCode) {
+    pub(crate) async fn settle(mut self) {
         let mut keys = std::mem::take(&mut self.keys);
-        if status.is_success() || status.is_redirection() {
+        {
             let taken = unpoisoned::lock(&self.taken);
-            keys.retain(|key| !taken.contains(key));
+            if taken.committed {
+                keys.retain(|key| !taken.keys.contains(key));
+            }
         }
         if let Some(storage) = &self.storage {
             discard(storage, &keys).await;
@@ -284,7 +299,7 @@ pub(crate) async fn read(
                     "a form sent a file, but the app has no storage; see `Serving::storage`"
                 );
             }
-            form.stored.settle(StatusCode::BAD_REQUEST).await;
+            form.stored.settle().await;
             Err(Box::new(failure.answer(form.multipart, caller).await))
         }
     }

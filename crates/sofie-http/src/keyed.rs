@@ -108,6 +108,8 @@ pub(crate) async fn answer_once<A: Area>(
         return Ok(reply);
     }
     context.session().committed();
+    #[cfg(feature = "uploads")]
+    crate::uploads::committed();
     let reply = outcome.into_reply()?;
     keyed.record(&reply).await?;
     Ok(reply)

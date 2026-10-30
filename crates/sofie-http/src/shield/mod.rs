@@ -125,7 +125,7 @@ pub(crate) struct Sentinel {
     shared: Option<Db>,
 }
 
-/// The shield's own refusal is no signal of its own.
+/// No signal: the shield's own refusal, or an answer to a call another app proved it made.
 #[derive(Clone, Copy)]
 struct Shielded;
 
@@ -285,6 +285,13 @@ pub(crate) struct RequestShield {
     sentinel: Arc<Sentinel>,
     address: IpAddr,
     area: &'static str,
+}
+
+/// A contract call's 404 or 400 is the calling app's bug, not its address probing this one.
+#[cfg(feature = "remote-contracts")]
+pub(crate) fn unobserved(mut response: Response) -> Response {
+    response.extensions_mut().insert(Shielded);
+    response
 }
 
 /// Read back by [`Guard::observe`] once the response leaves the session.

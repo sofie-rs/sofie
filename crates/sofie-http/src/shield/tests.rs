@@ -308,23 +308,53 @@ fn a_lifted_caller_counts_from_nothing() {
     assert_eq!(grade(&detector, &clock, key), None);
 }
 
-#[test]
-fn a_full_queue_drops_signals_and_counts_them_without_waiting() {
-    let (sender, _receiver) = mpsc::sync_channel(1);
-    let sentinel = Sentinel {
+fn sentinel(sender: SyncSender<Message>) -> Sentinel {
+    Sentinel {
         blocks: Arc::default(),
         sender,
         dropped: Arc::default(),
         clock: test_clock().clock(),
         slowed: Limiter::new(SLOW_RATE),
         shared: None,
-    };
+    }
+}
+
+#[test]
+fn a_full_queue_drops_signals_and_counts_them_without_waiting() {
+    let (sender, _receiver) = mpsc::sync_channel(1);
+    let sentinel = sentinel(sender);
 
     for _ in 0..3 {
         sentinel.send(Rule::Scan, caller(ATTACKER), ip(ATTACKER), None);
     }
 
     assert_eq!(sentinel.dropped.load(Ordering::Relaxed), 2);
+}
+
+#[cfg(feature = "remote-contracts")]
+#[test]
+fn an_answer_to_a_verified_call_from_another_app_is_no_signal() {
+    let (sender, receiver) = mpsc::sync_channel(4);
+    let guard = Guard(Some(Arc::new(sentinel(sender))));
+    let (request, ()) = http::Request::post("/_sofie/contracts/orders/missing")
+        .body(())
+        .unwrap()
+        .into_parts();
+    let deadline = crate::deadline::Deadline::default();
+    let asked = Asked {
+        request: &request,
+        caller: crate::caller::Caller::Json,
+        client: ip(ATTACKER),
+        deadline: &deadline,
+    };
+    let missing = || crate::answer::failure(Error::NotFound, crate::caller::Caller::Json);
+
+    guard.observe(asked, None, &unobserved(missing()));
+    let verified = receiver.try_recv();
+    guard.observe(asked, None, &missing());
+
+    assert!(verified.is_err());
+    assert!(receiver.try_recv().is_ok());
 }
 
 #[test]

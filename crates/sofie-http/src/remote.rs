@@ -135,7 +135,7 @@ impl Served {
         } else if path == FEED_PATH && self.feed && request.method == Method::GET {
             let feed = verified(asked, db, keys).map(|_| feed(db, request.uri.query()));
             return ControlFlow::Break(match feed {
-                Ok(feed) => json(feed.await),
+                Ok(feed) => verified_answer(json(feed.await)),
                 Err(refused) => *refused,
             });
         } else {
@@ -150,7 +150,7 @@ impl Served {
         };
         let body = match read_body(body, BODY_LIMIT, Caller::Json).await {
             Ok(body) => body,
-            Err(refused) => return ControlFlow::Break(*refused),
+            Err(refused) => return ControlFlow::Break(verified_answer(*refused)),
         };
         let called = async {
             let arguments = serde_json::from_slice(&body).map_err(|error| {
@@ -158,8 +158,15 @@ impl Served {
             })?;
             sofie_db::remote::acting_as(acting, dispatch(db, method, arguments)).await
         };
-        ControlFlow::Break(json(called.await))
+        ControlFlow::Break(verified_answer(json(called.await)))
     }
+}
+
+fn verified_answer(response: Response) -> Response {
+    #[cfg(feature = "shield")]
+    return crate::shield::unobserved(response);
+    #[cfg(not(feature = "shield"))]
+    response
 }
 
 fn verified(

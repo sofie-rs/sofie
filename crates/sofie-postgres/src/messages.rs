@@ -148,10 +148,11 @@ impl Postgres {
             .connect(self.tls.clone())
             .await
             .map_err(|error| classified("opening the listening connection", error))?;
-        listen_on(&client, &mut connection, listen).await?;
+        let early = listen_on(&client, &mut connection, listen).await?;
         Ok(Notifications {
             _client: client,
             connection,
+            early,
         })
     }
 }
@@ -159,41 +160,54 @@ impl Postgres {
 struct Notifications {
     _client: Client,
     connection: Listening,
+    /// Arrived while LISTEN completed, so the first `next` answers them at once.
+    early: Vec<String>,
+}
+
+impl Notifications {
+    fn next_payloads(&mut self) -> impl Future<Output = Result<Vec<String>>> + Send + '_ {
+        let mut payloads = std::mem::take(&mut self.early);
+        poll_fn(move |context| {
+            match next_notification(&mut self.connection, context, &mut payloads) {
+                Poll::Pending if payloads.is_empty() => Poll::Pending,
+                Poll::Pending => Poll::Ready(Ok(std::mem::take(&mut payloads))),
+                Poll::Ready(polled) => Poll::Ready(polled.map(|()| std::mem::take(&mut payloads))),
+            }
+        })
+    }
 }
 
 /// The connection does the client's I/O, so it is driven until LISTEN returns.
-async fn listen_on(client: &Client, connection: &mut Listening, statement: &str) -> Result<()> {
+async fn listen_on(
+    client: &Client,
+    connection: &mut Listening,
+    statement: &str,
+) -> Result<Vec<String>> {
     let mut listen = pin!(client.batch_execute(statement));
-    let mut ignored = Vec::new();
+    let mut early = Vec::new();
     poll_fn(|context| {
         if let Poll::Ready(result) = listen.as_mut().poll(context) {
             return Poll::Ready(result.map_err(listen_error));
         }
-        match next_notification(connection, context, &mut ignored) {
+        match next_notification(connection, context, &mut early) {
             Poll::Ready(Err(error)) => Poll::Ready(Err(error)),
             _ => Poll::Pending,
         }
     })
-    .await
+    .await?;
+    Ok(early)
 }
 
 impl Wakeups for Notifications {
     fn next(&mut self) -> BoxFuture<'_, Result<()>> {
-        let mut ignored = Vec::new();
-        Box::pin(poll_fn(move |context| {
-            next_notification(&mut self.connection, context, &mut ignored)
-        }))
+        Box::pin(async move { self.next_payloads().await.map(drop) })
     }
 }
 
 #[cfg(any(feature = "cache", feature = "live"))]
 impl sofie_db::Notifications for Notifications {
     fn next(&mut self) -> BoxFuture<'_, Result<Vec<String>>> {
-        let mut payloads = Vec::new();
-        Box::pin(poll_fn(move |context| {
-            next_notification(&mut self.connection, context, &mut payloads)
-                .map_ok(|()| std::mem::take(&mut payloads))
-        }))
+        Box::pin(self.next_payloads())
     }
 }
 
@@ -225,4 +239,28 @@ fn next_notification(
 
 fn listen_error(error: tokio_postgres::Error) -> Error {
     classified("listening for notifications", error)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use sofie_testing::TestDatabase;
+
+    use super::*;
+
+    #[tokio::test]
+    async fn a_notification_arriving_while_listen_completes_wakes_the_first_wait() {
+        let database = TestDatabase::create().await;
+        let postgres = Postgres::connect(database.url()).unwrap();
+        let mut wakeups = postgres
+            .subscribe("LISTEN sofie_messages; NOTIFY sofie_messages")
+            .await
+            .unwrap();
+
+        tokio::time::timeout(Duration::from_secs(1), wakeups.next())
+            .await
+            .expect("the early notification woke it")
+            .unwrap();
+    }
 }

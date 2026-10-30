@@ -299,9 +299,9 @@ fn a_lifted_caller_counts_from_nothing() {
     let mut detector = detector(false);
     let key = caller(ATTACKER);
     send(&mut detector, &clock, Rule::Malformed, key, 40);
-    let id = detector.blocks.active(now(&clock))[0].1.id;
+    let id = detector.blocks.active(now(&clock))[0].0.id();
 
-    detector.blocks.lift(id);
+    detector.blocks.lift(&id);
     detector.handle(Message::Lifted(key));
     send(&mut detector, &clock, Rule::Malformed, key, 19);
 

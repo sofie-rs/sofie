@@ -2787,7 +2787,8 @@ What the modifiers do:
   instance follows the table on `NOTIFY sofie_shield` (or every 10 s);
   listening that fails is resumed a second later and the table read right after;
   `ShieldBlocks` lists and lifts them in an action, `ActiveBlocks`
-  lists them on a screen.
+  lists them on a screen; a block's id is a digest of its caller, the same
+  on every instance.
 - `.signed()` opens the route only through a link `SignedUrls` signed: a
   handler argument whose `sign(path, valid_for)` appends `expires` and an
   HMAC-SHA256 `signature` made with a key derived from the app's

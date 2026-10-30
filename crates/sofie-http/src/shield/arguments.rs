@@ -82,7 +82,8 @@ pub struct ShieldBlocks {
 /// An address is shown by its network only.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ActiveBlock {
-    pub id: u64,
+    /// The same on every instance of the app.
+    pub id: String,
     pub caller: String,
     pub rule: &'static str,
     pub grade: &'static str,
@@ -100,7 +101,7 @@ impl ShieldBlocks {
             .active(sentinel.now())
             .into_iter()
             .map(|(key, block)| ActiveBlock {
-                id: block.id,
+                id: key.id(),
                 caller: key.shown(),
                 rule: block.rule.name(),
                 grade: block.grade.name(),
@@ -110,7 +111,7 @@ impl ShieldBlocks {
     }
 
     /// Also on every instance when shared; the caller's counts start over.
-    pub async fn lift(&self, id: u64) -> Result<()> {
+    pub async fn lift(&self, id: &str) -> Result<()> {
         let sentinel = self.sentinel.as_ref().ok_or(Error::NotFound)?;
         let key = sentinel.blocks.lift(id).ok_or(Error::NotFound)?;
         sentinel.post(Message::Lifted(key));

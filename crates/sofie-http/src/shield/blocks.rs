@@ -1,7 +1,7 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::net::IpAddr;
 use std::sync::RwLock;
-use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use sofie_core::{Uuid, unpoisoned};
 
@@ -10,6 +10,8 @@ use crate::throttle::Requester;
 
 /// A few megabytes: past it a new block is refused, so a flood of addresses cannot exhaust memory.
 const MAX_BLOCKS: usize = 65_536;
+/// 96 bits of the key's digest: unique among the blocks a table holds.
+const ID_LENGTH: usize = 16;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(crate) enum Key {
@@ -30,7 +32,6 @@ pub(crate) enum Grade {
 /// `until` is in microseconds.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct Block {
-    pub(crate) id: u64,
     pub(crate) rule: Rule,
     pub(crate) grade: Grade,
     pub(crate) until: i64,
@@ -43,7 +44,6 @@ pub(crate) struct Blocks {
     table: RwLock<HashMap<Key, Block>>,
     /// Read without the lock, so a process with no block pays one load.
     size: AtomicUsize,
-    next_id: AtomicU64,
 }
 
 impl Grade {
@@ -92,6 +92,13 @@ impl Key {
         }
     }
 
+    /// The same on every instance, so a block listed by one is lifted by another.
+    pub(crate) fn id(self) -> String {
+        let mut digest = sofie_auth::digest(&[b"shield-block", self.stored().as_bytes()]);
+        digest.truncate(ID_LENGTH);
+        digest
+    }
+
     pub(crate) fn shown(self) -> String {
         match self {
             Self::Caller(Requester::Address(address)) => format!("address {}", network(address)),
@@ -129,7 +136,7 @@ impl Blocks {
     }
 
     /// False when the table is full even of blocks in force.
-    pub(crate) fn insert(&self, key: Key, mut block: Block, now: i64) -> bool {
+    pub(crate) fn insert(&self, key: Key, block: Block, now: i64) -> bool {
         let mut table = unpoisoned::write(&self.table);
         if let Some(held) = table.get(&key)
             && held.grade > block.grade
@@ -143,18 +150,19 @@ impl Blocks {
                 return false;
             }
         }
-        block.id = self.next_id.fetch_add(1, Ordering::Relaxed) + 1;
         table.insert(key, block);
         self.size.store(table.len(), Ordering::Relaxed);
         true
     }
 
-    pub(crate) fn lift(&self, id: u64) -> Option<Key> {
+    /// Found under the read lock, as hashing every key would hold up every request's lookup.
+    pub(crate) fn lift(&self, id: &str) -> Option<Key> {
+        let key = unpoisoned::read(&self.table)
+            .keys()
+            .copied()
+            .find(|key| key.id() == id)?;
         let mut table = unpoisoned::write(&self.table);
-        let key = table
-            .iter()
-            .find_map(|(key, block)| (block.id == id).then_some(*key))?;
-        table.remove(&key);
+        table.remove(&key)?;
         self.size.store(table.len(), Ordering::Relaxed);
         Some(key)
     }
@@ -175,21 +183,18 @@ impl Blocks {
             .filter(|(_, block)| block.until > now)
             .map(|(key, block)| (*key, *block))
             .collect();
-        active.sort_by_key(|(_, block)| block.id);
+        active.sort_by_key(|(_, block)| block.until);
         active
     }
 
     /// A shared block no longer in the table was lifted elsewhere.
     pub(crate) fn follow_shared(&self, shared: &[(Key, Block)], now: i64) {
+        let held: HashSet<Key> = shared.iter().map(|(key, _)| *key).collect();
         let mut table = unpoisoned::write(&self.table);
-        table.retain(|key, block| !block.shared || shared.iter().any(|(held, _)| held == key));
+        table.retain(|key, block| !block.shared || held.contains(key));
         for (key, block) in shared {
-            let id = match table.get(key) {
-                Some(local) => local.id,
-                None => self.next_id.fetch_add(1, Ordering::Relaxed) + 1,
-            };
             if table.len() < MAX_BLOCKS || table.contains_key(key) {
-                table.insert(*key, Block { id, ..*block });
+                table.insert(*key, *block);
             }
         }
         table.retain(|_, block| block.until > now);
@@ -207,7 +212,6 @@ mod tests {
 
     fn block(grade: Grade, until: i64) -> Block {
         Block {
-            id: 0,
             rule: Rule::Scan,
             grade,
             until,
@@ -236,7 +240,7 @@ mod tests {
         let blocks = Blocks::default();
         let key = address("2001:db8:1:2:3::9");
         blocks.insert(key, block(Grade::Block, 100), 0);
-        let id = blocks.active(0)[0].1.id;
+        let id = blocks.active(0)[0].0.id();
 
         assert_eq!(Key::parse(&key.stored()), Some(key));
         assert_eq!(key.shown(), "address 2001:db8:1::/48");
@@ -246,8 +250,26 @@ mod tests {
         };
         let account_from = Key::AccountFrom(Uuid::now_v7().unwrap(), caller);
         assert_eq!(Key::parse(&account_from.stored()), Some(account_from));
-        assert_eq!(blocks.lift(id), Some(key));
+        assert_eq!(blocks.lift("unknown"), None);
+        assert_eq!(blocks.lift(&id), Some(key));
         assert!(blocks.is_empty());
+    }
+
+    #[test]
+    fn a_block_listed_by_one_instance_is_lifted_by_another() {
+        let (one, another) = (Blocks::default(), Blocks::default());
+        let (first, second) = (address("192.0.2.1"), address("192.0.2.2"));
+        let shared = Block {
+            shared: true,
+            ..block(Grade::Block, 100)
+        };
+        one.follow_shared(&[(first, shared), (second, shared)], 0);
+        another.follow_shared(&[(second, shared), (first, shared)], 0);
+
+        let listed = one.active(0)[0].0;
+
+        assert_eq!(another.lift(&listed.id()), Some(listed));
+        assert_eq!(another.active(0).len(), 1);
     }
 
     #[test]

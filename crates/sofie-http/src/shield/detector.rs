@@ -175,7 +175,6 @@ impl Detector {
             return;
         }
         let block = Block {
-            id: 0,
             rule: decision.rule,
             grade: decision.grade,
             until: decision.until,

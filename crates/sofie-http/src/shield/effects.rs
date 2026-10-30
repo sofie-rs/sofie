@@ -92,7 +92,6 @@ fn followed(rows: &[SharedBlock]) -> Vec<(Key, Block)> {
 
 fn block_of(row: &SharedBlock) -> Option<(Key, Block)> {
     let block = Block {
-        id: 0,
         rule: Rule::named(&row.rule)?,
         grade: Grade::named(&row.grade)?,
         until: row.until.as_microsecond(),

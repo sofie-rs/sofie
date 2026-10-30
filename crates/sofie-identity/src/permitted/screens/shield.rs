@@ -49,10 +49,5 @@ struct Lift {
 }
 
 async fn lift(blocks: ShieldBlocks, lift: Lift) -> Result<()> {
-    let id = lift
-        .block
-        .trim()
-        .parse()
-        .map_err(|_| Error::invalid("block", "is the id of a block in force"))?;
-    blocks.lift(id).await
+    blocks.lift(lift.block.trim()).await
 }

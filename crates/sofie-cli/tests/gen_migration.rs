@@ -153,7 +153,7 @@ fn an_existing_table_gains_columns_checks_and_indexes_in_steps_the_rules_accept(
 }
 
 #[test]
-fn a_dropped_field_leaves_its_column_to_a_commented_contract_step() {
+fn a_dropped_field_alone_writes_no_file_and_names_its_contract_step() {
     let mut migration = CREATED.replace(
         "    \"paid_at\" timestamptz\n",
         "    \"paid_at\" timestamptz,\n    \"memo\" text\n",
@@ -161,12 +161,21 @@ fn a_dropped_field_leaves_its_column_to_a_commented_contract_step() {
     migration.push('\n');
     let app = billing_app(&migration);
 
-    generate(&app).unwrap();
+    let refused = generate(&app);
 
-    assert_eq!(
-        read(&app, "0002_invoices.sql"),
-        "-- Contract step, once no running version reads `invoice.memo`:\n\
-         -- ALTER TABLE \"invoice\" DROP COLUMN \"memo\";\n"
+    let Err(GenError::Usage(message)) = refused else {
+        panic!("{refused:?}");
+    };
+    assert!(
+        message.ends_with(
+            "nothing to write\n  Contract step, once no running version reads `invoice.memo`:\n\
+             ALTER TABLE \"invoice\" DROP COLUMN \"memo\";"
+        ),
+        "{message}"
+    );
+    assert!(
+        !app.path("modules/billing/migrations/0002_invoices.sql")
+            .exists()
     );
 }
 

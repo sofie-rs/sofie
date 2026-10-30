@@ -170,7 +170,7 @@ impl<'a> MigrationPlan<'a> {
         }
         for column in existing {
             if column != "id" && !table.may_store(column) {
-                self.contracts.push(format!(
+                self.notes.push(format!(
                     "Contract step, once no running version reads `{}.{column}`:\n\
                      ALTER TABLE {} DROP COLUMN {};",
                     table.name,

@@ -30,7 +30,6 @@ static SEND_DURATION: sofie_telemetry::metrics::Instrument = sofie_telemetry::me
     labels: &["mail.transport", "outcome"],
 };
 
-/// The payload `Mailer::send` queues is a bare `Mail`, read here as deferred no times yet.
 #[derive(Serialize, Deserialize)]
 struct Deferred {
     #[serde(flatten)]
@@ -96,8 +95,7 @@ pub(crate) async fn deliver(delivery: Delivery) -> Result<()> {
     refusal(key, &refused, mail.to().len())
 }
 
-/// The deferred recipients wait for a later job, so the worker's backoff of seconds, made for
-/// faults, never buries a mail greylisting would have let through.
+/// A later job, not the worker's backoff of seconds, so greylisting is waited out.
 fn waiting(deferrals: u32, refused: Vec<Refused>) -> (Vec<Refused>, Vec<Refused>) {
     if deferrals >= MAXIMUM_DEFERRALS {
         return (Vec::new(), refused);

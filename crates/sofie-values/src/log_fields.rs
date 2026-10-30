@@ -106,7 +106,17 @@ log_whole!(crate::Percentage => |share| LogValue::Integer(share.basis_points()))
 #[cfg(feature = "web")]
 log_whole!(crate::Slug, crate::Locale => |text| LogValue::Text(Cow::Borrowed(text.as_str())));
 #[cfg(feature = "web")]
-log_whole!(crate::Url => |url| LogValue::Text(Cow::Borrowed(url.origin())));
+log_whole!(crate::Url => |url| LogValue::Text(Cow::Borrowed(origin(url.as_str()))));
+
+/// Scheme and host with its port; a path or query can carry a secret such as `?token=`.
+#[cfg(feature = "web")]
+fn origin(url: &str) -> &str {
+    let host_start = url.find("://").map_or(0, |separator| separator + 3);
+    let host_end = url[host_start..]
+        .find(['/', '?', '#'])
+        .map_or(url.len(), |end| host_start + end);
+    &url[..host_end]
+}
 
 #[cfg(feature = "time")]
 impl LogFields for crate::LocalDateTime {

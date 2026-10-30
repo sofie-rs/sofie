@@ -55,15 +55,6 @@ impl Url {
     pub fn as_str(&self) -> &str {
         &self.text
     }
-
-    /// Scheme and host with its port; a path or query can carry a secret such as `?token=`.
-    pub(crate) fn origin(&self) -> &str {
-        let host_start = self.text.find("://").map_or(0, |separator| separator + 3);
-        let host_end = self.text[host_start..]
-            .find(['/', '?', '#'])
-            .map_or(self.text.len(), |end| host_start + end);
-        &self.text[..host_end]
-    }
 }
 
 fn is_fragment(fragment: &str) -> bool {

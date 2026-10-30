@@ -165,6 +165,35 @@ async fn a_password_that_nfc_shortens_under_the_policy_still_signs_in() {
     assert!(signed_in.session().is_some(), "{}", signed_in.body);
 }
 
+async fn statements_refusing(app: &TestApp, email: &str) -> usize {
+    let telemetry = sofie::telemetry::capture();
+    let refused = app
+        .post("/sign-in")
+        .json(&json!({ "email": email, "password": "not the password" }))
+        .await;
+    assert_eq!(refused.status, 422, "{}", refused.body);
+    telemetry
+        .spans()
+        .iter()
+        .filter(|span| span.name == "statement")
+        .count()
+}
+
+#[tokio::test]
+async fn a_refused_sign_in_asks_alike_whether_or_not_the_address_has_an_account() {
+    let app = started().await;
+    app.post("/sign-up")
+        .json(&credentials(PASSWORD))
+        .await
+        .assert_ok();
+
+    let known = statements_refusing(&app, "ada@example.com").await;
+    let unknown = statements_refusing(&app, "nobody@example.com").await;
+
+    assert!(known > 0);
+    assert_eq!(known, unknown);
+}
+
 #[tokio::test]
 async fn a_right_password_outside_the_area_is_answered_as_a_wrong_one() {
     let app = started().await;

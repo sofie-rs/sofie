@@ -1,11 +1,11 @@
-use sofie::db::{Outcome, Plan, Stamp};
+use sofie::db::{Outcome, Plan, Stamp, Uuid};
 use sofie::prelude::*;
 use sofie::values::Secret;
 
 use crate::account::{ALREADY_REGISTERED, Account, EMAIL_INDEX, factory};
 use crate::membership::{self, Membership};
 use crate::signing_in::{Door, Entered};
-use crate::{MemberArea, Password, PasswordCheck, PasswordHash};
+use crate::{AccountId, MemberArea, Password, PasswordCheck, PasswordHash};
 
 pub(crate) const NOT_RIGHT: &str = "The email or password is not right.";
 /// One answer for a wrong password and an unconfirmed address, so signing in with the password
@@ -152,12 +152,13 @@ pub async fn sign_in<A: MemberArea>(
             &sign_ins,
         )
         .await?;
-    let member = match &attempt.account {
-        Some(account) => membership::held(read, account.id(), A::NAME)
-            .await?
-            .is_some(),
-        None => false,
-    };
+    // Asked for an address without an account too, under an id no account has.
+    let asked = attempt
+        .account
+        .as_ref()
+        .map_or(AccountId::from_uuid(Uuid::from_u128(0)), Account::id);
+    let held = membership::held(read, asked, A::NAME).await?;
+    let member = held.is_some() && attempt.account.is_some();
     let (confirmed, not_right) = address_rule::<A>(attempt.account.as_ref());
     let Some(mut account) = attempt
         .account

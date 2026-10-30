@@ -2666,7 +2666,8 @@ Derived from each area:
   (`api=https://app.example, api=…`; naming an area without a policy refuses
   to start). Origins are exact (`*` only alone and never with credentials);
   a preflight `OPTIONS` for one of the area's routes is answered by the
-  framework before routing, and an answer to an allowed origin carries the
+  framework before routing (a route whose flag is off for a caller without a
+  session is missing to it), and an answer to an allowed origin carries the
   CORS headers, `Vary: Origin` whenever origins are listed. A cross-origin
   write passes the CSRF check only when the area's policy allows its
   `Origin`, and, unless the policy allows credentials, only without the

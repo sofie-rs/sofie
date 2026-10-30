@@ -62,6 +62,11 @@ pub(crate) struct RequestGates {
 }
 
 impl Gates {
+    #[cfg(all(feature = "flags", feature = "cors"))]
+    pub(crate) fn hides_from_anyone(&self, target: &Target) -> bool {
+        self.flags.hides_from_anyone(target)
+    }
+
     #[cfg_attr(
         not(any(feature = "permissions", feature = "entitlements")),
         expect(

@@ -139,7 +139,9 @@ impl Pipeline {
             return response;
         }
         #[cfg(feature = "cors")]
-        if let Some(preflight) = crate::cors::preflight(&self.router, asked) {
+        if let Some(preflight) =
+            crate::cors::preflight(&self.router, asked, |target| self.hides_from_anyone(target))
+        {
             return preflight;
         }
         #[cfg(feature = "engine")]
@@ -192,6 +194,21 @@ impl Pipeline {
         return self.proxies.client(peer.ip(), &request.headers);
         #[cfg(not(feature = "trusted-proxies"))]
         (peer.ip().to_canonical(), None)
+    }
+
+    #[cfg(feature = "cors")]
+    #[cfg_attr(
+        not(feature = "flags"),
+        expect(clippy::unused_self, reason = "only a flag hides a route")
+    )]
+    fn hides_from_anyone(&self, target: &Target) -> bool {
+        #[cfg(feature = "flags")]
+        return self.gates.hides_from_anyone(target);
+        #[cfg(not(feature = "flags"))]
+        {
+            let _ = target;
+            false
+        }
     }
 
     #[cfg(feature = "engine")]

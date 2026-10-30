@@ -117,6 +117,39 @@ async fn a_route_behind_an_off_flag_is_not_found_until_it_is_switched_on() {
     assert_eq!(app.get("/beta").accept_json().await.status, 204);
 }
 
+#[cfg(feature = "cors")]
+#[tokio::test]
+async fn a_preflight_to_a_flagged_route_is_answered_only_once_the_flag_is_on() {
+    let _telemetry = sofie_telemetry::capture();
+    let app = sofie_testing::start(
+        |db: Db| async move {
+            db.schema().migrate(&[]).await?;
+            let gates = Gates::default().features(Flags::start(&db, "test").await?);
+            let cors = sofie_http::Cors::new().origin("https://app.example");
+            Ok(App::new(db)
+                .gates(gates)
+                .area::<Web>("shop", routes)
+                .cors::<Web>(cors))
+        },
+        sofie_db::worker::Worker::new,
+    )
+    .await;
+    let pay = sofie_http::RoutePath::new(sofie_http::Method::OPTIONS, "/pay".to_owned());
+    let preflight = || {
+        app.request(&pay)
+            .header("origin", "https://app.example")
+            .header("access-control-request-method", "POST")
+    };
+
+    let hidden = preflight().await;
+    switch_on(&app, "shop.split_payments", "/pay", true).await;
+    let shown = preflight().await;
+
+    assert_ne!(hidden.status, 204);
+    assert!(hidden.headers.get("access-control-allow-origin").is_none());
+    assert_eq!(shown.status, 204);
+}
+
 #[tokio::test]
 async fn another_method_on_a_flagged_route_is_not_found_rather_than_naming_it() {
     let _telemetry = sofie_telemetry::capture();

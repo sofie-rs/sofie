@@ -267,7 +267,12 @@ impl AreaCors {
     }
 }
 
-pub(crate) fn preflight(router: &Router, asked: Asked<'_>) -> Option<Response> {
+/// A route its flag hides is answered as a missing one, as `Allow` leaves it out.
+pub(crate) fn preflight(
+    router: &Router,
+    asked: Asked<'_>,
+    hidden: impl Fn(&Target) -> bool,
+) -> Option<Response> {
     let request = asked.request;
     if request.method != Method::OPTIONS || !request.headers.contains_key(ORIGIN) {
         return None;
@@ -277,6 +282,9 @@ pub(crate) fn preflight(router: &Router, asked: Asked<'_>) -> Option<Response> {
     let Lookup::Found(target, _) = router.find(&method, request.uri.path()) else {
         return None;
     };
+    if hidden(target) {
+        return None;
+    }
     let cors = target.admission.area.cors.as_ref()?;
     Some(cors.preflight(&method, asked))
 }

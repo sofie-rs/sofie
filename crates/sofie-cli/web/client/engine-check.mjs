@@ -52,7 +52,7 @@ const context = {
   setTimeout: (callback) => timers.push(callback),
   URLSearchParams,
 };
-const engine = new URL("../../../crates/sofie-engine/assets/engine.js", import.meta.url);
+const engine = new URL("../../../sofie-engine/assets/engine.js", import.meta.url);
 runInNewContext(await readFile(engine, "utf8"), context);
 
 assert.equal(streams.length, 1);

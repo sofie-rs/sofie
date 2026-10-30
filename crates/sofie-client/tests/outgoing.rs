@@ -253,8 +253,13 @@ async fn an_untrusted_host_is_refused_alike_whatever_it_resolves_to() {
         let expected = format!(
             "the outgoing request to `{host}` is refused: it does not resolve to a public address"
         );
+        let unresolvable = host == "nothing.invalid";
         assert!(
-            matches!(&refused, Error::BadRequest(message) if *message == expected),
+            match &refused {
+                Error::BadRequest(message) => !unresolvable && *message == expected,
+                Error::Unavailable(message) => unresolvable && *message == expected,
+                _ => false,
+            },
             "{host}: {refused:?}"
         );
     }

@@ -47,7 +47,7 @@ impl Reach {
     }
 
     pub(crate) fn refuse(self, host: &str, reason: &str) -> Failure {
-        let message = format!("the outgoing request to `{host}` is refused: {reason}");
+        let message = refusal(host, reason);
         Failure::Refused(match self {
             Self::Vendor => Error::internal_message(message),
             Self::Untrusted => Error::BadRequest(message),
@@ -65,7 +65,8 @@ impl Reach {
     }
 
     /// The caller of an untrusted request chooses its URL, so telling an internal, a forbidden
-    /// and an unresolvable host apart would let it map the internal network.
+    /// and an unresolvable host apart by message would let it map the internal network. A failed
+    /// lookup still stays a failure, so a resolver outage is retried rather than read as refusal.
     pub(crate) async fn resolve(
         self,
         target: &Target,
@@ -75,7 +76,12 @@ impl Reach {
             .await
             .and_then(|addresses| self.admitted(addresses, &target.host, allowed));
         match (self, resolved) {
-            (Self::Untrusted, Err(_)) => Err(self.refuse(&target.host, NO_PUBLIC_ADDRESS)),
+            (Self::Untrusted, Err(Failure::Refused(_))) => {
+                Err(self.refuse(&target.host, NO_PUBLIC_ADDRESS))
+            }
+            (Self::Untrusted, Err(Failure::Failed(_))) => Err(Failure::Failed(Error::Unavailable(
+                refusal(&target.host, NO_PUBLIC_ADDRESS),
+            ))),
             (_, resolved) => resolved,
         }
     }
@@ -102,6 +108,10 @@ impl Reach {
         }
         Ok(addresses)
     }
+}
+
+fn refusal(host: &str, reason: &str) -> String {
+    format!("the outgoing request to `{host}` is refused: {reason}")
 }
 
 async fn lookup(target: &Target) -> Result<Vec<SocketAddr>, Failure> {

@@ -112,13 +112,17 @@ pub trait ChildRows: Send + Sync {
 }
 
 impl<T: Child> ChildRows for Children<T> {
+    /// By id as [`Self::steps`] writes, so children only put in another order change nothing.
     fn changed(&self) -> bool {
         let current = self.current();
-        current.len() != self.loaded.len()
-            || current
-                .iter()
-                .zip(&self.loaded)
-                .any(|((id, values), (loaded, old))| id != loaded || !same_values(old, values))
+        let kept = |id: &Uuid| current.iter().any(|(kept, _)| kept == id);
+        self.loaded.iter().any(|(id, _)| !kept(id))
+            || current.iter().any(|(id, values)| {
+                self.loaded
+                    .iter()
+                    .find(|(loaded, _)| loaded == id)
+                    .is_none_or(|(_, old)| !same_values(old, values))
+            })
     }
 
     fn steps(&self, parent: &str, parent_id: Uuid, dialect: &dyn Dialect) -> Vec<Step> {
@@ -469,6 +473,31 @@ mod tests {
 
         assert!(children.changed());
         assert_eq!(children.steps("parcel", id, &dialect).len(), 1);
+    }
+
+    #[test]
+    fn children_put_in_another_order_are_unchanged() {
+        let weight = |kilograms| Weight {
+            id: Uuid::now_v7().unwrap(),
+            kilograms,
+        };
+        let mut children = Children::default();
+        children.push(weight(1.0));
+        children.push(weight(2.0));
+        children.committed();
+
+        children.reverse();
+
+        assert!(!children.changed());
+        assert!(
+            children
+                .steps(
+                    "parcel",
+                    Uuid::now_v7().unwrap(),
+                    &crate::aggregate::tests::NUMBERED
+                )
+                .is_empty()
+        );
     }
 
     struct Label {

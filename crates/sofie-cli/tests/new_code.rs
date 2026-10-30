@@ -129,6 +129,7 @@ fn an_aggregate_gets_its_folder_declaration_and_table() {
     assert_eq!(
         changes,
         [
+            "changed modules/billing/Cargo.toml",
             "created modules/billing/src/invoice/mod.rs",
             "changed modules/billing/src/lib.rs",
             "created modules/billing/migrations/0002_create_invoice.sql",
@@ -196,7 +197,7 @@ fn search_adds_the_behavior_its_column_and_an_index_built_concurrently() {
     );
     assert!(
         read(&app, "modules/billing/Cargo.toml")
-            .contains("sofie = { workspace = true, features = [\"search\"] }"),
+            .contains("sofie = { workspace = true, features = [\"factories\", \"search\"] }"),
         "{}",
         read(&app, "modules/billing/Cargo.toml")
     );

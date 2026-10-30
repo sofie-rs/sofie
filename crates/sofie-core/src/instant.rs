@@ -113,8 +113,7 @@ impl Serialize for Instant {
 
 impl<'de> Deserialize<'de> for Instant {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        let text = String::deserialize(deserializer)?;
-        Self::parse(&text).map_err(Error::into_deserialize_error)
+        crate::deserialize_parsed(deserializer, "an RFC 3339 instant", Self::parse)
     }
 }
 

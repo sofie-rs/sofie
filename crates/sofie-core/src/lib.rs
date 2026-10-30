@@ -12,6 +12,7 @@ mod instant;
 pub mod listing;
 mod local_database;
 pub mod moves;
+mod parsed;
 mod plural;
 pub mod random;
 pub mod registrations;
@@ -38,6 +39,7 @@ pub use jiff::Timestamp;
 /// Storage-level jiff types, without serde; apps take `sofie::prelude::Date` (feature `time`).
 pub use jiff::civil::{Date, DateTime};
 pub use local_database::is_local_database;
+pub use parsed::deserialize_parsed;
 pub use plural::plural;
 pub use show::{Show, Shown};
 pub use sql::{

@@ -3,8 +3,8 @@ use std::fmt;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use sofie_core::{Cast, ColumnReader, ColumnSpec, Error, Result, Show, Shown, SqlType, SqlValue};
 
-use crate::parsed::deserialize_parsed;
 use crate::{Input, Present};
+use sofie_core::deserialize_parsed;
 
 /// Sorted for a binary search. Codes are prefix-free: `1` and `7` are the only one-digit codes and
 /// every unlisted prefix starts a three-digit code, so no table of every country is needed.

@@ -1,7 +1,6 @@
-use std::borrow::Cow;
 use std::mem::discriminant;
 
-use serde::{Deserialize, Deserializer, Serializer};
+use serde::{Deserializer, Serializer};
 
 use crate::case::snake_case;
 use crate::{Cast, ColumnReader, ColumnSpec, Error, Result, SqlValue};
@@ -67,14 +66,17 @@ pub fn serialize<E: Variants, S: Serializer>(value: E, serializer: S) -> Result<
 }
 
 pub fn deserialize<'de, E: Variants, D: Deserializer<'de>>(deserializer: D) -> Result<E, D::Error> {
-    let given = Cow::<str>::deserialize(deserializer)?;
-    parse(&given).ok_or_else(|| {
+    crate::deserialize_parsed(deserializer, "a variant name", parse_given)
+}
+
+fn parse_given<E: Variants>(given: &str) -> Result<E, String> {
+    parse(given).ok_or_else(|| {
         let accepted: Vec<&str> = E::VARIANTS.iter().map(|(name, _)| *name).collect();
-        serde::de::Error::custom(format!(
+        format!(
             "`{given}` is not a {}, expected one of {}",
             E::TYPE,
             accepted.join(", ")
-        ))
+        )
     })
 }
 
@@ -115,6 +117,22 @@ mod tests {
             decode::<Light>(&mut row),
             Err(Error::Internal { .. })
         ));
+    }
+
+    #[test]
+    fn deserializes_a_borrowed_or_escaped_name_and_names_the_accepted_ones() {
+        let read = |json: &str| {
+            deserialize::<Light, _>(&mut serde_json::Deserializer::from_str(json))
+                .map_err(|error| error.to_string())
+        };
+
+        assert_eq!(read("\"RED\""), Ok(Light::Red));
+        assert_eq!(read("\"R\\u0045D\""), Ok(Light::Red));
+        let refusal = read("\"BLUE\"").unwrap_err();
+        assert!(
+            refusal.starts_with("`BLUE` is not a Light, expected one of GREEN, RED"),
+            "{refusal}"
+        );
     }
 
     #[test]

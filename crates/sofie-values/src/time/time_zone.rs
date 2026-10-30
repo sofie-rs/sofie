@@ -5,8 +5,8 @@ use jiff::civil;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use sofie_core::{Cast, ColumnReader, ColumnSpec, Error, Result, Show, Shown, SqlValue};
 
-use crate::parsed::deserialize_parsed;
 use crate::{Date, Instant, TimeOfDay};
+use sofie_core::deserialize_parsed;
 
 /// Stored by name, so a time kept in it follows the zone's rules as they change.
 #[derive(Clone)]

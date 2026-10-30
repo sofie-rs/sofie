@@ -6,8 +6,8 @@ use sofie_core::{Cast, ColumnReader, ColumnSpec, Error, Ordered, Result, Show, S
 
 #[cfg(feature = "web")]
 use crate::Conventions;
-use crate::parsed::deserialize_parsed;
 use crate::{Input, Present};
+use sofie_core::deserialize_parsed;
 
 /// To the minute, as a time input posts it; stored as `HH:MM` text, which sorts as it reads.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]

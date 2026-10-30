@@ -3,21 +3,22 @@ use std::fmt;
 use serde::de::{self, Visitor};
 
 /// Through the parser, so a request cannot build the value without the check; the text is read in
-/// place, borrowed or not, so no string is allocated.
-pub(crate) fn deserialize_parsed<'de, V, D: serde::Deserializer<'de>>(
+/// place, borrowed or not, so no string is allocated. A refusal is written in its alternate form:
+/// the field being read already names the value.
+pub fn deserialize_parsed<'de, V, M: fmt::Display, D: serde::Deserializer<'de>>(
     deserializer: D,
     expected: &'static str,
-    parse: fn(&str) -> sofie_core::Result<V>,
+    parse: fn(&str) -> Result<V, M>,
 ) -> Result<V, D::Error> {
     deserializer.deserialize_str(Parsed { expected, parse })
 }
 
-struct Parsed<V> {
+struct Parsed<V, M> {
     expected: &'static str,
-    parse: fn(&str) -> sofie_core::Result<V>,
+    parse: fn(&str) -> Result<V, M>,
 }
 
-impl<V> Visitor<'_> for Parsed<V> {
+impl<V, M: fmt::Display> Visitor<'_> for Parsed<V, M> {
     type Value = V;
 
     fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -25,6 +26,6 @@ impl<V> Visitor<'_> for Parsed<V> {
     }
 
     fn visit_str<E: de::Error>(self, text: &str) -> Result<V, E> {
-        (self.parse)(text).map_err(sofie_core::Error::into_deserialize_error)
+        (self.parse)(text).map_err(|refusal| E::custom(format_args!("{refusal:#}")))
     }
 }

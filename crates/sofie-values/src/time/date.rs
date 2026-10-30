@@ -8,8 +8,8 @@ use sofie_core::{Error, Ordered, Result};
 
 #[cfg(feature = "web")]
 use crate::Conventions;
-use crate::parsed::deserialize_parsed;
 use crate::{Input, Instant, Present, TimeZone, Weekday};
+use sofie_core::deserialize_parsed;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Date {

@@ -1,10 +1,8 @@
-use std::borrow::Cow;
 use std::fmt;
 use std::str::FromStr;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use serde::de;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::Error;
@@ -171,8 +169,7 @@ impl Serialize for Uuid {
 
 impl<'de> Deserialize<'de> for Uuid {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        let text = Cow::<str>::deserialize(deserializer)?;
-        text.parse().map_err(de::Error::custom)
+        crate::deserialize_parsed(deserializer, "a UUID", str::parse)
     }
 }
 

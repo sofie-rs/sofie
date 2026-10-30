@@ -3,7 +3,7 @@ use std::fmt;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use sofie_core::{Cast, ColumnReader, ColumnSpec, Error, Result, Show, Shown, SqlValue};
 
-use crate::parsed::deserialize_parsed;
+use sofie_core::deserialize_parsed;
 
 /// ISO 4217 list one as published on 2026-09-17: the codes in use and the digits of each
 /// one's minor unit, sorted for a binary search. Codes without a minor unit (metals, SDR,

@@ -4,7 +4,6 @@ mod currency;
 mod decimal;
 mod email;
 mod money;
-mod parsed;
 mod present;
 mod secret;
 mod slug_character;

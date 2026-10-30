@@ -112,7 +112,7 @@ async fn a_guessed_account_is_locked_its_owner_told_and_a_console_principal_lift
     let lifted = app
         .post("/console/shield")
         .session(&session)
-        .json(&json!({ "block": blocks[0]["id"].to_string() }))
+        .json(&json!({ "block": blocks[0]["id"] }))
         .await;
     assert_eq!(lifted.status, 204, "{}", lifted.body);
     app.clock().advance(Duration::from_secs(6)).unwrap();

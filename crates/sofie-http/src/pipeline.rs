@@ -513,7 +513,7 @@ fn panic_message(panic: &(dyn Any + Send)) -> &str {
         .map_or("a value that is not text", String::as_str)
 }
 
-fn timed_out(caller: Caller<'_>) -> Response {
+pub(crate) fn timed_out(caller: Caller<'_>) -> Response {
     tracing::warn!(error.kind = "timeout", "the request took too long");
     answer::refusal(
         StatusCode::SERVICE_UNAVAILABLE,

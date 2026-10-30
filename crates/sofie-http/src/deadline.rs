@@ -7,6 +7,9 @@ use std::time::Duration;
 use sofie_core::unpoisoned;
 use tokio::time::Instant;
 
+use crate::answer::Response;
+use crate::caller::Caller;
+
 pub(crate) const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// A request's time limit, lifted once its commit starts: cutting the commit, or the
@@ -60,6 +63,19 @@ impl Deadline {
     }
 }
 
+/// For a page loaded after a commit lifted the request's deadline: cut, it still answers, so the
+/// session cookie recording the commit is set.
+#[cfg(feature = "engine")]
+pub(crate) async fn limited_afresh(
+    work: impl Future<Output = Response>,
+    caller: Caller<'_>,
+) -> Response {
+    Deadline::default()
+        .within(work)
+        .await
+        .unwrap_or_else(|| crate::pipeline::timed_out(caller))
+}
+
 #[cfg(feature = "uploads")]
 impl Drop for Paused<'_> {
     fn drop(&mut self) {
@@ -88,6 +104,19 @@ mod tests {
             "committed"
         };
         assert_eq!(deadline.within(committing).await, Some("committed"));
+    }
+
+    #[cfg(feature = "engine")]
+    #[tokio::test(start_paused = true)]
+    async fn a_page_loaded_after_a_commit_has_a_limit_of_its_own() {
+        let slow_page = async {
+            sleep(2 * LIMIT).await;
+            crate::answer::response(http::StatusCode::OK, None, "loaded")
+        };
+
+        let answered = limited_afresh(slow_page, Caller::Json).await;
+
+        assert_eq!(answered.status(), http::StatusCode::SERVICE_UNAVAILABLE);
     }
 
     #[tokio::test(start_paused = true)]

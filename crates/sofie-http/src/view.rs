@@ -245,6 +245,11 @@ impl RouteAnswer<'_> {
         if !self.admits(page) {
             return answer::outcome(Ok(reply), caller);
         }
+        crate::deadline::limited_afresh(self.refreshed_page(page, fragment, again), caller).await
+    }
+
+    async fn refreshed_page(&self, page: &ScreenRoute, fragment: &str, again: Matched) -> Response {
+        let caller = self.asked.caller;
         let loaded = (page.loader)(self.db.clone(), again).await;
         #[cfg(feature = "clients")]
         if caller == Caller::Screen {
@@ -268,10 +273,14 @@ impl RouteAnswer<'_> {
             return answer::failure(error, self.asked.caller);
         }
         let refusal = answer::Refusal::of(error);
-        let loaded = (page.loader)(self.db.clone(), again).await;
-        self.on_screen(&page.screen, |screen| {
-            screen::refused_page(loaded, &refusal, self.asked, screen, input)
-        })
+        let shown = async {
+            let loaded = (page.loader)(self.db.clone(), again).await;
+            self.on_screen(&page.screen, |screen| {
+                screen::refused_page(loaded, &refusal, self.asked, screen, input)
+            })
+        };
+        // A commit that failed lifted the deadline too.
+        crate::deadline::limited_afresh(shown, self.asked.caller).await
     }
 
     #[cfg(feature = "engine")]

@@ -95,8 +95,7 @@ pub(crate) fn check_authored_url(attribute: &Attribute) -> Result<(), LocatedErr
 
 /// `<`, `>`, `&`, U+2028 and U+2029 are `\u`-escaped, so no text can close the element.
 #[cfg(any(feature = "islands", feature = "clients"))]
-pub(crate) fn push_script_json(html: &mut String, props: &serde_json::Value) {
-    let json = props.to_string();
+pub(crate) fn push_script_json(html: &mut String, json: &str) {
     let mut run_start = 0;
     for (index, character) in json.char_indices() {
         let replacement = match character {
@@ -122,7 +121,10 @@ mod tests {
     #[test]
     fn script_json_escapes_what_could_end_the_element_and_keeps_the_rest() {
         let mut html = String::from("x");
-        super::push_script_json(&mut html, &serde_json::json!("é</script>\u{2028}ü&"));
+        super::push_script_json(
+            &mut html,
+            &serde_json::json!("é</script>\u{2028}ü&").to_string(),
+        );
         assert_eq!(html, "x\"é\\u003c/script\\u003e\\u2028ü\\u0026\"");
     }
 

@@ -67,14 +67,14 @@ pub(crate) fn shell(
     bundle: &ClientBundle,
     reply: Result<Reply>,
 ) -> Result<Response> {
-    let envelope = serde_json::to_value(envelope(screen, reply)?).map_err(serializing)?;
+    let envelope = serde_json::to_string(&envelope(screen, reply)?).map_err(serializing)?;
     let nonce = new_nonce()?;
     let links = links(bundle);
     let html = ClientShell {
         title: screen.title,
         lang: screen.language.tag(),
         nonce: &nonce,
-        envelope: &envelope,
+        envelope_json: &envelope,
         links: &links,
         #[cfg(feature = "islands")]
         islands: screen.islands.as_ref(),

@@ -195,7 +195,8 @@ fn a_language_without_its_own_one_form_writes_its_other_and_is_told() {
     {
         let view = Rendering::new(&template(source))
             .language(translations.negotiate(None, Some("de")))
-            .client_view();
+            .client_view()
+            .to_value();
         assert_eq!(view["messages"].get("cart.items.one"), None);
     }
 }
@@ -207,7 +208,8 @@ fn a_client_area_is_given_the_plural_forms_and_rule() {
     let screen = template("{t(\"cart.items\", count = data.n)}");
     let view = Rendering::new(&screen)
         .language(translations.negotiate(None, Some("fr")))
-        .client_view();
+        .client_view()
+        .to_value();
 
     assert_eq!(view["messages"]["cart.items.one"], "{count} article");
     assert_eq!(view["messages"]["cart.items.other"], "{count} articles");
@@ -235,6 +237,7 @@ fn a_client_view_is_in_the_asked_language_and_gated_for_its_viewer() {
             .gates(&gates)
             .language(translations.negotiate(None, Some(language)))
             .client_view()
+            .to_value()
     };
     let items = |view: &Value| view["messages"]["cart.items.other"].clone();
     let allowed = |view: &Value| view["gates"]["permission"]["order.order.total.read"].clone();

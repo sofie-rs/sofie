@@ -91,7 +91,7 @@ pub fn island_screen(key: &str, tag: &str) -> Result<Template, TemplateError> {
 
 pub(crate) fn push_props(html: &mut String, props: &Value) {
     html.push_str("<script type=\"application/json\">");
-    push_script_json(html, props);
+    push_script_json(html, &props.to_string());
     html.push_str("</script>");
 }
 

@@ -155,6 +155,16 @@ async fn the_runtime_gets_the_envelope_and_a_screen_outside_the_bundle_stays_htm
 }
 
 #[tokio::test]
+async fn the_shell_holds_the_envelope_the_runtime_is_answered() {
+    let server = server().await;
+
+    let page = server.get("/orders").header("accept", "text/html").await;
+    let envelope = server.get("/orders").header("accept", SCREEN).await;
+
+    assert_eq!(envelope_in(&page), envelope.json());
+}
+
+#[tokio::test]
 async fn the_envelope_marks_where_typed_data_holds_instants() {
     let server = server().await;
 

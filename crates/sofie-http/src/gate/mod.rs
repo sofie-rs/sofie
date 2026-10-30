@@ -274,7 +274,7 @@ pub(crate) struct Gated<'a> {
 impl Gated<'_> {
     #[cfg(feature = "clients")]
     pub(crate) fn client_view(&self) -> sofie_engine::ClientView {
-        self.rendering.serializable_client_view()
+        self.rendering.client_view()
     }
 
     #[cfg(all(feature = "clients", feature = "listing"))]

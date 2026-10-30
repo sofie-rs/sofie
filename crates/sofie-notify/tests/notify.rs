@@ -449,6 +449,15 @@ async fn a_principal_keeps_only_its_newest_browsers_subscribed() {
             .iter()
             .any(|row| row[0] == SqlValue::Text("https://push.example.test/send/0".to_owned()))
     );
+
+    let let_go = app
+        .query(
+            "SELECT version FROM sofie.push_subscriptions WHERE gone_at IS NOT NULL",
+            &[],
+        )
+        .await;
+    assert_eq!(let_go.len(), 5);
+    assert!(let_go.iter().all(|row| row[0] == SqlValue::Int(2)));
 }
 
 #[tokio::test]

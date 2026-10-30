@@ -149,6 +149,7 @@ impl Outcome for Unsubscribed {
             SqlValue::Uuid(self.principal),
         ];
         plan.push(Step::statement(sql, params, None));
+        plan.touched::<PushSubscription>(Some(self.principal));
         Ok(())
     }
 }
@@ -216,7 +217,7 @@ fn let_go_oldest_sql(dialect: &dyn Dialect) -> String {
     let (principal, now, kept) = (at(1), at(2), at(3));
     let table = push_table(dialect);
     format!(
-        "UPDATE {table} SET gone_at = {now} \
+        "UPDATE {table} SET gone_at = {now}, version = version + 1 \
          WHERE principal = {principal} AND gone_at IS NULL AND id NOT IN (\
          SELECT id FROM {table} WHERE principal = {principal} AND gone_at IS NULL \
          ORDER BY created_at DESC, id DESC LIMIT {kept})"
@@ -250,6 +251,7 @@ impl Outcome for Subscribed {
             ],
             None,
         ));
+        plan.touched::<PushSubscription>(Some(self.principal));
         Ok(())
     }
 }

@@ -95,6 +95,7 @@ impl Outcome for Consumed {
             ],
             Some(1),
         ));
+        plan.touched::<Usage>(None);
         Ok(())
     }
 }

@@ -286,6 +286,7 @@ impl Outcome for Chose {
             SqlValue::Bool(self.enabled),
         ];
         plan.push(Step::statement(sql, params, Some(1)));
+        plan.touched::<Choice>(Some(self.principal));
         Ok(())
     }
 }

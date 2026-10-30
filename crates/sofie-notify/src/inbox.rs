@@ -117,6 +117,7 @@ impl Outcome for MarkedRead {
                 );
                 let params = vec![SqlValue::Timestamp(*now), SqlValue::Uuid(*principal)];
                 plan.push(Step::statement(sql, params, None));
+                plan.touched::<InboxEntry>(Some(*principal));
                 Ok(())
             }
         }

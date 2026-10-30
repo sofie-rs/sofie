@@ -845,4 +845,35 @@ mod tests {
             [crate::Readers::Owner(after), crate::Readers::Owner(before)]
         );
     }
+
+    #[cfg(feature = "live")]
+    #[test]
+    fn a_raw_statement_touching_a_table_is_announced_to_its_owner() {
+        let holder = Uuid::from_u128(7);
+        let mut plan = Plan::new(&NUMBERED, Reach::All, now(), Vec::new(), None);
+        plan.push(Step::statement(
+            "UPDATE cards.card SET holder = holder",
+            Vec::new(),
+            None,
+        ));
+        plan.touched::<Card>(Some(holder));
+        let parts = plan.into_parts().unwrap();
+
+        assert_eq!(
+            parts.live,
+            [crate::TableChange {
+                topic: crate::live::Topic::of::<Card>(),
+                readers: crate::Readers::Owner(holder),
+            }]
+        );
+        #[cfg(feature = "cache")]
+        assert!(matches!(
+            parts.changed[..],
+            [crate::ChangedRecord {
+                module: "cards",
+                aggregate: "card",
+                id: None
+            }]
+        ));
+    }
 }

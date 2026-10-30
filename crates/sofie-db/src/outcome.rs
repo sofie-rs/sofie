@@ -178,6 +178,19 @@ impl<'d> Plan<'d> {
         self.steps.push(step);
     }
 
+    /// Announces rows of `A` a raw [`Step::statement`] wrote, so caches and live screens refresh.
+    #[cfg_attr(not(feature = "live"), expect(unused_variables))]
+    pub fn touched<A: crate::Aggregate>(&mut self, owner: Option<Uuid>) {
+        #[cfg(feature = "cache")]
+        self.changed(crate::ChangedRecord {
+            module: A::MODULE,
+            aggregate: A::NAME,
+            id: None,
+        });
+        #[cfg(feature = "live")]
+        self.live_change(crate::TableChange::of::<A>(owner, self.reach));
+    }
+
     #[cfg(feature = "cache")]
     pub(crate) fn changed(&mut self, record: crate::ChangedRecord) {
         self.changed.push(record);

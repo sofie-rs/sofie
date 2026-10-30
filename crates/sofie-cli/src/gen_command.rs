@@ -7,6 +7,7 @@ use sofie_check::{Finding, Screen, Screens};
 use sofie_model::{App, ModelError};
 
 use crate::agents_md::render_agents_md;
+use crate::api::typescript::TYPESCRIPT_HEADER;
 use crate::contract_gen::render_contract_gens;
 use crate::env_example::{ENV_HEADER, render_env_examples};
 use crate::fix_command::wire_generated_code;
@@ -258,7 +259,9 @@ fn is_generated(text: &str) -> bool {
     if text.starts_with(crate::docs::DOCS_HEADER) {
         return true;
     }
-    text.starts_with(HEADER) || text.starts_with(ENV_HEADER)
+    [HEADER, ENV_HEADER, TYPESCRIPT_HEADER]
+        .iter()
+        .any(|header| text.starts_with(header))
 }
 
 pub(crate) fn read_existing(path: &Path) -> Result<Option<String>, GenError> {
@@ -284,5 +287,17 @@ pub(crate) fn io_error(path: &Path, source: io::Error) -> GenError {
     GenError::Io {
         path: path.to_path_buf(),
         source,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_generated;
+    use crate::api::typescript::TYPESCRIPT_HEADER;
+
+    #[test]
+    fn the_island_types_file_counts_as_generated() {
+        assert!(is_generated(&format!("{TYPESCRIPT_HEADER}export {{}};\n")));
+        assert!(!is_generated("// Written by hand.\nexport {};\n"));
     }
 }

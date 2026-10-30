@@ -118,8 +118,6 @@ impl Schema<'_> {
         migrate_under(db, modules, None).await
     }
 
-    /// In the order [`Schema::migrate`] applies them; it only reads, so a login that may not
-    /// create the records table can ask too.
     pub async fn first_pending(self, modules: &[Migrations]) -> Result<Option<PendingMigration>> {
         let db = self.db;
         let applied = if keeps_records(db).await? {

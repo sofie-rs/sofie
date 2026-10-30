@@ -62,3 +62,33 @@ async fn a_server_without_tls_is_reached_in_the_default_and_preferred_modes() {
         assert!(listening.is_ok(), "{url}");
     }
 }
+
+#[tokio::test]
+async fn a_connection_keeps_a_bounded_number_of_prepared_statements() {
+    let database = TestDatabase::create().await;
+    let postgres = Postgres::connect_with(
+        database.url(),
+        PoolSettings {
+            connections: NonZeroUsize::new(1),
+            wait: Duration::from_secs(5),
+        },
+    )
+    .unwrap();
+
+    for shape in 0..600 {
+        let sql = format!("SELECT {shape}");
+        sofie_db::query_values(&postgres, &sql, &[]).await.unwrap();
+    }
+    let kept = sofie_db::query_values(
+        &postgres,
+        "SELECT count(*) FROM pg_prepared_statements",
+        &[],
+    )
+    .await
+    .unwrap();
+
+    assert!(
+        matches!(kept[..], [ref row] if matches!(row[..], [sofie_core::SqlValue::Int(count)] if count <= 512)),
+        "{kept:?}"
+    );
+}

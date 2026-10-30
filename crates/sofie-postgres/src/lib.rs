@@ -192,7 +192,14 @@ impl Driver for Postgres {
     }
 }
 
+/// Enough for an app's statement texts; past it the connection starts over, as texts a request
+/// shapes (listing filters) would otherwise keep a server-side statement each forever.
+const STATEMENTS_KEPT: usize = 512;
+
 async fn prepared(connection: &deadpool_postgres::Object, sql: &str) -> Result<Statement> {
+    if connection.statement_cache.size() >= STATEMENTS_KEPT {
+        connection.statement_cache.clear();
+    }
     connection
         .prepare_cached(sql)
         .await

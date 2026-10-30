@@ -661,7 +661,10 @@ stays local.
   completion) run as the login. The SQL a module writes itself,
   `read.sql(…)`, runs as the role of its read model's module (`SET LOCAL
   ROLE` in its read-only transaction), so it cannot name another module's
-  table. sofie-identity ships its own `0000_module_role.sql`.
+  table; a raw step it plans in a commit, `Plan::push_as::<A>`, runs as
+  `A`'s module, whatever the outcomes before it wrote. A module whose role
+  this database never set up runs as the login. sofie-identity and
+  sofie-tenancy ship their own `0000_module_role.sql`.
   A split module logs in as its role. Roles are global to a Postgres
   server: apps sharing one need distinct module names.
 - Migration files are SQL in the dialect of the database the module is

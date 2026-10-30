@@ -115,7 +115,15 @@ impl<'d> Plan<'d> {
         self.stamp
     }
 
+    /// Runs as the module the plan last wrote for; [`Plan::push_as`] names it.
     pub fn push(&mut self, step: Step) {
+        self.steps.push(step);
+    }
+
+    /// A raw step on `A`'s tables, run as `A`'s module whatever the outcomes before it wrote.
+    pub fn push_as<A: crate::Aggregate>(&mut self, step: Step) {
+        #[cfg(feature = "module-roles")]
+        self.act_as(A::MODULE);
         self.steps.push(step);
     }
 

@@ -96,13 +96,14 @@ impl Dialect for Postgres {
 }
 
 /// Entered only where the role migration `sofie gen` writes gave the role its schema in this
-/// database: roles belong to the whole server, so another database may have made it.
+/// database: roles belong to the whole server, so another database may have made it. Elsewhere
+/// the login is entered, never left in the role a module before it entered.
 #[cfg(feature = "raw-sql")]
 pub(crate) fn entering_role(module: &str) -> String {
     let name = module.replace('\'', "''");
     format!(
-        "SELECT set_config('role', '{name}', true) FROM pg_namespace \
-         WHERE nspname = '{name}' AND pg_get_userbyid(nspowner) = '{name}'"
+        "SELECT set_config('role', COALESCE((SELECT nspname::text FROM pg_namespace \
+         WHERE nspname = '{name}' AND pg_get_userbyid(nspowner) = '{name}'), 'none'), true)"
     )
 }
 

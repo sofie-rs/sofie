@@ -176,6 +176,49 @@ async fn a_commit_writes_each_module_s_records_as_that_module_s_role() {
     );
 }
 
+/// A raw step on `M`'s items, planned after another module's write.
+struct Bumped<M>(std::marker::PhantomData<M>);
+
+impl<M: Module> sofie_db::Outcome for Bumped<M> {
+    fn plan(&self, plan: &mut sofie_db::Plan<'_>) -> Result<()> {
+        let sql = format!("UPDATE {}.items SET version = version + 1", M::NAME);
+        plan.push_as::<Item<M>>(sofie_db::Step::statement(sql, Vec::new(), Some(1)));
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn a_raw_step_runs_as_its_own_module_after_another_module_s_write() {
+    let database = TestDatabase::create().await;
+    let db = Db::new(Postgres::connect(database.url()).unwrap());
+    db.schema()
+        .migrate(&[module("roles_alpha"), module("roles_beta")])
+        .await
+        .unwrap();
+
+    db.commit(&mut (
+        Item::<Alpha>::new(),
+        Bumped::<Beta>(std::marker::PhantomData),
+    ))
+    .await
+    .unwrap();
+}
+
+/// The module without a role is written as the login, not as the module before it.
+#[tokio::test]
+async fn a_module_without_its_role_is_written_as_the_login_after_one_with_a_role() {
+    let database = TestDatabase::create().await;
+    let db = Db::new(Postgres::connect(database.url()).unwrap());
+    db.schema()
+        .migrate(&[module("roles_alpha"), module_without_role("roles_gamma")])
+        .await
+        .unwrap();
+
+    db.commit(&mut (Item::<Alpha>::new(), Item::<Gamma>::new()))
+        .await
+        .unwrap();
+}
+
 struct Restocked;
 
 impl serde::Serialize for Restocked {

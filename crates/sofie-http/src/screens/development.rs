@@ -228,7 +228,10 @@ mod tests {
         let directory =
             std::env::temp_dir().join(format!("sofie-http-card-{}", std::process::id()));
         fs::create_dir_all(&directory).unwrap();
-        let (screen, card) = (directory.join("orders.html"), directory.join("OrderCard.html"));
+        let (screen, card) = (
+            directory.join("orders.html"),
+            directory.join("OrderCard.html"),
+        );
         fs::write(&screen, "<OrderCard value={data.a} />").unwrap();
         fs::write(&card, "<b>{data.value}</b>").unwrap();
         let screens = wired(

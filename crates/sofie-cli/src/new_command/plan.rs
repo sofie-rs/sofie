@@ -1,6 +1,7 @@
 use sofie_model::{App, Module};
 
 use super::Edits;
+use super::edits::module_file;
 use crate::gen_command::GenError;
 use crate::source_edits::read;
 
@@ -31,7 +32,7 @@ pub(super) fn new_plan(
     }
     let declaration = format!("pub const {constant}: Plan = Plan::new(\"{name}\");\n");
     edits.enable_framework_feature(&module.krate, "billing")?;
-    let file = module.krate.path.join("src").join("plans.rs");
+    let file = module_file(&module.krate, "plans");
     if !file.is_file() {
         edits.create_rust(
             &file,

@@ -1,6 +1,7 @@
 use sofie_model::naming::pascal_case;
 use sofie_model::{App, Crate};
 
+use super::edits::module_file;
 use super::route::{NewRoute, file_names, new_route};
 use super::{Edits, checked_name, checked_type_name, find_module};
 use crate::gen_command::GenError;
@@ -118,7 +119,7 @@ fn refuse_taken_type_name(
     name: &str,
     type_name: &str,
 ) -> Result<(), GenError> {
-    let file = contract.path.join("src").join("area.rs");
+    let file = module_file(contract, "area");
     let in_file = if file.is_file() {
         file_names(&file)?
     } else {
@@ -159,7 +160,7 @@ fn write_definition(
          const NAME: &'static str = \"{name}\";\n    const PREFIX: &'static str = \"{prefix}\";\n    \
          const SIGN_IN: &'static str = \"{sign_in}\";\n    type Principal = {principal};\n}}\n"
     );
-    let file = contract.path.join("src").join("area.rs");
+    let file = module_file(contract, "area");
     let imports = [
         ("use sofie::http", "Area"),
         (&format!("use {principal_crate}"), principal),

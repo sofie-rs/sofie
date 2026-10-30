@@ -1,7 +1,7 @@
 use sofie_model::Module;
 
 use super::Edits;
-use super::edits::refuse_function;
+use super::edits::{module_file, refuse_function};
 use crate::gen_command::GenError;
 
 const TEMPLATE: &str = "<p>Write the mail here; it shows what its function puts in `data`.</p>\n";
@@ -15,9 +15,12 @@ pub(super) fn new_mail(
     name: &str,
     list: Option<&str>,
 ) -> Result<(), GenError> {
-    let source = module.krate.path.join("src");
-    let template = source.join("mails").join(format!("{name}.html"));
-    let file = source.join("mails.rs");
+    let template = module
+        .krate
+        .path
+        .join("src/mails")
+        .join(format!("{name}.html"));
+    let file = module_file(&module.krate, "mails");
     refuse_function(&file, name)?;
     if let Some(list) = list {
         checked_list(list)?;

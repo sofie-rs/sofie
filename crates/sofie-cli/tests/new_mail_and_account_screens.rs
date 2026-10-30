@@ -134,6 +134,24 @@ fn a_new_mail_writes_its_template_and_the_function_sending_it() {
 }
 
 #[test]
+fn a_new_mail_joins_a_mails_folder_module() {
+    let shop = shop();
+    shop.write(
+        "modules/members/src/lib.rs",
+        "pub mod module;\nmod mails;\n\npub mod areas {\n    pub mod web {\n        pub mod routes;\n    }\n}\n",
+    );
+    shop.write("modules/members/src/mails/mod.rs", "pub mod digest;\n");
+
+    generate(&shop, &mail("welcome", None));
+
+    assert!(
+        read(&shop, "modules/members/src/mails/mod.rs")
+            .contains("pub fn welcome(mailer: &Mailer, to: Address)")
+    );
+    assert!(!shop.path("modules/members/src/mails.rs").exists());
+}
+
+#[test]
 fn an_account_screen_is_mounted_for_its_area_with_its_identity_feature() {
     let shop = shop();
 

@@ -24,7 +24,6 @@ struct Data {
     values: HashMap<Vec<u8>, (Value, Option<Instant>)>,
     subscribers: Vec<mpsc::UnboundedSender<Vec<u8>>>,
     selected: Vec<String>,
-    /// The command names each EXEC ran.
     transactions: Vec<Vec<String>>,
 }
 

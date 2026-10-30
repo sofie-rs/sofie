@@ -74,8 +74,6 @@ pub(crate) fn any_record_tag(module: &str, aggregate: &str) -> String {
     format!("{module}.{aggregate}/*")
 }
 
-/// Turns a record's tag into its aggregate's `any_record_tag`, which every entry on a record holds
-/// too, so a drop too long to send stays narrower than dropping everything.
 pub(crate) fn widened_tag(tag: &str) -> String {
     match tag.rsplit_once('/') {
         Some((aggregate, _)) => format!("{aggregate}/*"),

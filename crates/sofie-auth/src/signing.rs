@@ -51,7 +51,6 @@ impl SigningKeys {
         base64::encode(&URL_SAFE, tag.as_ref())
     }
 
-    /// Compared in constant time.
     #[must_use]
     pub fn verifies(&self, purpose: Signed, message: &[u8], signature: &str) -> bool {
         base64::decode(&URL_SAFE, signature).is_some_and(|tag| {

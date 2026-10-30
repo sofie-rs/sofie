@@ -31,7 +31,6 @@ pub struct SessionClaims {
 }
 
 impl SessionClaims {
-    /// No cookie outlives it, however often it is refreshed.
     pub const ABSOLUTE_LIFETIME: Duration =
         Duration::from_secs(ABSOLUTE_LIFETIME_SECONDS.unsigned_abs());
 

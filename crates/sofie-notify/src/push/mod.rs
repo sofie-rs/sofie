@@ -162,7 +162,7 @@ impl Outcome for Unsubscribed {
             SqlValue::Text(self.endpoint.clone()),
             SqlValue::Uuid(self.principal),
         ];
-        plan.push(Step::statement(sql, params, None));
+        plan.push_as::<PushSubscription>(Step::statement(sql, params, None));
         plan.touched::<PushSubscription>(Some(self.principal));
         Ok(())
     }
@@ -244,7 +244,7 @@ fn push_table(dialect: &dyn Dialect) -> String {
 
 impl Outcome for Subscribed {
     fn plan(&self, plan: &mut Plan<'_>) -> Result<()> {
-        plan.push(Step::statement(
+        plan.push_as::<PushSubscription>(Step::statement(
             subscribe_sql(plan.dialect()),
             vec![
                 SqlValue::Uuid(self.id),
@@ -256,7 +256,7 @@ impl Outcome for Subscribed {
             ],
             Some(1),
         ));
-        plan.push(Step::statement(
+        plan.push_as::<PushSubscription>(Step::statement(
             let_go_oldest_sql(plan.dialect()),
             vec![
                 SqlValue::Uuid(self.principal),

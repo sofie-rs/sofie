@@ -114,7 +114,7 @@ impl<A: Aggregate> Outcome for Pruned<A> {
         if self.records.is_empty() {
             return Ok(());
         }
-        plan.push(delete_loaded::<A>(&self.records, plan.dialect())?);
+        plan.push_as::<A>(delete_loaded::<A>(&self.records, plan.dialect())?);
         #[cfg(feature = "search-engine")]
         if let Some(index) = &self.index {
             let ids: Vec<sofie_core::Uuid> = self

@@ -285,7 +285,7 @@ impl Outcome for Chose {
             SqlValue::Text(self.channel.as_str().to_owned()),
             SqlValue::Bool(self.enabled),
         ];
-        plan.push(Step::statement(sql, params, Some(1)));
+        plan.push_as::<Choice>(Step::statement(sql, params, Some(1)));
         plan.touched::<Choice>(Some(self.principal));
         Ok(())
     }

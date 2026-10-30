@@ -83,7 +83,7 @@ fn consume_sql(dialect: &dyn Dialect) -> String {
 
 impl Outcome for Consumed {
     fn plan(&self, plan: &mut Plan<'_>) -> Result<()> {
-        plan.push(Step::statement(
+        plan.push_as::<Usage>(Step::statement(
             consume_sql(plan.dialect()),
             vec![
                 SqlValue::Uuid(Uuid::now_v7()?),

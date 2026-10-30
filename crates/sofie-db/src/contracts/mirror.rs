@@ -116,7 +116,7 @@ impl<M: Mirror> MirrorRow<M> {
             updates.join(", "),
             version = dialect.quote("version"),
         );
-        plan.push(crate::Step::statement(sql, params, None));
+        plan.push_as::<M>(crate::Step::statement(sql, params, None));
         plan.push(unforgotten_dropped::<M>(id, plan.dialect()));
         announce::<M>(id, plan);
         Ok(())
@@ -153,7 +153,7 @@ fn plan_forgetting<M: Mirror>(id: Uuid, version: i64, plan: &mut Plan<'_>) {
         dialect.quote("version"),
         dialect.placeholder(2)
     );
-    plan.push(crate::Step::statement(
+    plan.push_as::<M>(crate::Step::statement(
         sql,
         vec![SqlValue::Uuid(id), SqlValue::Int(version)],
         None,

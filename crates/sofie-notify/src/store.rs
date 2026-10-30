@@ -396,7 +396,7 @@ pub mod personal_data {
                     dialect.qualified(module, name),
                     dialect.placeholder(1),
                 );
-                plan.push(Step::statement(
+                plan.push_as::<Settings>(Step::statement(
                     sql,
                     vec![SqlValue::Uuid(self.principal)],
                     None,

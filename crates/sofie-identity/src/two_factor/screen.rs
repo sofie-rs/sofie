@@ -1,13 +1,13 @@
 use sofie::core::Instant;
 use sofie::db::{Outcome, Plan, Stamp};
-use sofie::http::{AppName, Area, Routes, Sealing, Shipped};
+use sofie::http::{AppName, Routes, Sealing, Shipped};
 use sofie::prelude::*;
 
 use super::qr::QrCode;
 use super::{Proof, RECOVERY, SECRET, SecondFactor, code, of};
 use crate::account::Account;
 use crate::signing_in::{OwnSession, RecentSignIn, SignedInRecently};
-use crate::{AccountId, account_of};
+use crate::{AccountArea, AccountId, account_of};
 
 const ALREADY_ON: &str = "Two-step sign-in is on already; turn it off first to set up another app.";
 const NOTHING_TO_CONFIRM: &str = "Set up two-step sign-in first.";
@@ -21,7 +21,7 @@ struct GivenCode {
 }
 
 /// Each principal sets up only its own account's second factor.
-pub fn routes<A: Area>(routes: &mut Routes<A>) {
+pub fn routes<A: AccountArea>(routes: &mut Routes<A>) {
     let describe: sofie::http::Describe = |screens, key| {
         screens.describe_form::<GivenCode>(key, "confirm-two-factor")?;
         screens.describe_form::<GivenCode>(key, "disable-two-factor")
@@ -82,7 +82,7 @@ impl Qr {
 
 /// Refused in an impersonation too, as a factor being set up shows its key and recovery codes,
 /// which only a recent sign-in sees.
-async fn status<A: Area>(
+async fn status<A: AccountArea>(
     principal: Principal<A>,
     recent: SignedInRecently,
     read: Read,
@@ -136,7 +136,7 @@ async fn shown(
     })
 }
 
-async fn start<A: Area>(
+async fn start<A: AccountArea>(
     principal: Principal<A>,
     _recent: RecentSignIn,
     read: Read,
@@ -205,7 +205,7 @@ fn checked(
     Ok(Proof { factor, passed })
 }
 
-async fn confirm<A: Area>(
+async fn confirm<A: AccountArea>(
     principal: Principal<A>,
     _recent: RecentSignIn,
     given: GivenCode,
@@ -225,7 +225,7 @@ async fn confirm<A: Area>(
 }
 
 /// Asks a code too, so a session left open elsewhere cannot turn the second step off.
-async fn disable<A: Area>(
+async fn disable<A: AccountArea>(
     principal: Principal<A>,
     _own: OwnSession,
     given: GivenCode,

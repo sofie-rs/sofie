@@ -14,7 +14,7 @@ use sofie::prelude::*;
 use crate::account::Account;
 use crate::membership::{self, held};
 use crate::signing_in::{SignedIn, sign_in};
-use crate::{AccountId, MemberArea, Unscoped, account_of};
+use crate::{AccountArea, AccountId, MemberArea, Unscoped, account_of};
 
 const READ: Permission = Permission::new("sofie_identity.impersonation.*.read");
 const CREATE: Permission = Permission::new("sofie_identity.impersonation.*.create");
@@ -85,7 +85,7 @@ pub struct ImpersonationEnded {
 /// In the permitted area `S`: the record of impersonations, and starting one as a member of `M`.
 pub fn routes<S, M>(routes: &mut Routes<S>)
 where
-    S: Area,
+    S: AccountArea,
     M: MemberArea,
 {
     let describe: sofie::http::Describe =
@@ -199,7 +199,7 @@ async fn start<S, M>(
     clock: Clock,
 ) -> Result<Started>
 where
-    S: Area,
+    S: AccountArea,
     M: MemberArea,
 {
     let reason = starting.reason.trim();

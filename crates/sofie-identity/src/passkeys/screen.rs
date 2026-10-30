@@ -1,20 +1,20 @@
 use sofie::core::Instant;
 use sofie::core::encoding::base64::{self, URL_SAFE};
 use sofie::db::Outcome;
-use sofie::http::{AppName, Area, Routes, Sealing, Shipped};
+use sofie::http::{AppName, Routes, Sealing, Shipped};
 use sofie::prelude::*;
 use sofie::serde_json::json;
 
 use super::webauthn::{self, ALGORITHMS, CREATE};
 use super::{CREDENTIAL_INDEX, Ceremony, Passkey, challenge, decoded, opened, origin, refused};
 use crate::account::Account;
-use crate::account_of;
 use crate::signing_in::{OwnSession, RecentSignIn};
+use crate::{AccountArea, account_of};
 
 const ALREADY_ADDED: &str = "is added already";
 
 /// Each principal adds and removes only its own account's passkeys.
-pub fn routes<A: Area>(routes: &mut Routes<A>) {
+pub fn routes<A: AccountArea>(routes: &mut Routes<A>) {
     routes
         .shipped(
             "/passkeys",
@@ -49,7 +49,7 @@ pub struct Passkeys {
     options: String,
 }
 
-async fn list<A: Area>(
+async fn list<A: AccountArea>(
     principal: Principal<A>,
     read: Read,
     sealing: Sealing,
@@ -90,7 +90,7 @@ async fn list<A: Area>(
 }
 
 /// Only for the account the challenge was issued to, from the origin the browser posted from.
-async fn register<A: Area>(
+async fn register<A: AccountArea>(
     principal: Principal<A>,
     _recent: RecentSignIn,
     ceremony: Ceremony,
@@ -143,7 +143,7 @@ impl Outcome for RegisteredPasskey {
 }
 
 /// Checked here too, since a `Permitted` area may reach records it does not own.
-async fn remove<A: Area>(
+async fn remove<A: AccountArea>(
     principal: Principal<A>,
     _own: OwnSession,
     mut passkey: Passkey,

@@ -217,7 +217,13 @@ const AGGREGATES: &[sofie::db::AggregateTable] = &[
     sofie::db::AggregateTable::of::<impersonation::Impersonation>(),
 ];
 
-pub trait MemberArea: Area<Principal: AreaPrincipal<Record = Account>> {
+/// An area whose principal is an account itself, not a record it acts for such as an
+/// organization, so its account screens act on that account.
+pub trait AccountArea: Area<Principal: AreaPrincipal<Record = Account>> {}
+
+impl<A: Area<Principal: AreaPrincipal<Record = Account>>> AccountArea for A {}
+
+pub trait MemberArea: AccountArea {
     const HOME: &'static str;
     /// Signing up there signs nobody in and answers alike for a new address and a taken one.
     const SIGN_UP: Option<&'static str> = None;
@@ -310,6 +316,6 @@ async fn prune(
     feature = "account-data",
     feature = "impersonation"
 ))]
-fn account_of<A: Area>(principal: &sofie::http::Principal<A>) -> AccountId {
-    AccountId::from_uuid(principal.id().uuid())
+fn account_of<A: AccountArea>(principal: &sofie::http::Principal<A>) -> AccountId {
+    principal.id()
 }

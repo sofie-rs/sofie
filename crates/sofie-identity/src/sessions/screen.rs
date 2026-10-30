@@ -1,13 +1,13 @@
 use sofie::core::Instant;
-use sofie::http::{Area, Routes, Shipped};
+use sofie::http::{Routes, Shipped};
 use sofie::prelude::*;
 
 use super::{AccountSession, Impersonations, ending_all, impersonations_in};
 use crate::signing_in::OwnSession;
-use crate::{Unscoped, account_of};
+use crate::{AccountArea, Unscoped, account_of};
 
 /// Each principal sees and ends only its own account's sessions.
-pub fn routes<A: Area>(routes: &mut Routes<A>) {
+pub fn routes<A: AccountArea>(routes: &mut Routes<A>) {
     routes
         .shipped(
             "/sessions",
@@ -36,7 +36,7 @@ struct Live {
     created_at: Instant,
 }
 
-async fn own<A: Area>(principal: Principal<A>, read: Read) -> Result<Vec<Live>> {
+async fn own<A: AccountArea>(principal: Principal<A>, read: Read) -> Result<Vec<Live>> {
     Live::query()
         .where_(AccountSession::ACCOUNT.eq(account_of(&principal)))
         .where_(AccountSession::ENDED_AT.is_null())
@@ -46,7 +46,7 @@ async fn own<A: Area>(principal: Principal<A>, read: Read) -> Result<Vec<Live>> 
 }
 
 /// Checked here too, since a `Permitted` area may reach records it does not own.
-async fn end_one<A: Area>(
+async fn end_one<A: AccountArea>(
     principal: Principal<A>,
     _own: OwnSession,
     mut record: AccountSession,
@@ -63,7 +63,7 @@ async fn end_one<A: Area>(
 }
 
 /// Unscoped, as the sessions of the impersonations the account started are its members'.
-async fn end_others<A: Area>(
+async fn end_others<A: AccountArea>(
     principal: Principal<A>,
     _own: OwnSession,
     session: Session,

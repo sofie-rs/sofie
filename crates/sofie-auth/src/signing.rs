@@ -13,13 +13,15 @@ pub enum Signed {
     StoredFile,
     PrincipalToken,
     UploadSeal,
+    ShieldBlock,
 }
 
-const PURPOSES: [Signed; 4] = [
+const PURPOSES: [Signed; 5] = [
     Signed::Link,
     Signed::StoredFile,
     Signed::PrincipalToken,
     Signed::UploadSeal,
+    Signed::ShieldBlock,
 ];
 
 impl Signed {
@@ -29,6 +31,7 @@ impl Signed {
             Self::StoredFile => b"stored-file",
             Self::PrincipalToken => b"principal-token",
             Self::UploadSeal => b"upload-seal",
+            Self::ShieldBlock => b"shield-block",
         }
     }
 }

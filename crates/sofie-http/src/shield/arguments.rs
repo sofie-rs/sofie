@@ -77,6 +77,7 @@ impl<A: Area> Resolve<RequestContext<A>> for SignIns {
 
 pub struct ShieldBlocks {
     sentinel: Option<Arc<Sentinel>>,
+    keys: Arc<sofie_auth::SigningKeys>,
 }
 
 /// An address is shown by its network only.
@@ -101,7 +102,7 @@ impl ShieldBlocks {
             .active(sentinel.now())
             .into_iter()
             .map(|(key, block)| ActiveBlock {
-                id: key.id(),
+                id: key.id(&self.keys),
                 caller: key.shown(),
                 rule: block.rule.name(),
                 grade: block.grade.name(),
@@ -113,7 +114,10 @@ impl ShieldBlocks {
     /// Also on every instance when shared; the caller's counts start over.
     pub async fn lift(&self, id: &str) -> Result<()> {
         let sentinel = self.sentinel.as_ref().ok_or(Error::NotFound)?;
-        let key = sentinel.blocks.lift(id).ok_or(Error::NotFound)?;
+        let key = sentinel
+            .blocks
+            .lift(id, &self.keys)
+            .ok_or(Error::NotFound)?;
         sentinel.post(Message::Lifted(key));
         tracing::warn!(shield.caller = %key.shown(), "a shield block was lifted");
         match &sentinel.shared {
@@ -129,6 +133,7 @@ impl ShieldBlocks {
                 .shield
                 .as_ref()
                 .map(|request| Arc::clone(&request.sentinel)),
+            keys: Arc::clone(&context.matched.keys),
         }
     }
 }

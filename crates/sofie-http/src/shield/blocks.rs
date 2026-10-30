@@ -3,6 +3,7 @@ use std::net::IpAddr;
 use std::sync::RwLock;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
+use sofie_auth::{Signed, SigningKeys};
 use sofie_core::{Uuid, unpoisoned};
 
 use super::rule::Rule;
@@ -10,7 +11,7 @@ use crate::throttle::Requester;
 
 /// A few megabytes: past it a new block is refused, so a flood of addresses cannot exhaust memory.
 const MAX_BLOCKS: usize = 65_536;
-/// 96 bits of the key's digest: unique among the blocks a table holds.
+/// 96 bits of the key's signature: unique among the blocks a table holds.
 const ID_LENGTH: usize = 16;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -92,11 +93,12 @@ impl Key {
         }
     }
 
-    /// The same on every instance, so a block listed by one is lifted by another.
-    pub(crate) fn id(self) -> String {
-        let mut digest = sofie_auth::digest(&[b"shield-block", self.stored().as_bytes()]);
-        digest.truncate(ID_LENGTH);
-        digest
+    /// The same on every instance, so a block listed by one is lifted by another; keyed, so
+    /// an address shown by its network is not found again by trying each address in it.
+    pub(crate) fn id(self, keys: &SigningKeys) -> String {
+        let mut signature = keys.sign(Signed::ShieldBlock, self.stored().as_bytes());
+        signature.truncate(ID_LENGTH);
+        signature
     }
 
     pub(crate) fn shown(self) -> String {
@@ -156,11 +158,11 @@ impl Blocks {
     }
 
     /// Found under the read lock, as hashing every key would hold up every request's lookup.
-    pub(crate) fn lift(&self, id: &str) -> Option<Key> {
+    pub(crate) fn lift(&self, id: &str, keys: &SigningKeys) -> Option<Key> {
         let key = unpoisoned::read(&self.table)
             .keys()
             .copied()
-            .find(|key| key.id() == id)?;
+            .find(|key| key.id(keys) == id)?;
         let mut table = unpoisoned::write(&self.table);
         table.remove(&key)?;
         self.size.store(table.len(), Ordering::Relaxed);
@@ -210,6 +212,10 @@ mod tests {
         Key::Caller(Requester::of(None, text.parse().unwrap()))
     }
 
+    fn keys(byte: u8) -> SigningKeys {
+        SigningKeys::new(&[[byte; 32]]).unwrap()
+    }
+
     fn block(grade: Grade, until: i64) -> Block {
         Block {
             rule: Rule::Scan,
@@ -240,7 +246,7 @@ mod tests {
         let blocks = Blocks::default();
         let key = address("2001:db8:1:2:3::9");
         blocks.insert(key, block(Grade::Block, 100), 0);
-        let id = blocks.active(0)[0].0.id();
+        let id = blocks.active(0)[0].0.id(&keys(1));
 
         assert_eq!(Key::parse(&key.stored()), Some(key));
         assert_eq!(key.shown(), "address 2001:db8:1::/48");
@@ -250,8 +256,8 @@ mod tests {
         };
         let account_from = Key::AccountFrom(Uuid::now_v7().unwrap(), caller);
         assert_eq!(Key::parse(&account_from.stored()), Some(account_from));
-        assert_eq!(blocks.lift("unknown"), None);
-        assert_eq!(blocks.lift(&id), Some(key));
+        assert_eq!(blocks.lift("unknown", &keys(1)), None);
+        assert_eq!(blocks.lift(&id, &keys(1)), Some(key));
         assert!(blocks.is_empty());
     }
 
@@ -268,8 +274,17 @@ mod tests {
 
         let listed = one.active(0)[0].0;
 
-        assert_eq!(another.lift(&listed.id()), Some(listed));
+        assert_eq!(another.lift(&listed.id(&keys(1)), &keys(1)), Some(listed));
         assert_eq!(another.active(0).len(), 1);
+    }
+
+    #[test]
+    fn a_block_id_says_nothing_without_the_apps_keys() {
+        let key = address("198.51.100.77");
+
+        assert_eq!(key.id(&keys(1)).len(), ID_LENGTH);
+        assert_eq!(key.id(&keys(1)), key.id(&keys(1)));
+        assert_ne!(key.id(&keys(1)), key.id(&keys(2)));
     }
 
     #[test]

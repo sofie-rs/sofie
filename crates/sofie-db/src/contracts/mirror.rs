@@ -183,13 +183,14 @@ fn plan_forgetting<M: Mirror>(id: Uuid, version: i64, plan: &mut Plan<'_>) {
 #[cfg_attr(not(feature = "cache"), expect(unused_variables))]
 fn announce<M: Mirror>(id: Uuid, plan: &mut Plan<'_>) {
     #[cfg(feature = "cache")]
-    plan.changed(crate::ChangedRecord {
+    plan.announcements.changed(crate::ChangedRecord {
         module: M::MODULE,
         aggregate: M::NAME,
         id: Some(id),
     });
     #[cfg(feature = "live")]
-    plan.live_change(crate::live::TableChange::of::<M>(None, plan.reach()));
+    plan.announcements
+        .live_change(crate::live::TableChange::of::<M>(None, plan.reach()));
 }
 
 /// Past the longest a late change event is retried for, a forgotten record cannot come back.

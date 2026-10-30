@@ -46,7 +46,7 @@ impl Behavior for Searched {
 
     #[cfg(feature = "search-engine")]
     fn planned(&self, write: &Write<'_>, plan: &mut crate::Plan<'_>) -> sofie_core::Result<()> {
-        if plan.indexes_searches() && indexing::changes_document(write) {
+        if plan.indexes_searches && indexing::changes_document(write) {
             return indexing::queue(write, plan);
         }
         Ok(())

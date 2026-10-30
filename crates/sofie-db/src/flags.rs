@@ -94,7 +94,7 @@ impl Behavior for Default {
         }
         plan.push(Step::statement(sql, params, None));
         #[cfg(feature = "cache")]
-        plan.changed(crate::ChangedRecord {
+        plan.announcements.changed(crate::ChangedRecord {
             module: write.table.schema,
             aggregate: write.table.name,
             id: None,

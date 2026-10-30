@@ -13,8 +13,8 @@ pub struct ChangedRecord {
     pub id: Option<Uuid>,
 }
 
-/// Runs after a commit that wrote aggregates, which already stands, so it cannot fail it. It runs
-/// in the commit's own task, which a cancelled caller does not stop; slow work goes to a task.
+/// Runs after a commit that wrote aggregates, which already stands, so it cannot fail it. It also
+/// runs when the caller is dropped mid-commit, landed or not; slow work goes to a task.
 pub trait CommitHook: Any + Send + Sync {
     fn committed(&self, changes: &[ChangedRecord]);
 }

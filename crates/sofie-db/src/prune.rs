@@ -136,13 +136,14 @@ impl<A: Aggregate> Outcome for Pruned<A> {
                 plan.raise_one(name, pruned);
             }
             #[cfg(feature = "cache")]
-            plan.changed(crate::ChangedRecord {
+            plan.announcements.changed(crate::ChangedRecord {
                 module: A::MODULE,
                 aggregate: A::NAME,
                 id: Some(record.meta().id()),
             });
             #[cfg(feature = "live")]
-            plan.live_change(crate::TableChange::of::<A>(record.owner(), plan.reach()));
+            plan.announcements
+                .live_change(crate::TableChange::of::<A>(record.owner(), plan.reach()));
         }
         Ok(())
     }

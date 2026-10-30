@@ -20,14 +20,11 @@ pub struct Plan<'d> {
     unique_fields: Vec<UniqueField>,
     queues_messages: bool,
     pub(crate) heard: Option<Arc<Known>>,
-    #[cfg(feature = "cache")]
-    changed: Vec<crate::ChangedRecord>,
-    #[cfg(feature = "live")]
-    live: Vec<crate::TableChange>,
+    pub(crate) announcements: crate::commit::Announcements,
     #[cfg(feature = "module-roles")]
     role: Option<&'static str>,
     #[cfg(feature = "search-engine")]
-    indexes_searches: bool,
+    pub(crate) indexes_searches: bool,
 }
 
 pub(crate) struct Planned {
@@ -35,10 +32,7 @@ pub(crate) struct Planned {
     pub(crate) guard_checks: Vec<Arc<GuardCheck>>,
     pub(crate) unique_fields: Vec<UniqueField>,
     pub(crate) queues_messages: bool,
-    #[cfg(feature = "cache")]
-    pub(crate) changed: Vec<crate::ChangedRecord>,
-    #[cfg(feature = "live")]
-    pub(crate) live: Vec<crate::TableChange>,
+    pub(crate) announcements: crate::commit::Announcements,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -85,25 +79,12 @@ impl<'d> Plan<'d> {
             unique_fields: Vec::new(),
             queues_messages: false,
             heard,
-            #[cfg(feature = "cache")]
-            changed: Vec::new(),
-            #[cfg(feature = "live")]
-            live: Vec::new(),
+            announcements: crate::commit::Announcements::default(),
             #[cfg(feature = "module-roles")]
             role: None,
             #[cfg(feature = "search-engine")]
             indexes_searches: false,
         }
-    }
-
-    #[cfg(feature = "search-engine")]
-    pub(crate) fn index_searches(&mut self) {
-        self.indexes_searches = true;
-    }
-
-    #[cfg(feature = "search-engine")]
-    pub(crate) fn indexes_searches(&self) -> bool {
-        self.indexes_searches
     }
 
     /// The framework's own records are written as the app's login, which owns them.
@@ -182,23 +163,14 @@ impl<'d> Plan<'d> {
     #[cfg_attr(not(feature = "live"), expect(unused_variables))]
     pub fn touched<A: crate::Aggregate>(&mut self, owner: Option<Uuid>) {
         #[cfg(feature = "cache")]
-        self.changed(crate::ChangedRecord {
+        self.announcements.changed(crate::ChangedRecord {
             module: A::MODULE,
             aggregate: A::NAME,
             id: None,
         });
         #[cfg(feature = "live")]
-        self.live_change(crate::TableChange::of::<A>(owner, self.reach));
-    }
-
-    #[cfg(feature = "cache")]
-    pub(crate) fn changed(&mut self, record: crate::ChangedRecord) {
-        self.changed.push(record);
-    }
-
-    #[cfg(feature = "live")]
-    pub(crate) fn live_change(&mut self, change: crate::TableChange) {
-        self.live.push(change);
+        self.announcements
+            .live_change(crate::TableChange::of::<A>(owner, self.reach));
     }
 
     /// Catches a duplicate another request committed after the handler's own check.
@@ -239,10 +211,7 @@ impl<'d> Plan<'d> {
             guard_checks: self.guard_checks,
             unique_fields: self.unique_fields,
             queues_messages: self.queues_messages,
-            #[cfg(feature = "cache")]
-            changed: self.changed,
-            #[cfg(feature = "live")]
-            live: self.live,
+            announcements: self.announcements,
         })
     }
 }

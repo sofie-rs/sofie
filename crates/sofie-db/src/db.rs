@@ -1,12 +1,11 @@
 use std::sync::Arc;
 
 use sofie_auth::SigningKeys;
-use sofie_core::{Clock, Error, Result};
+use sofie_core::{Clock, Result};
 use tracing::Instrument;
 
-use crate::arrivals::{Arrivals, Raised};
-use crate::outcome::{Planned, explain_duplicate};
-use crate::{Driver, Outcome, Plan, Reach, Read, Schema, Step};
+use crate::arrivals::Arrivals;
+use crate::{Driver, Outcome, Reach, Read, Schema, Step};
 
 #[derive(Clone)]
 pub struct Db {
@@ -110,42 +109,7 @@ impl Db {
         steps: Vec<Step>,
         reach: Reach,
     ) -> Result<()> {
-        let now = self.clock.now();
-        let heard = self.arrivals.heard().known();
-        let mut plan = Plan::new(self.driver().dialect(), reach, now, steps, heard);
-        #[cfg(feature = "search-engine")]
-        if self.search.get().is_some() {
-            plan.index_searches();
-        }
-        outcome.plan(&mut plan)?;
-        let stamp = plan.stamp();
-        let raised = self.arrivals.copy_raised(&plan.events);
-        let mut planned = plan.into_parts()?;
-        let unique_fields = std::mem::take(&mut planned.unique_fields);
-        let db = self.clone();
-        // A caller dropped once COMMIT is sent would otherwise skip announcing a commit that stands.
-        let committing = async move { db.commit_planned(planned, raised).await };
-        tokio::spawn(committing.in_current_span())
-            .await
-            .map_err(|error| Error::internal("committing a transaction", error))?
-            .map_err(|error| explain_duplicate(error, &unique_fields))?;
-        outcome.committed(stamp);
-        Ok(())
-    }
-
-    async fn commit_planned(&self, planned: Planned, raised: Raised) -> Result<()> {
-        if !planned.steps.is_empty() {
-            let committed = self.transaction(planned.steps).await;
-            planned.guard_checks.iter().for_each(|check| check.audit());
-            committed?;
-        }
-        let queued = planned.queues_messages;
-        self.arrivals.committed(&self.driver, queued, raised);
-        #[cfg(feature = "cache")]
-        self.commit_hooks.run(&planned.changed);
-        #[cfg(feature = "live")]
-        self.changes.announce(&self.driver, planned.live);
-        Ok(())
+        crate::commit::commit(self, outcome, steps, reach).await
     }
 
     pub async fn ping(&self) -> Result<()> {

@@ -55,7 +55,7 @@ impl<A: Aggregate> Outcome for A {
         };
         plan.push(step);
         #[cfg(feature = "cache")]
-        plan.changed(crate::ChangedRecord {
+        plan.announcements.changed(crate::ChangedRecord {
             module: A::MODULE,
             aggregate: A::NAME,
             id: Some(meta.id()),
@@ -86,14 +86,16 @@ impl<A: Aggregate> Outcome for A {
 #[cfg(feature = "live")]
 fn plan_live_changes<A: Aggregate>(aggregate: &A, plan: &mut Plan<'_>) {
     let owner = aggregate.owner();
-    plan.live_change(crate::live::TableChange::of::<A>(owner, plan.reach()));
+    plan.announcements
+        .live_change(crate::live::TableChange::of::<A>(owner, plan.reach()));
     let loaded = aggregate
         .meta()
         .snapshot
         .as_ref()
         .and_then(loaded_owner::<A>);
     if loaded.is_some() && loaded != owner {
-        plan.live_change(crate::live::TableChange::of::<A>(loaded, plan.reach()));
+        plan.announcements
+            .live_change(crate::live::TableChange::of::<A>(loaded, plan.reach()));
     }
 }
 
@@ -835,6 +837,7 @@ mod tests {
         let readers: Vec<crate::Readers> = plan
             .into_parts()
             .unwrap()
+            .announcements
             .live
             .iter()
             .map(|change| change.readers)
@@ -860,7 +863,7 @@ mod tests {
         let parts = plan.into_parts().unwrap();
 
         assert_eq!(
-            parts.live,
+            parts.announcements.live,
             [crate::TableChange {
                 topic: crate::live::Topic::of::<Card>(),
                 readers: crate::Readers::Owner(holder),
@@ -868,7 +871,7 @@ mod tests {
         );
         #[cfg(feature = "cache")]
         assert!(matches!(
-            parts.changed[..],
+            parts.announcements.changed[..],
             [crate::ChangedRecord {
                 module: "cards",
                 aggregate: "card",

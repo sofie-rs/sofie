@@ -12,6 +12,7 @@ mod changed;
 mod children;
 #[cfg(feature = "codes")]
 mod codes;
+mod commit;
 #[cfg(feature = "cache")]
 mod commit_hooks;
 mod condition;

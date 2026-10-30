@@ -351,7 +351,10 @@ impl Pipeline {
         let acting = found.session.acting();
         let matched = Matched {
             parameters: found.parameters,
-            query: request.uri.query().map(str::to_owned),
+            query: request
+                .uri
+                .query()
+                .map(|query| handler_query(query, target).to_owned()),
             body: Some(received.body),
             encoding: received.encoding,
             session: found.session,
@@ -500,6 +503,15 @@ fn timed_out(caller: Caller<'_>) -> Response {
         "The request took too long.",
         caller,
     )
+}
+
+#[cfg_attr(not(feature = "signed-links"), expect(unused_variables))]
+fn handler_query<'q>(query: &'q str, target: &Target) -> &'q str {
+    #[cfg(feature = "signed-links")]
+    if target.admission.rules.signed {
+        return crate::signed::unsigned_query(query);
+    }
+    query
 }
 
 fn refuse(refusal: Option<Response>) -> Result<(), Box<Response>> {

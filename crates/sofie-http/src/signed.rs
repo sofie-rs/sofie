@@ -101,6 +101,18 @@ pub(crate) fn unsigned(caller: Caller<'_>) -> Response {
     answer::refusal(StatusCode::FORBIDDEN, UNSIGNED, caller)
 }
 
+/// The verified `expires` and `signature` belong to the link, not to the query a handler reads.
+pub(crate) fn unsigned_query(query: &str) -> &str {
+    let Some((signed, _)) = query.rsplit_once(SIGNATURE) else {
+        return query;
+    };
+    match signed.rsplit_once('&') {
+        Some((asked, expires)) if expires.starts_with(EXPIRES) => asked,
+        None if signed.starts_with(EXPIRES) => "",
+        _ => query,
+    }
+}
+
 /// The signature comes last, right after the expiry it covers.
 fn is_signed(path_and_query: &str, keys: &SigningKeys, now: Timestamp) -> bool {
     let Some((signed, signature)) = path_and_query.rsplit_once(SIGNATURE) else {
@@ -128,6 +140,16 @@ mod tests {
             clock: clock.clock(),
         };
         (urls, keys)
+    }
+
+    #[test]
+    fn a_signed_query_reads_without_its_expiry_and_signature() {
+        assert_eq!(
+            unsigned_query("size=large&expires=9&signature=abc"),
+            "size=large"
+        );
+        assert_eq!(unsigned_query("expires=9&signature=abc"), "");
+        assert_eq!(unsigned_query("size=large"), "size=large");
     }
 
     #[test]

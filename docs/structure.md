@@ -2792,7 +2792,8 @@ What the modifiers do:
 - `.signed()` opens the route only through a link `SignedUrls` signed: a
   handler argument whose `sign(path, valid_for)` appends `expires` and an
   HMAC-SHA256 `signature` made with a key derived from the app's
-  `SOFIE_SIGNING_KEYS`. A changed, expired or unsigned link is a 403. A job
+  `SOFIE_SIGNING_KEYS`. A changed, expired or unsigned link is a 403; the
+  handler's `Query` and `Listing` read the link without the two. A job
   asks for `SignedUrls` too: the worker's database carries the same keys
   (`Db::with_signing_keys`, given by `sofie::run` and sofie-testing).
 - `.idempotent()` (actions only) requires an `Idempotency-Key` header. The

@@ -11,8 +11,10 @@ use std::time::Duration;
 use http::StatusCode;
 use sofie_core::{Error, Result, TestClock, Timestamp};
 use sofie_db::worker::Worker;
-use sofie_db::{BoxFuture, Db, Outcome, ReadOnly, Reply};
-use sofie_http::{App, PipelineStep, Rate, RequestHead, Routes, SignedUrls, TrustedProxies, Web};
+use sofie_db::{BoxFuture, Db, FieldNames, Input, InputFields, Outcome, ReadOnly, Reply};
+use sofie_http::{
+    App, PipelineStep, Query, Rate, RequestHead, Routes, SignedUrls, TrustedProxies, Web,
+};
 use sofie_testing::{FakeDriver, TestServer};
 
 const HOUR: Duration = Duration::from_hours(1);
@@ -35,6 +37,31 @@ async fn download_link(urls: SignedUrls) -> Result<Link> {
     urls.sign("/download?file=report", HOUR).map(Link)
 }
 
+async fn report_link(urls: SignedUrls) -> Result<Link> {
+    urls.sign("/report?file=summary", HOUR).map(Link)
+}
+
+struct Report {
+    file: String,
+}
+
+impl Input for Report {
+    fn from_json(value: serde_json::Value) -> Result<Self> {
+        let mut fields = InputFields::new(value)?;
+        let file = fields.take("file");
+        fields.finish()?;
+        Ok(Self { file: file? })
+    }
+}
+
+impl FieldNames for Report {
+    const FIELD_NAMES: &'static [&'static str] = &["file"];
+}
+
+async fn report(query: Query<Report>) -> Result<Link> {
+    Ok(Link(query.0.file))
+}
+
 struct OnlyFrom(IpAddr);
 
 impl PipelineStep for OnlyFrom {
@@ -55,6 +82,8 @@ fn routes(routes: &mut Routes<Web>) {
     routes.get("/hello", hello);
     routes.get("/link", download_link);
     routes.get("/download", hello).signed();
+    routes.get("/report-link", report_link);
+    routes.get("/report", report).signed();
     routes.post("/note", hello);
     routes.post("/upload", hello).body_limit(256 * 1024);
 }
@@ -147,6 +176,17 @@ async fn a_signed_route_opens_only_through_a_live_signed_link() {
     );
     assert_eq!(altered.status, StatusCode::FORBIDDEN);
     assert_eq!(expired.status, StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
+async fn a_signed_route_reads_its_typed_query_without_the_signature() {
+    let server = TestServer::start(app(&clock())).await;
+    let link = server.get("/report-link").await.json();
+
+    let report = server.get(link.as_str().unwrap()).accept_json().await;
+
+    assert_eq!(report.status, StatusCode::OK);
+    assert_eq!(report.json(), "summary");
 }
 
 static JOB_LINK: Mutex<Option<String>> = Mutex::new(None);

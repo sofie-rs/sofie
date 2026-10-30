@@ -24,8 +24,7 @@ pub struct TestDatabase {
 
 impl TestDatabase {
     pub async fn create() -> Self {
-        let server_url =
-            std::env::var(SERVER_URL_VARIABLE).unwrap_or_else(|_| DEFAULT_SERVER_URL.to_owned());
+        let server_url = server_url();
         LIVENESS
             .get_or_init(|| hold_liveness(server_url.clone()))
             .await;
@@ -50,6 +49,10 @@ impl TestDatabase {
     pub fn url(&self) -> &str {
         &self.url
     }
+}
+
+fn server_url() -> String {
+    std::env::var(SERVER_URL_VARIABLE).unwrap_or_else(|_| DEFAULT_SERVER_URL.to_owned())
 }
 
 /// Never blocks: Postgres waits for a half-open connection of the test's runtime, which runs only once the runtime does.
@@ -104,7 +107,8 @@ async fn hold_liveness(server_url: String) {
         .expect("the liveness connection takes its lock or panics");
 }
 
-/// Dropped by the process that takes the dead one's lock, so two processes never drop the same one.
+/// Dropped by the process that takes the dead one's lock, so two processes never drop the same one;
+/// the lock is let go after, as a later process may be given the dead one's id.
 async fn drop_abandoned(client: &Client) {
     let databases = client
         .query(
@@ -129,6 +133,15 @@ async fn drop_abandoned(client: &Client) {
                 .await
                 .unwrap_or_else(|error| panic!("dropping abandoned database {name}: {error}"));
         }
+    }
+    for process in dead {
+        client
+            .execute(
+                "SELECT pg_advisory_unlock($1, $2)",
+                &[&LIVENESS_CLASS, &process],
+            )
+            .await
+            .expect("letting go of a dead test process's liveness lock");
     }
 }
 
@@ -206,7 +219,43 @@ fn with_database(server_url: &str, name: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{process_of, with_database};
+    use super::{
+        LIVENESS_CLASS, NAME_PREFIX, connect, drop_abandoned, process_of, server_url, takes_lock,
+        with_database,
+    };
+
+    #[tokio::test]
+    async fn a_dead_process_s_lock_is_let_go_once_its_databases_are_dropped() {
+        let dead = i32::MAX - 7;
+        let name = format!("{NAME_PREFIX}{dead}_0");
+        let (client, connection) = connect(&server_url()).await;
+        tokio::spawn(connection);
+        client
+            .batch_execute(&format!("CREATE DATABASE {name}"))
+            .await
+            .unwrap();
+
+        drop_abandoned(&client).await;
+
+        let (other, connection) = connect(&server_url()).await;
+        tokio::spawn(connection);
+        assert!(
+            takes_lock(&other, dead).await,
+            "a reused process id is not blocked"
+        );
+        other
+            .execute(
+                "SELECT pg_advisory_unlock($1, $2)",
+                &[&LIVENESS_CLASS, &dead],
+            )
+            .await
+            .unwrap();
+        let left = client
+            .query("SELECT 1 FROM pg_database WHERE datname = $1", &[&name])
+            .await
+            .unwrap();
+        assert!(left.is_empty());
+    }
 
     #[test]
     fn replaces_only_the_database_of_the_server_url() {

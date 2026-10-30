@@ -74,9 +74,10 @@ impl<T: Filter> Filter for Option<T> {
 }
 
 #[cfg(feature = "time")]
-filters!(ORDERED => crate::Date, crate::LocalDateTime, crate::TimeOfDay);
+filters!(ORDERED => crate::Date, crate::TimeOfDay);
+// A wall clock or a quantity compares only within one zone or unit, which each row names.
 #[cfg(feature = "time")]
-filters!(EXACT => crate::TimeZone, crate::Weekday);
+filters!(EXACT => crate::LocalDateTime, crate::TimeZone, crate::Weekday);
 #[cfg(feature = "phone")]
 filters!(EXACT => crate::PhoneNumber);
 #[cfg(feature = "person")]
@@ -90,7 +91,7 @@ filters!(EXACT => crate::Slug, crate::Url, crate::Locale);
 
 #[cfg(feature = "measure")]
 impl<U: crate::Unit> Filter for crate::Measurement<U> {
-    const OPERATORS: &'static [Operator] = ORDERED;
+    const OPERATORS: &'static [Operator] = EXACT;
 }
 
 #[cfg(test)]
@@ -103,5 +104,11 @@ mod tests {
         assert_eq!(<Option<Money>>::OPERATORS, ORDERED);
         assert_eq!(String::OPERATORS, TEXT);
         assert!(!Email::OPERATORS.contains(&Operator::Contains));
+    }
+
+    #[cfg(feature = "time")]
+    #[test]
+    fn a_wall_clock_in_its_own_zone_filters_only_exactly() {
+        assert_eq!(crate::LocalDateTime::OPERATORS, EXACT);
     }
 }

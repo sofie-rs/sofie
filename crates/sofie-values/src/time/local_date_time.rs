@@ -78,9 +78,10 @@ impl Fields for LocalDateTime {
     }
 }
 
+/// Unordered: the wall clock alone would put Tokyo 09:30 after New York 08:00.
 impl Cast for LocalDateTime {
     const COLUMNS: &'static [ColumnSpec] = &[
-        ColumnSpec::new("", SqlType::DateTime),
+        ColumnSpec::new("", SqlType::DateTime).unordered(),
         ColumnSpec::new("_zone", SqlType::Text).unordered(),
     ];
 
@@ -119,7 +120,7 @@ impl<'de> Deserialize<'de> for LocalDateTime {
     }
 }
 
-/// Sorted by its wall-clock time: an instant may not exist for it.
+/// Searched by its wall-clock time: an instant may not exist for it.
 impl Present for LocalDateTime {
     const INPUT: Input = Input::new(Control::Parts(&[
         Part {
@@ -147,6 +148,11 @@ mod tests {
 
     fn zone(name: &str) -> TimeZone {
         TimeZone::parse(name).unwrap()
+    }
+
+    #[test]
+    fn no_column_sorts_a_list_since_zones_differ_row_to_row() {
+        assert!(LocalDateTime::COLUMNS.iter().all(|column| !column.orders));
     }
 
     fn meeting(local: &str, name: &str) -> LocalDateTime {

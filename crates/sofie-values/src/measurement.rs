@@ -122,10 +122,11 @@ impl<U: Unit> Fields for Measurement<U> {
     }
 }
 
-/// Whole thousandths survive the float column exactly.
+/// Whole thousandths survive the float column exactly. Unordered: the quantity alone would put
+/// 500 grams after 2 kilograms.
 impl<U: Unit> Cast for Measurement<U> {
     const COLUMNS: &'static [ColumnSpec] = &[
-        ColumnSpec::new("", SqlType::Float),
+        ColumnSpec::new("", SqlType::Float).unordered(),
         ColumnSpec::new("_unit", SqlType::Text).unordered(),
     ];
 
@@ -281,6 +282,11 @@ mod tests {
 
     fn kilograms(quantity: &str) -> Weight {
         Weight::parse(quantity, WeightUnit::Kilogram).unwrap()
+    }
+
+    #[test]
+    fn no_column_sorts_a_list_since_units_differ_row_to_row() {
+        assert!(Weight::COLUMNS.iter().all(|column| !column.orders));
     }
 
     #[test]

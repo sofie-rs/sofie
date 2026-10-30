@@ -94,9 +94,12 @@ impl Key {
 
     /// Keyed, so an address shown by its network is not found again by trying each one in it.
     pub(crate) fn id(self, keys: &SigningKeys) -> String {
-        let mut signature = keys.sign(Signed::ShieldBlock, self.stored().as_bytes());
-        signature.truncate(ID_LENGTH);
-        signature
+        truncated(keys.sign(Signed::ShieldBlock, self.stored().as_bytes()))
+    }
+
+    fn is_named_by(self, id: &str, keys: &SigningKeys) -> bool {
+        keys.signatures(Signed::ShieldBlock, self.stored().as_bytes())
+            .any(|signature| truncated(signature) == id)
     }
 
     pub(crate) fn shown(self) -> String {
@@ -109,6 +112,11 @@ impl Key {
             }
         }
     }
+}
+
+fn truncated(mut signature: String) -> String {
+    signature.truncate(ID_LENGTH);
+    signature
 }
 
 /// Enough to tell networks apart, too little to name a subscriber.
@@ -160,7 +168,7 @@ impl Blocks {
         let key = unpoisoned::read(&self.table)
             .keys()
             .copied()
-            .find(|key| key.id(keys) == id)?;
+            .find(|key| key.is_named_by(id, keys))?;
         let mut table = unpoisoned::write(&self.table);
         table.remove(&key)?;
         self.size.store(table.len(), Ordering::Relaxed);
@@ -274,6 +282,18 @@ mod tests {
 
         assert_eq!(another.lift(&listed.id(&keys(1)), &keys(1)), Some(listed));
         assert_eq!(another.active(0).len(), 1);
+    }
+
+    #[test]
+    fn a_block_listed_before_a_key_rotation_is_still_lifted() {
+        let blocks = Blocks::default();
+        let key = address("192.0.2.1");
+        blocks.insert(key, block(Grade::Block, 100), 0);
+        let listed = key.id(&keys(1));
+        let rotated = SigningKeys::new(&[[2; 32], [1; 32]]).unwrap();
+
+        assert_eq!(blocks.lift(&listed, &keys(2)), None);
+        assert_eq!(blocks.lift(&listed, &rotated), Some(key));
     }
 
     #[test]

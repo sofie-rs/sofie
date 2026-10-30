@@ -51,6 +51,20 @@ impl SigningKeys {
         base64::encode(&URL_SAFE, tag.as_ref())
     }
 
+    /// Under every key held, the signing one first, for a signature compared only in part.
+    pub fn signatures<'keys>(
+        &'keys self,
+        purpose: Signed,
+        message: &'keys [u8],
+    ) -> impl Iterator<Item = String> + 'keys {
+        self.all().map(move |key| {
+            base64::encode(
+                &URL_SAFE,
+                hmac::sign(key.signing.of(purpose), message).as_ref(),
+            )
+        })
+    }
+
     #[must_use]
     pub fn verifies(&self, purpose: Signed, message: &[u8], signature: &str) -> bool {
         base64::decode(&URL_SAFE, signature).is_some_and(|tag| {
@@ -88,5 +102,21 @@ mod tests {
         assert!(!keys(2).verifies(Signed::Link, message, &signature));
         assert!(!keys(1).verifies(Signed::Link, message, "not base64!"));
         assert!(!keys(1).verifies(Signed::Link, message, &claims().seal(&keys(1)).unwrap()));
+    }
+
+    #[test]
+    fn signatures_come_under_every_key_the_signing_one_first() {
+        let message = b"address:192.0.2.1";
+        let rotated = SigningKeys::new(&[[2; KEY_LENGTH], [1; KEY_LENGTH]]).unwrap();
+
+        assert_eq!(
+            rotated
+                .signatures(Signed::ShieldBlock, message)
+                .collect::<Vec<_>>(),
+            [
+                keys(2).sign(Signed::ShieldBlock, message),
+                keys(1).sign(Signed::ShieldBlock, message)
+            ]
+        );
     }
 }

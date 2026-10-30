@@ -67,7 +67,7 @@ pub use crate::client::{Client, compile_client};
 #[cfg(feature = "clients")]
 pub use crate::client_instants::instant_fields;
 #[cfg(feature = "clients")]
-pub use crate::client_view::plain_client_view;
+pub use crate::client_view::{ClientView, plain_client_view};
 #[cfg(feature = "clients")]
 pub use crate::clients::{ClientBundle, ClientLinks, ClientShell, SCREEN_ELEMENT};
 #[cfg(all(feature = "parse", feature = "i18n"))]

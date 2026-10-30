@@ -71,6 +71,13 @@ impl<'t> Rendering<'t> {
     #[cfg(feature = "clients")]
     #[must_use]
     pub fn client_view(&self) -> serde_json::Value {
+        self.serializable_client_view().to_value()
+    }
+
+    /// The same view written straight to JSON, without copying the language's cached part.
+    #[cfg(feature = "clients")]
+    #[must_use]
+    pub fn serializable_client_view(&self) -> crate::ClientView {
         crate::client_view::client_parts(self.template).view(self.language)
     }
 

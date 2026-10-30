@@ -7,6 +7,7 @@ use std::sync::{Arc, Mutex};
 
 use serde_json::{Map, Value, json};
 use sofie_core::unpoisoned;
+use sofie_core::value::serde::ser::{Serialize, SerializeMap, Serializer};
 
 use crate::catalog::{FormPart, constant_label};
 use crate::language::{Language, Texts};
@@ -24,7 +25,7 @@ const ENGINE_KEYS: [&str; 4] = [
 /// What a client area's screen is given beside its data, for no request.
 #[must_use]
 pub fn plain_client_view(template: &crate::Template) -> Value {
-    client_parts(template).view(Language::plain())
+    client_parts(template).view(Language::plain()).to_value()
 }
 
 pub(crate) fn client_parts(template: &crate::Template) -> &ClientParts {
@@ -90,15 +91,12 @@ impl ClientParts {
         }
     }
 
-    pub(crate) fn view(&self, language: Language<'_>) -> Value {
-        let view = Map::clone(&self.in_language(language));
-        #[cfg(feature = "gates")]
-        let view = {
-            let mut view = view;
-            view.insert("gates".to_owned(), self.gates(language));
-            view
-        };
-        Value::Object(view)
+    pub(crate) fn view(&self, language: Language<'_>) -> ClientView {
+        ClientView {
+            in_language: self.in_language(language),
+            #[cfg(feature = "gates")]
+            gates: self.gates(language),
+        }
     }
 
     fn in_language(&self, language: Language<'_>) -> LanguageView {
@@ -116,6 +114,40 @@ impl ClientParts {
         in_languages.retain(|(cached, _)| cached.is_of_same_translations(texts));
         in_languages.push((texts, Arc::clone(&view)));
         view
+    }
+}
+
+/// Serialized from the language's cached view, which is shared rather than copied per request.
+#[derive(Debug)]
+pub struct ClientView {
+    in_language: LanguageView,
+    #[cfg(feature = "gates")]
+    gates: Value,
+}
+
+impl ClientView {
+    #[must_use]
+    pub fn to_value(&self) -> Value {
+        let view = Map::clone(&self.in_language);
+        #[cfg(feature = "gates")]
+        let view = {
+            let mut view = view;
+            view.insert("gates".to_owned(), self.gates.clone());
+            view
+        };
+        Value::Object(view)
+    }
+}
+
+impl Serialize for ClientView {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let mut map = serializer.serialize_map(None)?;
+        for (name, value) in self.in_language.iter() {
+            map.serialize_entry(name, value)?;
+        }
+        #[cfg(feature = "gates")]
+        map.serialize_entry("gates", &self.gates)?;
+        map.end()
     }
 }
 
@@ -440,6 +472,19 @@ mod tests {
     use sofie_values::{Control, FormField, Input};
 
     use crate::Template;
+
+    #[test]
+    fn a_view_serializes_as_its_value_does() {
+        let template = Template::parse(
+            "screen",
+            "{t(\"cart.items\", count = data.n)}<Form id=\"f\" post=\"/f\">\
+             <Field name=\"note\" /></Form>",
+        )
+        .unwrap();
+        let view = super::client_parts(&template).view(crate::language::Language::plain());
+
+        assert_eq!(serde_json::to_value(&view).unwrap(), view.to_value());
+    }
 
     #[test]
     fn a_view_names_the_forms_and_enums_a_screen_shows() {

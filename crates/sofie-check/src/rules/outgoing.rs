@@ -80,8 +80,8 @@ pub(super) fn finding(file: &Path, line: usize, written: &str) -> Finding {
         file: file.to_path_buf(),
         line,
         message: format!(
-            "`{written}` opens a connection of its own, which escapes the tracing, egress \
-             allowlist and limits that every request leaving the app gets from a gateway's `Outgoing`"
+            "`{written}` opens a socket of its own, which escapes the tracing, egress \
+             allowlist and limits that the app's network traffic gets from a gateway's `Outgoing`"
         ),
         fix: "call the vendor through a gateway adapter that holds an `Outgoing`".to_owned(),
     }

@@ -5,7 +5,7 @@ use sofie_core::{Date, Error, Result, SqlValue, Timestamp};
 use sofie_telemetry::{ProductRecord, keep_product_events};
 use tokio::sync::{mpsc, oneshot};
 
-use crate::{Db, Dialect, query_values};
+use crate::{Db, Dialect, query_decoded, query_values};
 
 /// Past it, events are dropped rather than slowing the code that raises them.
 const QUEUED: usize = 8192;
@@ -15,7 +15,7 @@ const BATCH: usize = 512;
 pub struct ProductSql {
     pub insert: &'static str,
     pub cohorts: &'static str,
-    /// Deletes at most a batch, answering a row per event deleted.
+    /// Deletes at most a batch, answering how many it deleted.
     pub prune: &'static str,
     pub forget: &'static str,
     /// Deletes what a write racing `forget` kept.
@@ -118,14 +118,24 @@ impl crate::Prune {
         let params = [SqlValue::Timestamp(before.timestamp())];
         let mut deleted = 0;
         loop {
-            let batch = query_values(self.db().driver(), sql.prune, &params)
-                .await?
-                .len();
+            let counted =
+                query_decoded(self.db().driver(), sql.prune, &params, Vec::new(), |row| {
+                    row.int()
+                })
+                .await?;
+            let batch = match counted[..] {
+                [count] => u64::try_from(count)
+                    .map_err(|error| Error::internal("counting deleted events", error))?,
+                _ => {
+                    return Err(Error::internal_message(
+                        "pruning answered no count of deleted events",
+                    ));
+                }
+            };
             if batch == 0 {
                 return Ok(deleted);
             }
-            deleted += u64::try_from(batch)
-                .map_err(|error| Error::internal("counting deleted events", error))?;
+            deleted += batch;
         }
     }
 }

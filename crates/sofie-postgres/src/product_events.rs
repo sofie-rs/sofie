@@ -33,9 +33,11 @@ SELECT start,
 FROM returned
 GROUP BY 1, 2
 ORDER BY 1, 2",
-    prune: "DELETE FROM sofie.product_events WHERE ctid IN (
-    SELECT ctid FROM sofie.product_events WHERE at < $1 LIMIT 10000
-) RETURNING 1",
+    prune: "WITH deleted AS (
+    DELETE FROM sofie.product_events WHERE ctid IN (
+        SELECT ctid FROM sofie.product_events WHERE at < $1 LIMIT 10000
+    ) RETURNING 1
+) SELECT count(*) FROM deleted",
     forget: "DELETE FROM sofie.product_events WHERE principal = $1",
     // Later writes skip the principals kept forgotten, so only the last day's are swept.
     sweep: "DELETE FROM sofie.product_events event USING sofie.forgotten_principals forgotten

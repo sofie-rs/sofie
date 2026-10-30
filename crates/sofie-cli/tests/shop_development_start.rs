@@ -19,6 +19,7 @@ fn the_shop_built_for_development_with_only_its_own_features_writes_its_sign_in_
     let mut shop = ServedShop(
         Command::new(target.join("debug/shop"))
             .envs(dotenv(&repository.join("examples/shop/.env")))
+            .env("SOFIE_MIGRATE", "on")
             .env("SOFIE_ADDRESS", address.to_string())
             .current_dir(repository.join("examples/shop"))
             .stdout(Stdio::null())

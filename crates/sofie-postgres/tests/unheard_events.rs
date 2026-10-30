@@ -188,6 +188,24 @@ async fn a_queued_event_fans_out_to_every_listener_its_process_heard() {
 }
 
 #[tokio::test]
+async fn a_queued_event_fanned_out_wakes_the_other_workers() {
+    let queue = queue().await;
+    raise_restocked(&queue.raw, Clock::system().now().timestamp()).await;
+    let first = Worker::new(queue.db.clone()).on::<Restocked, _>("shop.restock", ignore);
+    publish_heard(
+        &Worker::new(queue.db.clone()).on::<Restocked, _>("shop.announce_restock", ignore),
+    );
+    let mut wakeups = queue.raw.wakeups().unwrap().await.unwrap();
+
+    first.drain().await.unwrap();
+
+    tokio::time::timeout(Duration::from_secs(5), wakeups.next())
+        .await
+        .expect("the fan-out notified the other workers")
+        .unwrap();
+}
+
+#[tokio::test]
 async fn a_commit_while_a_worker_is_being_built_drops_nothing() {
     let queue = queue().await;
     let building = Worker::new(queue.db.clone());

@@ -7,8 +7,8 @@ use super::metrics;
 use super::trace::{self, Work};
 use super::{Failure, JobContext, Worker, lease};
 use crate::heard::Listeners;
-use crate::messages::keyed_job;
-use crate::{Claimed, MessageKind, Trigger};
+use crate::messages::{Fanned, fan_out_events};
+use crate::{Claimed, MessageKind, Outcome, Plan, Reach, Trigger};
 
 pub(super) enum Handled {
     Completed,
@@ -63,29 +63,41 @@ async fn handle(
                     "no worker took an event before its wait ran out; it is dropped"
                 );
             }
-            let listeners = heard.taking(&message.name, &message.payload);
-            fan_out(worker, message, &listeners).await
+            fan_out(worker, message, heard).await
         }
         (MessageKind::Job, _) => run_job(worker, &message.name, message).await,
     }
 }
 
 /// Due when the event was, so under a backlog they run before later events.
-async fn fan_out(worker: &Worker, event: &Claimed, listeners: &[&str]) -> Result<()> {
-    let dialect = worker.db.driver().dialect();
-    let mut steps = vec![worker.messages.completion(event)];
-    for listener in listeners {
-        let payload = event.payload.clone();
-        steps.push(keyed_job(
-            dialect,
-            listener,
-            payload,
-            event.id,
-            event.available_at,
-            event.actor,
-        )?);
+async fn fan_out(worker: &Worker, event: &Claimed, listeners: &Listeners) -> Result<()> {
+    let completion = worker.messages.completion(event);
+    let mut fanning = FanOut { event, listeners };
+    worker
+        .db
+        .commit_with(&mut fanning, vec![completion], Reach::All)
+        .await
+}
+
+struct FanOut<'a> {
+    event: &'a Claimed,
+    listeners: &'a Listeners,
+}
+
+impl Outcome for FanOut<'_> {
+    fn plan(&self, plan: &mut Plan<'_>) -> Result<()> {
+        let event = Fanned {
+            id: self.event.id,
+            name: &self.event.name,
+            payload: self.event.payload.clone(),
+            traceparent: sofie_telemetry::current_traceparent().map(|parent| parent.to_string()),
+        };
+        let (at, actor) = (self.event.available_at, self.event.actor);
+        if let Some(step) = fan_out_events(plan.dialect(), [event], at, actor, self.listeners)? {
+            plan.push_message(step);
+        }
+        Ok(())
     }
-    worker.db.transaction(steps).await
 }
 
 async fn run_job(worker: &Worker, name: &str, message: &Claimed) -> Result<()> {

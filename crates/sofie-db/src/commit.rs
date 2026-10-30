@@ -29,7 +29,9 @@ pub(crate) async fn commit(
         }),
     };
     if !planned.steps.is_empty() {
-        let committed = db.transaction(planned.steps).await;
+        let committed = db
+            .counted_transaction(planned.steps, planned.statements)
+            .await;
         planned.guard_checks.iter().for_each(|check| check.audit());
         if let Err(error) = committed {
             announcing.committed = None;

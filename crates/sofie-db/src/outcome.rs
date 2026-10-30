@@ -23,12 +23,15 @@ pub struct Plan<'d> {
     pub(crate) announcements: crate::commit::Announcements,
     #[cfg(feature = "module-roles")]
     role: Option<&'static str>,
+    #[cfg(feature = "module-roles")]
+    role_switches: usize,
     #[cfg(feature = "search-engine")]
     pub(crate) indexes_searches: bool,
 }
 
 pub(crate) struct Planned {
     pub(crate) steps: Vec<Step>,
+    pub(crate) statements: usize,
     pub(crate) guard_checks: Vec<Arc<GuardCheck>>,
     pub(crate) unique_fields: Vec<UniqueField>,
     pub(crate) queues_messages: bool,
@@ -82,6 +85,8 @@ impl<'d> Plan<'d> {
             announcements: crate::commit::Announcements::default(),
             #[cfg(feature = "module-roles")]
             role: None,
+            #[cfg(feature = "module-roles")]
+            role_switches: 0,
             #[cfg(feature = "search-engine")]
             indexes_searches: false,
         }
@@ -96,6 +101,7 @@ impl<'d> Plan<'d> {
         }
         if let Some(statement) = self.dialect.enter_role(role) {
             self.steps.push(Step::Script(statement));
+            self.role_switches += 1;
         }
         self.role = role;
     }
@@ -214,8 +220,13 @@ impl<'d> Plan<'d> {
         let writes = steps.split_off(self.leading);
         steps.extend(self.guards);
         steps.extend(writes);
+        #[cfg(not(feature = "module-roles"))]
+        let statements = steps.len();
+        #[cfg(feature = "module-roles")]
+        let statements = steps.len() - self.role_switches;
         Ok(Planned {
             steps,
+            statements,
             guard_checks: self.guard_checks,
             unique_fields: self.unique_fields,
             queues_messages: self.queues_messages,

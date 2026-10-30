@@ -119,7 +119,16 @@ impl Db {
     }
 
     pub(crate) async fn transaction(&self, steps: Vec<Step>) -> Result<()> {
-        let span = tracing::info_span!("commit", db.statements = steps.len());
+        let statements = steps.len();
+        self.counted_transaction(steps, statements).await
+    }
+
+    pub(crate) async fn counted_transaction(
+        &self,
+        steps: Vec<Step>,
+        statements: usize,
+    ) -> Result<()> {
+        let span = tracing::info_span!("commit", db.statements = statements);
         self.driver.transaction(steps).instrument(span).await
     }
 }

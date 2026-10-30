@@ -5,6 +5,7 @@ use std::process::{Command, Stdio};
 use crate::cargo_rustflags::config_rustflags;
 use crate::child_process::{ChildProcess, ProcessGroup};
 use crate::gen_command::{GenError, io_error};
+use crate::source_edits::{read, toml_section};
 
 pub(crate) fn command() -> Command {
     Command::new(std::env::var_os("CARGO").unwrap_or_else(|| "cargo".into()))
@@ -86,6 +87,11 @@ fn build_with(
     mut cargo: Command,
 ) -> Result<PathBuf, GenError> {
     let manifest = app_manifest(root);
+    let binary = binary_name(&manifest, arguments)?;
+    let mut arguments = arguments.to_vec();
+    if !arguments.contains(&"--bin") {
+        arguments.extend(["--bin", &binary]);
+    }
     let stderr = match diagnostics {
         Diagnostics::Terminal => Stdio::inherit(),
         #[cfg(feature = "mcp")]
@@ -98,7 +104,7 @@ fn build_with(
             .arg("build")
             .arg("--manifest-path")
             .arg(&manifest)
-            .args(arguments)
+            .args(&arguments)
             .arg("--message-format=json-render-diagnostics")
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
@@ -120,7 +126,7 @@ fn build_with(
     if let Some(stdout) = stdout {
         for line in BufReader::new(stdout).lines() {
             let line = line.map_err(|source| io_error(&manifest, source))?;
-            executable = executable_of(&line).or(executable);
+            executable = executable_of(&line, &binary).or(executable);
         }
     }
     let status = process
@@ -139,11 +145,39 @@ fn build_with(
             Diagnostics::Captured => crate::mcp::build_failure(&failure),
         }));
     }
-    executable.ok_or_else(|| GenError::App("`cargo build` built no executable".to_owned()))
+    executable.ok_or_else(|| GenError::App(format!("`cargo build` built no `{binary}` binary")))
 }
 
-fn executable_of(message: &str) -> Option<PathBuf> {
+/// The binary `--bin` names, else the package's own: an app may hold other binaries.
+fn binary_name(manifest: &Path, arguments: &[&str]) -> Result<String, GenError> {
+    if let Some(position) = arguments.iter().position(|argument| *argument == "--bin") {
+        return arguments
+            .get(position + 1)
+            .map(|name| (*name).to_owned())
+            .ok_or_else(|| GenError::App("`--bin` names no binary".to_owned()));
+    }
+    package_name(&read(manifest)?)
+        .ok_or_else(|| GenError::App(format!("{} names no `[package]`", manifest.display())))
+}
+
+fn package_name(manifest: &str) -> Option<String> {
+    let (start, end) = toml_section(manifest, "[package]")?;
+    manifest[start..end].lines().find_map(|line| {
+        let (key, value) = line.split_once('=')?;
+        let value = value.split('#').next()?.trim();
+        (key.trim() == "name").then(|| value.trim_matches('"').to_owned())
+    })
+}
+
+fn executable_of(message: &str, binary: &str) -> Option<PathBuf> {
     let message: serde_json::Value = serde_json::from_str(message).ok()?;
+    let target = &message["target"];
+    let is_binary = target["kind"]
+        .as_array()
+        .is_some_and(|kinds| kinds.iter().any(|kind| kind == "bin"));
+    if !is_binary || target["name"] != binary {
+        return None;
+    }
     message["executable"].as_str().map(PathBuf::from)
 }
 
@@ -151,16 +185,29 @@ fn executable_of(message: &str) -> Option<PathBuf> {
 mod tests {
     use std::path::PathBuf;
 
-    use super::executable_of;
+    use super::{executable_of, package_name};
 
     #[test]
-    fn reads_the_executable_cargo_built() {
-        let message = r#"{"reason":"compiler-artifact","executable":"/t/debug/my \"app\""}"#;
+    fn reads_the_executable_of_the_binary_asked_for() {
+        let shop = r#"{"reason":"compiler-artifact","target":{"kind":["bin"],"name":"shop"},"executable":"/t/debug/my \"app\""}"#;
+        let other = r#"{"reason":"compiler-artifact","target":{"kind":["bin"],"name":"import"},"executable":"/t/debug/import"}"#;
+        let test = r#"{"reason":"compiler-artifact","target":{"kind":["test"],"name":"shop"},"executable":"/t/debug/shop-1"}"#;
 
         assert_eq!(
-            executable_of(message),
+            executable_of(shop, "shop"),
             Some(PathBuf::from("/t/debug/my \"app\""))
         );
-        assert_eq!(executable_of(r#"{"executable":null}"#), None);
+        assert_eq!(executable_of(other, "shop"), None);
+        assert_eq!(executable_of(test, "shop"), None);
+        assert_eq!(executable_of(r#"{"executable":null}"#, "shop"), None);
+    }
+
+    #[test]
+    fn names_the_package_of_a_manifest() {
+        let manifest =
+            "[features]\nname = \"no\"\n\n[package]\nname = \"shop\" # ours\nedition = \"2024\"\n";
+
+        assert_eq!(package_name(manifest).as_deref(), Some("shop"));
+        assert_eq!(package_name("[workspace]\n"), None);
     }
 }

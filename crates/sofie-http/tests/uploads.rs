@@ -144,6 +144,7 @@ async fn serve() -> (TestServer, Root) {
                 .body_limit(1024 * 1024)
                 .file_limit(1024);
             routes.post("/broken", break_on_photo).file_limit(1024);
+            routes.post("/avatars", add_photo).file_limit(200 * 1024);
             routes.post("/ping", front_page).file_limit(1024);
             routes.post("/titles", echo_title);
             routes.screen("/photos", "photos", front_page);
@@ -350,6 +351,26 @@ async fn a_body_over_the_route_s_limit_is_refused() {
 
     answer.assert_status(413);
     assert_eq!(root.files(), Vec::<String>::new());
+}
+
+#[tokio::test]
+async fn a_file_limit_alone_lets_a_file_that_size_through() {
+    let (server, root) = serve().await;
+    let mut photo = PNG.to_vec();
+    photo.resize(150 * 1024, 0);
+
+    let answer = post(
+        &server,
+        "/avatars",
+        &[
+            Part::Text("title", "Large"),
+            Part::File("photo", "cat.png", "image/png", &photo),
+        ],
+    )
+    .await;
+
+    answer.assert_ok();
+    assert_eq!(root.files().len(), 1);
 }
 
 #[tokio::test]

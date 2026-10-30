@@ -328,7 +328,8 @@ impl<A: Area> ActionRoute<'_, A> {
         self.rule(|rules| rules.body_limit = Some(bytes))
     }
 
-    /// Each file of a form; the whole body stays within `body_limit`.
+    /// Each file of a form; the whole body stays within `body_limit`, by default one file and
+    /// the text fields.
     #[cfg(feature = "uploads")]
     pub fn file_limit(&mut self, bytes: usize) -> &mut Self {
         self.rule(|rules| rules.file_limit = Some(bytes))

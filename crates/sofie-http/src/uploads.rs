@@ -271,7 +271,12 @@ pub(crate) async fn read(
         .storage
         .as_ref()
         .filter(|_| takes_files(request, target));
-    let file_limit = target.admission.rules.file_limit.unwrap_or(limit);
+    let rules = &target.admission.rules;
+    let file_limit = rules.file_limit.unwrap_or(limit);
+    let limit = match (rules.body_limit, rules.file_limit) {
+        (None, Some(file_limit)) => file_limit.saturating_add(TEXT_LIMIT),
+        _ => limit,
+    };
     let mut form = Form::new(body, &boundary, limit, storage, file_limit, asked.deadline);
     let read = form.read().await;
     match read {

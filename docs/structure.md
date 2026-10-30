@@ -2808,7 +2808,8 @@ What the modifiers do:
 - `.body_limit(bytes)` raises the 64 KiB a body may hold.
 - `.file_limit(bytes)` (with `uploads`) lets a route take files and holds
   each file of a `multipart/form-data` form below it (elsewhere a file part
-  is answered 415); on such a route a body
+  is answered 415); without `.body_limit(…)` the form may hold one such
+  file and 64 KiB more. On such a route a body
   that is not multipart is held to 64 KiB. A file field is an
   `Upload` in the route's `Input`, already in the app's `Storage` when the
   handler runs; the handler keeps its `key()` and links to it with

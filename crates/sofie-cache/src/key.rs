@@ -74,6 +74,7 @@ pub(crate) fn any_record_tag(module: &str, aggregate: &str) -> String {
     format!("{module}.{aggregate}/*")
 }
 
+#[cfg(feature = "memory")]
 pub(crate) fn widened_tag(tag: &str) -> String {
     match tag.rsplit_once('/') {
         Some((aggregate, _)) => format!("{aggregate}/*"),

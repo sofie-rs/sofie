@@ -232,7 +232,8 @@ async fn drop_elsewhere(state: Arc<State>) {
 }
 
 impl State {
-    /// A value read from the shared store is held in memory only if nothing dropped it meanwhile.
+    /// A value read from the shared store is held in memory only if nothing dropped it meanwhile;
+    /// checked after the set too, as a drop between a check and the set finds nothing to drop.
     pub(crate) async fn lookup(&self, key: &str) -> Result<Option<Arc<str>>> {
         #[cfg(feature = "memory")]
         if let Some(value) = self.near.get(key) {
@@ -254,8 +255,15 @@ impl State {
         #[cfg(feature = "memory")]
         if !self.invalidations.touched_since(epoch, key, &stored.tags) {
             let expires_at = tokio::time::Instant::now() + stored.expires_in;
-            self.near
-                .set(key.to_owned(), Arc::clone(&value), stored.tags, expires_at);
+            self.near.set(
+                key.to_owned(),
+                Arc::clone(&value),
+                stored.tags.clone(),
+                expires_at,
+            );
+            if self.invalidations.touched_since(epoch, key, &stored.tags) {
+                self.near.delete(&[key.to_owned()]);
+            }
         }
         Ok(Some(value))
     }

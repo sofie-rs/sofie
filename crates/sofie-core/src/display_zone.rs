@@ -137,7 +137,8 @@ pub fn wall_clock_instant(zone: &TimeZone, local: DateTime) -> Option<jiff::Time
 
 /// The zoneinfo directory also holds `posixrules`, `Factory`, `+VERSION` and tables, which a
 /// browser's `Intl` refuses; tzdb names its zones with components that start with a capital.
-fn is_iana_identifier(name: &str) -> bool {
+#[must_use]
+pub fn is_iana_identifier(name: &str) -> bool {
     name != "Factory"
         && name.split('/').all(|component| {
             component.starts_with(|first: char| first.is_ascii_uppercase())

@@ -17,12 +17,16 @@ pub struct TimeZone {
 
 impl TimeZone {
     pub fn parse(name: &str) -> Result<Self> {
-        let zone = jiff::tz::TimeZone::get(name).map_err(|_| {
+        let refused = || {
             Error::invalid(
                 "time_zone",
                 "must be an IANA time zone such as Europe/Istanbul",
             )
-        })?;
+        };
+        let zone = jiff::tz::TimeZone::get(name).map_err(|_| refused())?;
+        if !zone.iana_name().is_some_and(sofie_core::is_iana_identifier) {
+            return Err(refused());
+        }
         Ok(Self { zone })
     }
 
@@ -130,6 +134,14 @@ mod tests {
         assert_refused(
             TimeZone::parse,
             &["", "Europe/Atlantis", "+03:00", "Istanbul Time"],
+        );
+    }
+
+    #[test]
+    fn refuses_zoneinfo_files_a_browser_cannot_show() {
+        assert_refused(
+            TimeZone::parse,
+            &["Factory", "posixrules", "posix/Europe/Istanbul", "zone.tab"],
         );
     }
 

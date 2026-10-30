@@ -26,6 +26,7 @@ sofie-engine = { workspace = true, features = ["compile"] }
 
 [dev-dependencies]
 sofie-core = { path = "../sofie-core", features = ["testing"] }
+sofie-db = { path = "../sofie-db", features = ["live"] }
 sofie-telemetry = { path = "../sofie-telemetry", features = ["capture"] }
 sofie-values = { path = "../sofie-values", features = ["time"] }
 sofie-testing = { path = "../sofie-testing", features = ["notify"] }

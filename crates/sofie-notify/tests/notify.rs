@@ -561,6 +561,35 @@ async fn a_browser_taken_over_is_a_new_subscription_the_former_principal_s_pushe
 }
 
 #[tokio::test]
+async fn a_browser_taken_over_refreshes_the_former_principal_s_screens_too() {
+    let app = start().await;
+    let browser = registration("https://push.example.test/send/abc", BROWSER_AUTH);
+    app.as_(&member(6))
+        .post("/members/push")
+        .json(&browser)
+        .await
+        .assert_status(204);
+    let mut changes = sofie_db::committed_changes(app.db());
+
+    app.as_(&member(7))
+        .post("/members/push")
+        .json(&browser)
+        .await
+        .assert_status(204);
+
+    let topic = sofie_db::Topic::named("sofie", "push_subscriptions");
+    let mut readers = Vec::new();
+    while let Ok(sofie_db::Announced::Changed(announced)) = changes.try_recv() {
+        let touched = announced.iter().filter(|change| change.topic == topic);
+        readers.extend(touched.map(|change| change.readers));
+    }
+    for principal in [6, 7] {
+        let owner = sofie_db::Readers::Owner(Uuid::from_u128(principal));
+        assert!(readers.contains(&owner), "{principal}: {readers:?}");
+    }
+}
+
+#[tokio::test]
 async fn a_digest_that_cannot_link_back_is_mailed_without_its_links() {
     let app = start().await;
     let outbox = sofie_mail::testing::fake_without_base_url(app.db());

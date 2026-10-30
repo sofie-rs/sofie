@@ -258,6 +258,7 @@ pub(crate) struct PushSubscription {
 }
 
 pub(crate) const PUSH_PRINCIPAL: Column<PushSubscription, Uuid> = Column::new("principal");
+pub(crate) const PUSH_ENDPOINT: Column<PushSubscription, String> = Column::new("endpoint");
 pub(crate) const PUSH_GONE_AT: Column<PushSubscription, Option<Timestamp>> = Column::new("gone_at");
 
 impl Aggregate for PushSubscription {

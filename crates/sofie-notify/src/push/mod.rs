@@ -10,13 +10,14 @@ use sofie_core::encoding::base64::{URL_SAFE, decode};
 use sofie_core::{Clock, Error, Result, SqlValue, Timestamp, Uuid};
 use sofie_db::worker::JobContext;
 use sofie_db::{
-    Aggregate, Dep, Dialect, Id, Input, Outcome, Plan, Read, Reply, Resolve, Select, Step, Writes,
+    Aggregate, Dep, Dialect, Id, Input, Outcome, Plan, Reach, Read, Reply, Resolve, Select, Step,
+    Writes,
 };
 use sofie_http::{Area, Principal};
 
 pub use vapid::VapidKeys;
 
-use crate::store::{PUSH_GONE_AT, PUSH_PRINCIPAL, PushSubscription};
+use crate::store::{PUSH_ENDPOINT, PUSH_GONE_AT, PUSH_PRINCIPAL, PushSubscription};
 use crate::{Notice, Notify, Setup};
 
 pub(crate) const JOB: &str = "sofie_notify.push";
@@ -34,6 +35,8 @@ pub struct PushRegistration {
     #[serde(rename = "expirationTime")]
     _expiration_time: Option<serde_json::Value>,
     keys: RegistrationKeys,
+    #[serde(skip)]
+    holder: Option<Uuid>,
 }
 
 #[derive(Deserialize)]
@@ -66,9 +69,20 @@ impl Input for PushRegistration {
     }
 }
 
+/// The endpoint's current holder is read across principals, so a takeover also refreshes the
+/// former holder's screens.
 impl<C: Writes> Resolve<C> for PushRegistration {
-    fn resolve(context: &mut C) -> impl Future<Output = Result<Self>> + Send {
-        std::future::ready(context.input().and_then(Self::from_json))
+    async fn resolve(context: &mut C) -> Result<Self> {
+        let registration = context.input().and_then(Self::from_json)?;
+        let held = PushSubscription::query()
+            .where_(PUSH_ENDPOINT.eq(registration.endpoint.clone()))
+            .where_(PUSH_GONE_AT.is_null())
+            .first(&Read::within(context.db(), Reach::All))
+            .await?;
+        Ok(Self {
+            holder: held.map(|subscription| subscription.principal),
+            ..registration
+        })
     }
 }
 
@@ -252,6 +266,13 @@ impl Outcome for Subscribed {
             None,
         ));
         plan.touched::<PushSubscription>(Some(self.principal));
+        if let Some(former) = self
+            .registration
+            .holder
+            .filter(|holder| *holder != self.principal)
+        {
+            plan.touched::<PushSubscription>(Some(former));
+        }
         Ok(())
     }
 }

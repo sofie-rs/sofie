@@ -13,7 +13,6 @@ use crate::caller::Caller;
 use crate::language::Language;
 use crate::screen::{ScreenPage, new_nonce, with_policy};
 
-/// Serialized once, borrowing the cached view rather than copying it into a `Value`.
 #[derive(Serialize)]
 struct Envelope<'a> {
     screen: &'a str,

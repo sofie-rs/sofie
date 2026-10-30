@@ -406,9 +406,8 @@ impl<S> Served<S> {
     }
 }
 
-/// An idle keep-alive connection ends in hyper's header timeout, a slow network stalls a TLS
-/// handshake past its own, and a client may reset or drop a connection at any time: none is a
-/// protocol violation.
+/// Header and TLS handshake timeouts, resets and drops are a network's routine, not protocol
+/// violations.
 fn ends_routinely(error: &(dyn std::error::Error + 'static)) -> bool {
     std::iter::successors(Some(error), |error| error.source()).any(|cause| {
         if cause.is::<tokio::time::error::Elapsed>() {

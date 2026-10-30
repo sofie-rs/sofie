@@ -22,8 +22,7 @@ use sofie_db::Resolve;
 
 /// Read by the listing itself, so no field of its query `Q` may take one.
 const RESERVED: [&str; 4] = [PAGE, SIZE, SORT, FILTER];
-/// Each set of filters is its own SQL text and so its own prepared statement; with no field and
-/// operator twice and a fixed order, a caller cannot make them without end.
+/// Each set of filters is its own prepared statement, so a caller cannot make them without end.
 const MAX_FILTERS: usize = 16;
 
 /// A path parameter naming a field filters too, so a child is listed only under its own parent.

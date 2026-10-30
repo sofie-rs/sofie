@@ -46,8 +46,7 @@ struct Taken {
     committed: bool,
 }
 
-/// A record the commit wrote may name a taken upload, so whatever is answered after it, such as
-/// a follow-up page that fails, keeps the file.
+/// A record the commit wrote may name a taken upload, so whatever is answered after keeps it.
 pub(crate) fn committed() {
     // Outside a request's handler, such as in a test, no stored file waits to be settled.
     let _outside_a_request = TAKEN.try_with(|taken| unpoisoned::lock(taken).committed = true);

@@ -83,7 +83,6 @@ pub struct ShieldBlocks {
 /// An address is shown by its network only.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ActiveBlock {
-    /// The same on every instance of the app.
     pub id: String,
     pub caller: String,
     pub rule: &'static str,

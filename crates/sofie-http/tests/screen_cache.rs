@@ -172,7 +172,6 @@ async fn a_cached_screen_loads_again_only_for_another_reach_query_or_a_change() 
     );
 }
 
-/// A listing answers a bad filter with a 422 to a JSON caller and an error on the page otherwise.
 #[cfg(feature = "listing")]
 mod by_caller {
     use super::*;

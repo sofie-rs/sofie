@@ -214,8 +214,7 @@ impl Session {
         Ok(session)
     }
 
-    /// Under the session's own id and first sign-in, so neither its absolute lifetime nor
-    /// its age restarts: a check for a recent sign-in does not trust it anew.
+    /// Under the session's own id and first sign-in, so a recent sign-in check does not trust it anew.
     pub fn resume<A: Area>(
         &self,
         right: SignInRight,

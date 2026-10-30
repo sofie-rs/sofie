@@ -11,7 +11,6 @@ use crate::throttle::Requester;
 
 /// A few megabytes: past it a new block is refused, so a flood of addresses cannot exhaust memory.
 const MAX_BLOCKS: usize = 65_536;
-/// 96 bits of the key's signature: unique among the blocks a table holds.
 const ID_LENGTH: usize = 16;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -93,8 +92,7 @@ impl Key {
         }
     }
 
-    /// The same on every instance, so a block listed by one is lifted by another; keyed, so
-    /// an address shown by its network is not found again by trying each address in it.
+    /// Keyed, so an address shown by its network is not found again by trying each one in it.
     pub(crate) fn id(self, keys: &SigningKeys) -> String {
         let mut signature = keys.sign(Signed::ShieldBlock, self.stored().as_bytes());
         signature.truncate(ID_LENGTH);

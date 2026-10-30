@@ -3,6 +3,7 @@ use std::time::{Duration, Instant};
 
 use sofie_auth::SigningKeys;
 
+use serde::{Deserialize, Serialize};
 use sofie_core::{Error, Result};
 use sofie_db::worker::JobContext;
 use sofie_db::{
@@ -18,6 +19,8 @@ use crate::{Mail, Setup};
 pub(crate) const JOB: &str = "sofie_mail.deliver";
 /// Greylisting servers defer a new sender for a few minutes, so an earlier retry is deferred again.
 const DEFERRED_RETRY_AFTER: Duration = Duration::from_mins(5);
+/// Two hours outlasts greylisting; a server deferring longer is treated as refusing.
+const MAXIMUM_DEFERRALS: u32 = 24;
 
 #[cfg(feature = "metrics")]
 static SEND_DURATION: sofie_telemetry::metrics::Instrument = sofie_telemetry::metrics::Instrument {
@@ -27,10 +30,20 @@ static SEND_DURATION: sofie_telemetry::metrics::Instrument = sofie_telemetry::me
     labels: &["mail.transport", "outcome"],
 };
 
+/// The payload `Mailer::send` queues is a bare `Mail`, read here as deferred no times yet.
+#[derive(Serialize, Deserialize)]
+struct Deferred {
+    #[serde(flatten)]
+    mail: Mail,
+    #[serde(default)]
+    deferrals: u32,
+}
+
 pub(crate) struct Delivery {
     db: Db,
     setup: Setup,
     mail: Mail,
+    deferrals: u32,
     work: Work,
     keys: Option<Arc<SigningKeys>>,
 }
@@ -39,12 +52,13 @@ impl Resolve<JobContext> for Delivery {
     async fn resolve(context: &mut JobContext) -> Result<Self> {
         let setup = crate::installed(context).await?;
         let key = IdempotencyKey::resolve(context).await?;
-        let mail = serde_json::from_value(context.input()?)
+        let queued: Deferred = serde_json::from_value(context.input()?)
             .map_err(|error| Error::internal("reading a queued mail", error))?;
         Ok(Self {
             db: context.db().clone(),
             setup,
-            mail,
+            mail: queued.mail,
+            deferrals: queued.deferrals,
             work: Work::new(key.as_str().to_owned(), JOB.to_owned()),
             keys: context.signing_keys().ok(),
         })
@@ -73,18 +87,8 @@ pub(crate) async fn deliver(delivery: Delivery) -> Result<()> {
         key,
         date: delivery.db.clock().now().timestamp(),
     };
-    let (deferred, refused): (Vec<Refused>, Vec<Refused>) =
-        traced(delivery.setup.transport.as_ref(), &envelope)
-            .await?
-            .into_iter()
-            .partition(Refused::is_deferred);
-    if !deferred.is_empty() && deferred.len() + refused.len() == mail.to().len() {
-        suppress_bounced(&delivery.db, &refused).await?;
-        return Err(Error::Unavailable(format!(
-            "the mail server took no recipient, some for now: {}",
-            replies(&deferred)
-        )));
-    }
+    let refused = traced(delivery.setup.transport.as_ref(), &envelope).await?;
+    let (deferred, refused) = waiting(delivery.deferrals, refused);
     let mut again = later(&delivery, &deferred)?;
     keyed.commit(&mut again, Reach::All).await?;
     keyed.record(&Reply::Empty).await?;
@@ -92,12 +96,24 @@ pub(crate) async fn deliver(delivery: Delivery) -> Result<()> {
     refusal(key, &refused, mail.to().len())
 }
 
+/// The deferred recipients wait for a later job, so the worker's backoff of seconds, made for
+/// faults, never buries a mail greylisting would have let through.
+fn waiting(deferrals: u32, refused: Vec<Refused>) -> (Vec<Refused>, Vec<Refused>) {
+    if deferrals >= MAXIMUM_DEFERRALS {
+        return (Vec::new(), refused);
+    }
+    refused.into_iter().partition(Refused::is_deferred)
+}
+
 fn later(delivery: &Delivery, deferred: &[Refused]) -> Result<Option<Queued>> {
     if deferred.is_empty() {
         return Ok(None);
     }
     let to = deferred.iter().map(|refused| refused.recipient().clone());
-    let mail = delivery.mail.clone().sent_to(to.collect(), None);
+    let mail = Deferred {
+        mail: delivery.mail.clone().sent_to(to.collect(), None),
+        deferrals: delivery.deferrals + 1,
+    };
     let due = delivery
         .db
         .clock()
@@ -153,7 +169,7 @@ fn refusal(key: &str, refused: &[Refused], recipients: usize) -> Result<()> {
         mail.job = key,
         mail.refused = refused.len(),
         mail.replies = replies,
-        "the mail server refused some recipients; the others got the mail"
+        "the mail server refused some recipients; the others got the mail or wait for a later try"
     );
     Ok(())
 }

@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use ring::hmac;
 use serde_json::json;
 use sofie_core::encoding::base64::{self, STANDARD};
@@ -234,8 +236,19 @@ async fn a_mail_every_recipient_refused_is_traced_as_refused() {
     assert_eq!(sent.fields["outcome"], "refused");
 }
 
+async fn waits_for_greylisting(app: &TestApp) -> bool {
+    let due = app
+        .query(
+            "SELECT available_at > now() + interval '4 minutes' FROM sofie.messages \
+             WHERE name = 'sofie_mail.deliver'",
+            &[],
+        )
+        .await;
+    due[0][0] == SqlValue::Bool(true)
+}
+
 #[tokio::test]
-async fn a_mail_refused_for_now_is_retried_and_suppresses_nothing() {
+async fn a_mail_refused_for_now_waits_for_greylisting_and_suppresses_nothing() {
     for code in [421, 451] {
         let app = started().await;
 
@@ -244,11 +257,31 @@ async fn a_mail_refused_for_now_is_retried_and_suppresses_nothing() {
         let left = deliveries_left(&app).await;
         assert_eq!(
             left[0][..2],
-            [SqlValue::Int(1), SqlValue::Bool(false)],
+            [SqlValue::Int(0), SqlValue::Bool(false)],
             "{code}"
         );
+        assert!(waits_for_greylisting(&app).await, "{code}");
         assert!(held(&app, "ada@example.com").await.is_empty(), "{code}");
     }
+}
+
+#[tokio::test]
+async fn a_mail_a_server_defers_for_hours_is_buried_as_refused() {
+    let app = started().await;
+    refused_by_the_server(&app, "/receipts", "ada@example.com", 451).await;
+
+    for _ in 0..30 {
+        app.clock().advance(Duration::from_mins(5)).unwrap();
+        sofie_testing::drain_failing(&app).await;
+    }
+
+    let left = deliveries_left(&app).await;
+    assert_eq!(left.len(), 1, "{left:?}");
+    assert_eq!(left[0][1], SqlValue::Bool(true));
+    let SqlValue::Text(error) = &left[0][2] else {
+        panic!("a buried message keeps its error");
+    };
+    assert!(error.contains("refused every recipient: 451"), "{error}");
 }
 
 #[tokio::test]
@@ -276,16 +309,8 @@ async fn a_recipient_refused_for_now_holds_the_mail_from_nobody_else() {
         [SqlValue::Int(0), SqlValue::Bool(false)],
         "bob's mail waits for a retry"
     );
-    let due = app
-        .query(
-            "SELECT available_at > now() + interval '4 minutes' FROM sofie.messages \
-             WHERE name = 'sofie_mail.deliver'",
-            &[],
-        )
-        .await;
-    assert_eq!(
-        due[0][0],
-        SqlValue::Bool(true),
+    assert!(
+        waits_for_greylisting(&app).await,
         "a greylisting server is not asked again at once"
     );
     assert_eq!(held(&app, "bob@example.com").await, Vec::<Scope>::new());

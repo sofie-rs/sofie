@@ -1106,8 +1106,9 @@ The `sofie-mail` crate, behind the `sofie` facade's `mail` feature, off by defau
   the server's or the settings', so it stays `Unavailable`. A 5xx to
   `RCPT TO` leaves that recipient out and the others still get the mail; a
   mail every recipient refused is sent to no one and buried. Recipients
-  deferred with a 4xx while others took the mail are queued again five
-  minutes later, past a greylisting server's wait. A 550, 551 or
+  deferred with a 4xx at `RCPT TO` are queued again as a new job five
+  minutes later, past a greylisting server's wait, whether or not others
+  took the mail; after 24 such waits they count as refused. A 550, 551 or
   553 there (not an enhanced 5.7.x, a refusal by policy) suppresses the
   address as a provider's hard bounce would, committed after the job is
   recorded as sent, so a failure there never sends the mail again.

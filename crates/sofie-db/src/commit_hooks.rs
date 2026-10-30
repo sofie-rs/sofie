@@ -14,7 +14,7 @@ pub struct ChangedRecord {
 }
 
 /// Runs after a commit that wrote aggregates, which already stands, so it cannot fail it. It runs
-/// inline, so a caller cancelled once the commit stands cannot skip it; slow work goes to a task.
+/// in the commit's own task, which a cancelled caller does not stop; slow work goes to a task.
 pub trait CommitHook: Any + Send + Sync {
     fn committed(&self, changes: &[ChangedRecord]);
 }

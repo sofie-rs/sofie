@@ -1,11 +1,11 @@
 use std::sync::Arc;
 
 use sofie_auth::SigningKeys;
-use sofie_core::{Clock, Result};
+use sofie_core::{Clock, Error, Result};
 use tracing::Instrument;
 
-use crate::arrivals::Arrivals;
-use crate::outcome::explain_duplicate;
+use crate::arrivals::{Arrivals, Raised};
+use crate::outcome::{Planned, explain_duplicate};
 use crate::{Driver, Outcome, Plan, Reach, Read, Schema, Step};
 
 #[derive(Clone)]
@@ -120,11 +120,24 @@ impl Db {
         outcome.plan(&mut plan)?;
         let stamp = plan.stamp();
         let raised = self.arrivals.copy_raised(&plan.events);
-        let planned = plan.into_parts()?;
+        let mut planned = plan.into_parts()?;
+        let unique_fields = std::mem::take(&mut planned.unique_fields);
+        let db = self.clone();
+        // A caller dropped once COMMIT is sent would otherwise skip announcing a commit that stands.
+        let committing = async move { db.commit_planned(planned, raised).await };
+        tokio::spawn(committing.in_current_span())
+            .await
+            .map_err(|error| Error::internal("committing a transaction", error))?
+            .map_err(|error| explain_duplicate(error, &unique_fields))?;
+        outcome.committed(stamp);
+        Ok(())
+    }
+
+    async fn commit_planned(&self, planned: Planned, raised: Raised) -> Result<()> {
         if !planned.steps.is_empty() {
             let committed = self.transaction(planned.steps).await;
             planned.guard_checks.iter().for_each(|check| check.audit());
-            committed.map_err(|error| explain_duplicate(error, &planned.unique_fields))?;
+            committed?;
         }
         let queued = planned.queues_messages;
         self.arrivals.committed(&self.driver, queued, raised);
@@ -132,7 +145,6 @@ impl Db {
         self.commit_hooks.run(&planned.changed);
         #[cfg(feature = "live")]
         self.changes.announce(&self.driver, planned.live);
-        outcome.committed(stamp);
         Ok(())
     }
 

@@ -154,6 +154,7 @@ pub(crate) mod tests {
     pub(crate) struct Recording {
         transactions: Arc<Mutex<Vec<Vec<String>>>>,
         is_down: bool,
+        is_slow: bool,
     }
 
     impl Recording {
@@ -186,7 +187,15 @@ pub(crate) mod tests {
             } else {
                 Ok(())
             };
-            Box::pin(std::future::ready(outcome))
+            let delay = if self.is_slow {
+                Duration::from_millis(10)
+            } else {
+                Duration::ZERO
+            };
+            Box::pin(async move {
+                tokio::time::sleep(delay).await;
+                outcome
+            })
         }
     }
 
@@ -265,6 +274,22 @@ pub(crate) mod tests {
         web.commit(&mut QueuesJob).await.unwrap();
 
         tokio::time::timeout(Duration::from_millis(1), worker.arrivals().arrived())
+            .await
+            .expect("the commit woke the worker");
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_commit_its_caller_stopped_waiting_for_still_wakes_the_worker() {
+        let db = Db::new(Recording {
+            is_slow: true,
+            ..Recording::default()
+        });
+
+        let mut outcome = QueuesJob;
+        let gave_up = tokio::time::timeout(Duration::from_millis(1), db.commit(&mut outcome));
+        assert!(gave_up.await.is_err());
+
+        tokio::time::timeout(Duration::from_secs(1), db.arrivals().arrived())
             .await
             .expect("the commit woke the worker");
     }

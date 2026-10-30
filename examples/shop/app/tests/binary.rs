@@ -1,9 +1,22 @@
 use std::process::Command;
 
+/// Cargo unifies features across a workspace build, which may turn sofie's `development` on.
+fn built_for_development() -> bool {
+    let output = Command::new(env!("CARGO_BIN_EXE_shop"))
+        .args(["serve", "--at", "never"])
+        .output()
+        .unwrap();
+    !String::from_utf8_lossy(&output.stderr).contains("is not a command")
+}
+
 /// `db fresh` drops every table, so only a `development` build (`sofie dev`,
 /// `sofie db fresh`) has it.
 #[test]
 fn a_production_build_has_no_db_fresh() {
+    if built_for_development() {
+        eprintln!("skipped: this build of the shop has sofie's `development` feature");
+        return;
+    }
     let output = Command::new(env!("CARGO_BIN_EXE_shop"))
         .args(["db", "fresh"])
         .env(

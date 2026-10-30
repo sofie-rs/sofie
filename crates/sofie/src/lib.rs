@@ -440,19 +440,19 @@ fn notify_set_up(db: &Db) -> Result<sofie_notify::Setup> {
     Ok(setup)
 }
 
-/// A database nothing migrated would fail every query and worker poll, so it is refused once,
-/// read from the catalog, which needs no right to write.
+/// A database behind its migrations would fail later on the first query a missing table or
+/// column breaks, so it is refused at start.
 async fn migrate_when_told(settings: &Settings, db: &Db, migrations: &[Migrations]) -> Result<()> {
     if settings.migrate {
         return db.schema().migrate(migrations).await;
     }
-    if db.schema().framework_migrated().await? == Some(false) {
-        return Err(Error::internal_message(
-            "the database has none of the framework's tables: start once with \
-             `SOFIE_MIGRATE=on`, or migrate it the way the deployment does",
-        ));
-    }
-    Ok(())
+    let Some(pending) = db.schema().first_pending(migrations).await? else {
+        return Ok(());
+    };
+    Err(Error::internal_message(format!(
+        "migration {pending} is not applied to the database: start once with \
+         `SOFIE_MIGRATE=on` (as `sofie dev` does), or migrate it the way the deployment does"
+    )))
 }
 
 async fn start(

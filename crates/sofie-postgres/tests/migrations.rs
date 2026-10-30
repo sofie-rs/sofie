@@ -223,14 +223,28 @@ async fn a_database_never_migrated_has_every_migration_pending() {
 }
 
 #[tokio::test]
-async fn the_framework_tables_are_seen_only_once_migrated() {
+async fn the_first_pending_migration_is_named_until_every_one_is_applied() {
     let database = TestDatabase::create().await;
     let db = Db::new(Postgres::connect(database.url()).unwrap());
+    let first = shop_migrations(&[CREATE_ITEMS]);
+    let both = shop_migrations(&[CREATE_ITEMS, INSERT_ITEM]);
+    let pending = async |modules: &[Migrations]| {
+        let pending = db.schema().first_pending(modules).await.unwrap();
+        pending.map(|migration| migration.to_string())
+    };
 
-    assert_eq!(db.schema().framework_migrated().await.unwrap(), Some(false));
-    db.schema().migrate(&[]).await.unwrap();
+    assert_eq!(
+        pending(&[both]).await.as_deref(),
+        Some("sofie/0001_messages.sql")
+    );
+    db.schema().migrate(&[first]).await.unwrap();
+    assert_eq!(
+        pending(&[both]).await.as_deref(),
+        Some("shop/0002_insert_item.sql")
+    );
+    db.schema().migrate(&[both]).await.unwrap();
 
-    assert_eq!(db.schema().framework_migrated().await.unwrap(), Some(true));
+    assert_eq!(pending(&[both]).await, None);
 }
 
 #[tokio::test]

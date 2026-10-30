@@ -120,7 +120,7 @@ pub use load::{Load, Select};
 pub use messages::{Claimed, Fired, MessageKind, MessageSql, Messages, ping_queue};
 #[cfg(feature = "migration-status")]
 pub use migrate::{MigrationState, MigrationStatus, ModuleStatus};
-pub use migrate::{Migrations, Schema};
+pub use migrate::{Migrations, PendingMigration, Schema};
 pub use outcome::{Outcome, Plan, ReadOnly, Stamp};
 #[cfg(feature = "pagination")]
 pub use page::*;

@@ -233,15 +233,6 @@ impl ExpectedTable {
 }
 
 impl Schema<'_> {
-    pub async fn framework_migrated(self) -> Result<Option<bool>> {
-        let Some(catalog) = self.db.driver().catalog() else {
-            return Ok(None);
-        };
-        Ok(Some(
-            !catalog.columns("sofie", "messages").await?.is_empty(),
-        ))
-    }
-
     pub async fn mismatches<A: Aggregate>(self) -> Result<Vec<Mismatch>> {
         self.table_mismatches(&[AggregateTable::of::<A>()]).await
     }

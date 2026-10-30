@@ -88,6 +88,18 @@ fn checksum(text: &str) -> String {
 
 type Applied = HashMap<(String, String), String>;
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PendingMigration {
+    pub module: &'static str,
+    pub name: &'static str,
+}
+
+impl std::fmt::Display for PendingMigration {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(formatter, "{}/{}", self.module, self.name)
+    }
+}
+
 #[derive(Clone, Copy)]
 pub struct Schema<'db> {
     pub(crate) db: &'db Db,
@@ -105,6 +117,36 @@ impl Schema<'_> {
         let _lock = locking.await?;
         migrate_under(db, modules, None).await
     }
+
+    /// In the order [`Schema::migrate`] applies them; it only reads, so a login that may not
+    /// create the records table can ask too.
+    pub async fn first_pending(self, modules: &[Migrations]) -> Result<Option<PendingMigration>> {
+        let db = self.db;
+        let applied = if keeps_records(db).await? {
+            applied_migrations(db).await?
+        } else {
+            Applied::new()
+        };
+        let dialect = db.driver().dialect();
+        let framework = dialect.framework_migrations();
+        for migrations in std::iter::once(&framework).chain(modules) {
+            for (name, _) in migrations.in_name_order(dialect.engine())? {
+                let key = (migrations.module.to_owned(), name.to_owned());
+                if !applied.contains_key(&key) {
+                    let module = migrations.module;
+                    return Ok(Some(PendingMigration { module, name }));
+                }
+            }
+        }
+        Ok(None)
+    }
+}
+
+async fn keeps_records(db: &Db) -> Result<bool> {
+    let Some(catalog) = db.driver().catalog() else {
+        return Ok(true);
+    };
+    Ok(!catalog.columns("sofie", "migrations").await?.is_empty())
 }
 
 async fn migrate_under(db: &Db, modules: &[Migrations], lock: Option<&str>) -> Result<()> {

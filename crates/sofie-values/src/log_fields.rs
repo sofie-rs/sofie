@@ -104,7 +104,9 @@ log_whole!(crate::PersonName => |name| masked(name));
 #[cfg(feature = "percentage")]
 log_whole!(crate::Percentage => |share| LogValue::Integer(share.basis_points()));
 #[cfg(feature = "web")]
-log_whole!(crate::Slug, crate::Locale, crate::Url => |text| LogValue::Text(Cow::Borrowed(text.as_str())));
+log_whole!(crate::Slug, crate::Locale => |text| LogValue::Text(Cow::Borrowed(text.as_str())));
+#[cfg(feature = "web")]
+log_whole!(crate::Url => |url| LogValue::Text(Cow::Borrowed(url.origin())));
 
 #[cfg(feature = "time")]
 impl LogFields for crate::LocalDateTime {
@@ -211,6 +213,22 @@ mod tests {
         );
         #[cfg(feature = "filter")]
         assert_eq!(<Pin as crate::Filter>::OPERATORS, crate::EXACT);
+    }
+
+    #[cfg(feature = "web")]
+    #[test]
+    fn a_url_logs_only_its_scheme_and_host() {
+        for (address, origin) in [
+            (
+                "https://Example.com:8443/reset/abc?token=s3cret#x",
+                "https://example.com:8443",
+            ),
+            ("http://example.com?token=s3cret", "http://example.com"),
+            ("https://example.com", "https://example.com"),
+        ] {
+            let url = crate::Url::parse(address).unwrap();
+            assert_eq!(logged(&url), [(None, format!("Text({origin:?})"))]);
+        }
     }
 
     #[test]

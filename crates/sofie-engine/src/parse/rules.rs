@@ -1,3 +1,5 @@
+use super::program::URL_ATTRIBUTES;
+use crate::escape::check_authored_url;
 use crate::syntax::{Attribute, LocatedError, Position, is_lowercase_name};
 
 /// The rest of HTML's void elements are forbidden below.
@@ -69,6 +71,8 @@ pub(super) fn check_element_attribute(
         "`style` is not allowed: the Content-Security-Policy blocks inline styles; use a class from the stylesheet".to_owned()
     } else if !is_lowercase_name(name) {
         format!("attribute name `{name}` must be lowercase letters, digits and `-`")
+    } else if URL_ATTRIBUTES.contains(&name) {
+        return check_authored_url(attribute);
     } else {
         return Ok(());
     };

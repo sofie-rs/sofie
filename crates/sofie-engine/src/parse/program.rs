@@ -2,7 +2,7 @@ use crate::escape::push_url;
 use crate::program::{Program, constant};
 use crate::syntax::{Attribute, Expression, Op, Written};
 
-const URL_ATTRIBUTES: [&str; 4] = ["href", "src", "action", "formaction"];
+pub(super) const URL_ATTRIBUTES: [&str; 4] = ["href", "src", "action", "formaction"];
 
 impl Program<Written> {
     fn append(&mut self, other: Self) {

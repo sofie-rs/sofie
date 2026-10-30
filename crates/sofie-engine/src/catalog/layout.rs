@@ -43,7 +43,7 @@ pub(super) fn build_card(
     children: Vec<Op>,
     position: Position,
 ) -> Result<Layout, LocatedError> {
-    let href = props.optional("href");
+    let href = props.optional_url("href")?;
     if href.is_some()
         && let Some(found) = interactive_in(&children)
     {
@@ -98,7 +98,7 @@ fn interactive_component(component: &Component) -> Option<String> {
 
 pub(super) fn build_image(props: &mut Props) -> Result<Layout, LocatedError> {
     Ok(Layout::Image {
-        src: props.required("src")?,
+        src: props.required_url("src")?,
         alt: props.required("alt")?,
     })
 }

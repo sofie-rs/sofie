@@ -1,5 +1,8 @@
 use memchr::{memchr2, memchr3};
 
+use crate::render::parts_of;
+use crate::syntax::{Attribute, Expression, LocatedError};
+
 /// An allowlist: `javascript:`, `data:` and any scheme invented later fall to `#`.
 const SAFE_SCHEMES: [&str; 4] = ["http", "https", "mailto", "tel"];
 
@@ -61,6 +64,33 @@ fn is_safe_url(url: &str) -> bool {
     SAFE_SCHEMES
         .iter()
         .any(|safe| scheme.clone().eq(safe.bytes()))
+}
+
+/// Authored text is written raw, so the browser decodes `jav&#x61;script:` or `javascript&colon;`
+/// after `is_safe_url` has read it; a reference before the path, query or fragment is refused.
+pub(crate) fn check_authored_url(attribute: &Attribute) -> Result<(), LocatedError> {
+    let authored = parts_of(&attribute.value)
+        .iter()
+        .filter_map(|part| match part {
+            Expression::Authored(text) => Some(text.as_str()),
+            _ => None,
+        });
+    for text in authored {
+        match text.find(['&', '/', '?', '#']) {
+            Some(found) if text.as_bytes()[found] == b'&' => {
+                return Err(LocatedError::new(
+                    attribute.position,
+                    format!(
+                        "`{}` has `&` before its first `/`, `?` or `#`, where a character reference could spell a scheme; write the characters themselves",
+                        attribute.name
+                    ),
+                ));
+            }
+            Some(_) => return Ok(()),
+            None => {}
+        }
+    }
+    Ok(())
 }
 
 /// `<`, `>`, `&`, U+2028 and U+2029 are `\u`-escaped, so no text can close the element.

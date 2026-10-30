@@ -1,6 +1,7 @@
 pub use sofie_core::is_field_name;
 
 use super::spec::ComponentSpec;
+use crate::escape::check_authored_url;
 use crate::render::parts_of;
 use crate::syntax::{Attribute, Expression, LocatedError, Op, Position};
 
@@ -65,6 +66,21 @@ impl Props {
 
     pub(super) fn optional(&mut self, name: &str) -> Option<Expression> {
         self.take(name).map(|attribute| attribute.value)
+    }
+
+    pub(super) fn optional_url(&mut self, name: &str) -> Result<Option<Expression>, LocatedError> {
+        let Some(attribute) = self.take(name) else {
+            return Ok(None);
+        };
+        check_authored_url(&attribute)?;
+        Ok(Some(attribute.value))
+    }
+
+    #[cfg(feature = "layout")]
+    pub(super) fn required_url(&mut self, name: &str) -> Result<Expression, LocatedError> {
+        let attribute = self.required_attribute(name)?;
+        check_authored_url(&attribute)?;
+        Ok(attribute.value)
     }
 
     pub(super) fn required(&mut self, name: &str) -> Result<Expression, LocatedError> {

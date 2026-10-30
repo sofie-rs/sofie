@@ -29,7 +29,7 @@ pub(super) fn build_table(
     let (columns_literal, columns_position) = props.required_literal("columns")?;
     let columns = parse_columns(&columns_literal, columns_position)?;
     let names_row = props.take("as").is_some();
-    let link = props.optional("link");
+    let link = props.optional_url("link")?;
     if link.is_some() && !names_row {
         bail!(
             position,

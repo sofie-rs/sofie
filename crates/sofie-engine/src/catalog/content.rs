@@ -26,14 +26,14 @@ pub(super) fn build_markdown(props: &mut Props) -> Result<Published, LocatedErro
     Ok(Published::Markdown(props.required_path("text")?))
 }
 
-pub(super) fn build_head(props: &mut Props) -> Published {
-    Published::Head(Head {
+pub(super) fn build_head(props: &mut Props) -> Result<Published, LocatedError> {
+    Ok(Published::Head(Head {
         title: props.optional("title"),
         description: props.optional("description"),
-        image: props.optional("image"),
-        url: props.optional("url"),
+        image: props.optional_url("image")?,
+        url: props.optional_url("url")?,
         kind: props.optional("type"),
-    })
+    }))
 }
 
 /// An id wraps the markdown, which has no element of its own to carry it.

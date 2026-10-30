@@ -538,6 +538,44 @@ mod tests {
     }
 
     #[test]
+    fn refuses_a_character_reference_that_could_spell_a_url_scheme() {
+        for source in [
+            "<a href=\"javascript&colon;alert(1)\">x</a>",
+            "<a href=\"jav&#x61;script:alert(1)\">x</a>",
+            "<img src=\"&#106;avascript:x\">",
+            "<a href=\"java{data.x}&colon;y\">x</a>",
+        ] {
+            let refused = parse(source).and_then(crate::catalog::build_all);
+            let error = refused.expect_err(source);
+            assert!(
+                error.message.contains("character reference"),
+                "{source}: {}",
+                error.message
+            );
+        }
+        for source in [
+            "<a href=\"/search?a=1&amp;b=2\">x</a>",
+            "<a href=\"#a&b\">x</a>",
+            "<a href=\"mailto:a@x.test?subject=a&amp;body=b\">x</a>",
+            "<p title=\"a&amp;b\">x</p>",
+        ] {
+            assert!(parse(source).is_ok(), "{source}");
+        }
+    }
+
+    #[cfg(feature = "layout")]
+    #[test]
+    fn a_component_s_url_prop_refuses_a_character_reference_before_its_path() {
+        let ops = parse("<Card href=\"javascript&colon;x\">y</Card>").expect("parses");
+        let error = crate::catalog::build_all(ops).expect_err("refused");
+        assert!(
+            error.message.contains("character reference"),
+            "{}",
+            error.message
+        );
+    }
+
+    #[test]
     fn a_literal_interpolation_is_still_a_child_a_form_refuses() {
         let ops = parse("<Form id=\"f\" post=\"/x\">{\" \"}</Form>").expect("parses");
         let error = crate::catalog::build_all(ops).expect_err("refused");

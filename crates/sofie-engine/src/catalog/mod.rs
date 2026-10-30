@@ -266,7 +266,7 @@ fn build(written: Written) -> Result<Component, LocatedError> {
         #[cfg(feature = "content")]
         Kind::Markdown => Content::Published(content::build_markdown(&mut props)?),
         #[cfg(feature = "content")]
-        Kind::Head => Content::Published(content::build_head(&mut props)),
+        Kind::Head => Content::Published(content::build_head(&mut props)?),
     };
     let id = match &content {
         Content::Form(form) => Some(Expression::Authored(form.id.clone())),

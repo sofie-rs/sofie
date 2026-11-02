@@ -44,6 +44,7 @@ tokio = { workspace = true, features = ["signal"] }
 
 [dev-dependencies]
 sofie-model = { path = "../sofie-model", features = ["testing"] }
+sofie-testing.workspace = true
 tokio = { workspace = true, features = ["time"] }
 
 [lints]

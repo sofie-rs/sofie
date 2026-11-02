@@ -7,6 +7,8 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant};
 
+use sofie_testing::TestDatabase;
+
 /// Built alone with `-p shop`, as `sofie dev` builds it, so no other member's features (a
 /// dev-dependency's `i18n`) reach the screens it parses from their sources at start.
 #[test]
@@ -14,11 +16,13 @@ fn the_shop_built_for_development_with_only_its_own_features_writes_its_sign_in_
     let repository = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let target = shared_target();
     build_shop(&repository, &target);
+    let database = own_database();
     let log_path = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("shop-development-start.log");
     let address = free_address();
     let mut shop = ServedShop(
         Command::new(target.join("debug/shop"))
             .envs(dotenv(&repository.join("examples/shop/.env")))
+            .env("DATABASE_URL", database.url())
             .env("SOFIE_MIGRATE", "on")
             .env("SOFIE_ADDRESS", address.to_string())
             .current_dir(repository.join("examples/shop"))
@@ -35,6 +39,18 @@ fn the_shop_built_for_development_with_only_its_own_features_writes_its_sign_in_
         answer.contains("Sign in</") && !answer.contains("identity.action.sign_in"),
         "sofie-identity's `t(…)` keys are written instead of their texts:\n{answer}"
     );
+    drop(shop);
+    drop(database);
+    sofie_testing::finish_teardown();
+}
+
+/// The shop's `.env` names the developer's own database, which a fresh Postgres lacks.
+fn own_database() -> TestDatabase {
+    tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap()
+        .block_on(TestDatabase::create())
 }
 
 struct ServedShop(Child);

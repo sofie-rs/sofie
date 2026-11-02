@@ -1249,6 +1249,7 @@ dependencies = [
  "sofie-core",
  "sofie-engine",
  "sofie-model",
+ "sofie-testing",
  "sofie-values",
  "syn 3.0.7",
  "tokio",

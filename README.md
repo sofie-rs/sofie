@@ -12,8 +12,10 @@ endpoints, forms, permissions, telemetry, documentation and architecture checks
 that you would otherwise write and keep in step by hand. You write the business
 logic; the compiler and `sofie check` keep the rest honest.
 
-> **Status: proof of concept.** Published on crates.io as 0.1.0. APIs change
-> without notice, so do not build on it for production yet.
+> **Status: pre-1.0.** Every planned feature is built and has been through
+> fifteen audit rounds, but APIs still change between minor versions and no
+> production app runs on Sofie yet. Try it, but do not build production on it
+> until 1.0; see [Road to 1.0](#road-to-10).
 
 ## Why it matters
 
@@ -22,8 +24,9 @@ logic; the compiler and `sofie check` keep the rest honest.
   included on both sides.
 - **Fast to build, fast to run.** Against that Loco twin: a 4× faster clean
   build, a 3.5× smaller binary and about 4× the requests per second
-  (24,000 vs 5,900 on the JSON list).
-  [Methodology and caveats](https://sofie.rs/why/performance/).
+  (24,000 vs 5,900 on the JSON list), measured on an M3 Pro on 2026-10-16.
+  [Methodology and caveats](https://sofie.rs/why/performance/);
+  raw numbers in [bench/results.md](bench/results.md).
 - **Architecture that cannot drift.** A module reaching into another, a stale
   wiring file or an unsafe migration fails `cargo build`, not a code review.
 - **Production concerns are on by default.** CSRF, sealed sessions, owner
@@ -157,10 +160,25 @@ catalog above, step by step, in about ten minutes.
   and what they cost
 - [Architecture](https://sofie.rs/architecture/overview/): modules, contracts,
   aggregates and areas
-- `examples/shop`: the benchmarked shop, with accounts, owned orders, events,
-  an audit listener and an hourly job
-- `docs/structure.md`: the app structure every app follows;
-  `docs/core.md`: how the framework implements it
+- [`examples/shop`](examples/shop): the benchmarked shop, with accounts,
+  owned orders, events, an audit listener and an hourly job
+- [`docs/structure.md`](docs/structure.md): the app structure every app
+  follows; [`docs/core.md`](docs/core.md): how the framework implements it
+
+## Road to 1.0
+
+1.0 is a promise that the public API holds until 2.0. Before making it:
+
+- A full audit round finds nothing of medium or high severity
+  ([audit history](docs/review-rounds.md)).
+- The whole suite passes with every feature on, not only feature by feature.
+- A real product, not only the example shop, is built on Sofie and the API
+  changes it asks for are made.
+- The public surface of `sofie-framework` and `sofie-cli` is reviewed and
+  frozen.
+
+Planned work is in [docs/roadmap.md](docs/roadmap.md) and open owner
+decisions in [docs/decisions.md](docs/decisions.md).
 
 ## Repository layout
 
@@ -180,6 +198,24 @@ docker compose up -d
 cargo run -p sofie-cli --bin sofie -- check examples/shop
 cargo test --workspace
 ```
+
+`docker compose up -d` starts the development and test Postgres on port 25432.
+Each test creates and drops its own database there; set
+`SOFIE_TEST_DATABASE_URL` to use another server.
+
+Before a change lands:
+
+```sh
+cargo fmt --all
+cargo clippy --workspace --all-targets --all-features
+cargo test -p sofie-check --test structure
+cargo test --workspace --all-features
+```
+
+The structure test holds the comment-density, god-type and dead-code ceilings
+that `sofie check` applies to apps. Tests that build and run the shop sit
+behind the `slow-tests` feature of `sofie-check` and `sofie-cli`, which
+`--all-features` turns on.
 
 ## License
 

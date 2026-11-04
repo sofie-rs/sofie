@@ -165,7 +165,7 @@ fn package_name(manifest: &str) -> Option<String> {
     manifest[start..end].lines().find_map(|line| {
         let (key, value) = line.split_once('=')?;
         let value = value.split('#').next()?.trim();
-        (key.trim() == "name").then(|| value.trim_matches('"').to_owned())
+        (key.trim() == "name").then(|| value.trim_matches(['"', '\'']).to_owned())
     })
 }
 
@@ -209,5 +209,9 @@ mod tests {
 
         assert_eq!(package_name(manifest).as_deref(), Some("shop"));
         assert_eq!(package_name("[workspace]\n"), None);
+        assert_eq!(
+            package_name("[package]\nname = 'shop'\n").as_deref(),
+            Some("shop")
+        );
     }
 }

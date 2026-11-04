@@ -969,7 +969,9 @@ the app's own.
 sofie-http's `uploads` reads a `multipart/form-data` body as it arrives: text
 fields into the input as a urlencoded form's, each file straight into the
 storage, within the route's `.body_limit(…)` and `.file_limit(…)` (each
-file), text held to 64 KiB whatever the route allows. Only a route with
+file), text held to 64 KiB whatever the route allows. Without
+`.body_limit(…)` the body may hold one file at the file limit plus that text,
+so a form taking several files sets `.body_limit(…)` to cover them all. Only a route with
 `.file_limit(…)` takes files; elsewhere a file part is answered 415. On a route with `.file_limit(…)`, a body that is not
 `multipart/form-data` is held to 64 KiB too. A file whose declared type its first bytes contradict (PNG, JPEG,
 GIF, WebP, PDF) is refused as a field error and deleted. A file arrives as

@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 404" width="880" height="404" role="img" aria-labelledby="title description">
+  <title id="title">Sofie against a Loco twin of the same shop</title>
+  <desc id="description">Requests per second on the JSON list: Sofie 24,313, Loco 5,894. Clean release build: Sofie 20.4 s, Loco 80.8 s. Release binary: Sofie 9.4 MB, Loco 32.6 MB. App code: Sofie 365 lines, Loco 1,834 lines.</desc>
+  <style>
+    .surface { fill: #fcfcfb; }
+    .sofie { fill: #1f7a7a; }
+    .loco { fill: #aab2b9; }
+    .baseline { stroke: #d9dcde; }
+    .heading { fill: #0b0b0b; font: 600 15px ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+    .hint { fill: #6b6a66; font: 400 13px ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+    .label { fill: #52514e; font: 500 13px ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+    .value { fill: #0b0b0b; font: 600 13px ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .ratio { fill: #1f6b6b; font: 700 22px ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+    @media (prefers-color-scheme: dark) {
+      .surface { fill: #090b0c; }
+      .sofie { fill: #2dd6d0; }
+      .loco { fill: #5d666e; }
+      .baseline { stroke: #3a3a38; }
+      .heading, .value { fill: #f0efec; }
+      .hint { fill: #9d9c95; }
+      .label { fill: #c3c2b7; }
+      .ratio { fill: #2dd6d0; }
+    }
+  </style>
+  <rect class="surface" width="880" height="404" rx="14"/>
+
+  <!-- Each measure is drawn on its own scale: the longer bar of a pair spans 520 px. -->
+  <g transform="translate(32 30)">
+    <text class="heading" y="0">Requests per second, JSON list</text>
+    <text class="hint" x="816" y="0" text-anchor="end">higher is better</text>
+    <text class="label" y="31">Sofie</text>
+    <rect class="sofie" x="72" y="16" width="520" height="20" rx="4"/>
+    <text class="value" x="602" y="31">24,313</text>
+    <text class="label" y="59">Loco</text>
+    <rect class="loco" x="72" y="44" width="126" height="20" rx="4"/>
+    <text class="value" x="208" y="59">5,894</text>
+    <text class="ratio" x="816" y="49" text-anchor="end">4.1×</text>
+  </g>
+
+  <g transform="translate(32 122)">
+    <text class="heading" y="0">Clean release build</text>
+    <text class="hint" x="816" y="0" text-anchor="end">lower is better</text>
+    <text class="label" y="31">Sofie</text>
+    <rect class="sofie" x="72" y="16" width="131" height="20" rx="4"/>
+    <text class="value" x="213" y="31">20.4 s</text>
+    <text class="label" y="59">Loco</text>
+    <rect class="loco" x="72" y="44" width="520" height="20" rx="4"/>
+    <text class="value" x="602" y="59">80.8 s</text>
+    <text class="ratio" x="816" y="49" text-anchor="end">4.0×</text>
+  </g>
+
+  <g transform="translate(32 214)">
+    <text class="heading" y="0">Release binary</text>
+    <text class="hint" x="816" y="0" text-anchor="end">lower is better</text>
+    <text class="label" y="31">Sofie</text>
+    <rect class="sofie" x="72" y="16" width="150" height="20" rx="4"/>
+    <text class="value" x="232" y="31">9.4 MB</text>
+    <text class="label" y="59">Loco</text>
+    <rect class="loco" x="72" y="44" width="520" height="20" rx="4"/>
+    <text class="value" x="602" y="59">32.6 MB</text>
+    <text class="ratio" x="816" y="49" text-anchor="end">3.5×</text>
+  </g>
+
+  <g transform="translate(32 306)">
+    <text class="heading" y="0">App code you write and keep</text>
+    <text class="hint" x="816" y="0" text-anchor="end">lower is better</text>
+    <text class="label" y="31">Sofie</text>
+    <rect class="sofie" x="72" y="16" width="104" height="20" rx="4"/>
+    <text class="value" x="186" y="31">365 lines</text>
+    <text class="label" y="59">Loco</text>
+    <rect class="loco" x="72" y="44" width="520" height="20" rx="4"/>
+    <text class="value" x="602" y="59">1,834 lines</text>
+    <text class="ratio" x="816" y="49" text-anchor="end">5.0×</text>
+  </g>
+</svg>

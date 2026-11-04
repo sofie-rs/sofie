@@ -279,20 +279,14 @@ fn a_field_made_unique_over_its_plain_index_gets_a_unique_index_of_its_own() {
 
     assert_eq!(
         changes,
-        [
-            "created modules/billing/migrations/0002_invoices.sql",
-            "created modules/billing/migrations/0003_index_invoice_number_key.sql",
-        ]
+        ["created modules/billing/migrations/0002_index_invoice_number_key.sql"]
     );
     assert_eq!(
-        read(&app, "0002_invoices.sql"),
+        read(&app, "0002_index_invoice_number_key.sql"),
         "-- Contract step: the unique index `invoice_number_key` serves every lookup the index \
          `invoice_number` does, so once it is built:\n\
-         -- DROP INDEX CONCURRENTLY IF EXISTS \"invoice_number\";\n"
-    );
-    assert_eq!(
-        read(&app, "0003_index_invoice_number_key.sql"),
-        "CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS \"invoice_number_key\" ON \"invoice\" \
+         -- DROP INDEX CONCURRENTLY IF EXISTS \"invoice_number\";\n\
+         CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS \"invoice_number_key\" ON \"invoice\" \
          (\"number\");\n"
     );
     assert_eq!(schema_findings(&app), Vec::<String>::new());

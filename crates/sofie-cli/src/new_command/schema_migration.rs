@@ -314,7 +314,9 @@ impl<'a> MigrationPlan<'a> {
 
     fn migrations(&self, name: &str) -> Vec<Migration<'_>> {
         let mut migrations = Vec::new();
-        if !self.expand.is_empty() || !self.contracts.is_empty() {
+        // Contract steps alone open no file: one holding only comments could never carry them,
+        // once applied. They go first in whichever file comes first.
+        if !self.expand.is_empty() {
             migrations.push(Migration {
                 name: name.to_owned(),
                 statements: self.expand.clone(),

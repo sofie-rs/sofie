@@ -649,13 +649,14 @@ async fn copying(database: &TestDatabase, db: &Db) -> sofie_db::worker::Worker {
     sofie_db::worker::Worker::new(db.clone()).mirror::<ProductCopy>("copy")
 }
 
+/// Due a minute ago: the worker claims by its own clock, which a container's may run ahead of.
 async fn changes_sent(database: &TestDatabase, changes: &[serde_json::Value]) {
     let raw = Postgres::connect(database.url()).unwrap();
     for change in changes {
         sofie_db::query_values(
             &raw,
             "INSERT INTO sofie.messages (id, kind, name, payload, available_at) \
-             VALUES (gen_random_uuid(), 'event', 'catalog.ProductChanged', $1, now())",
+             VALUES (gen_random_uuid(), 'event', 'catalog.ProductChanged', $1, now() - interval '1 minute')",
             &[SqlValue::Json(change.clone())],
         )
         .await

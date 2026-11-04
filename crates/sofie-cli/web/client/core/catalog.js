@@ -60,8 +60,7 @@ export const COMPONENTS = {
     h(props.name, withId({}, props.id), h("script", { type: "application/json" }, JSON.stringify(props.props ?? {}))),
 };
 
-// Fields in the order the server describes them, each with what the template wrote of it. Forms
-// sharing an id in two branches are described as one, so a branch draws only what it wrote.
+// Fields in the order the server describes them, each with what the template wrote of it.
 function form(props, view) {
   const description = view.forms?.[props.id] ?? { multipart: false, parts: [] };
   const written = new Map(
@@ -76,12 +75,10 @@ function form(props, view) {
   return h(
     "form",
     attributes,
-    description.parts.flatMap((part) => {
-      if (part.field) {
-        const own = written.get(part.field.name);
-        return own ? [field(part.field, own, state, view)] : [];
-      }
-      return part.submit < submits.length ? [h("button", { type: "submit" }, submits[part.submit])] : [];
-    }),
+    description.parts.map((part) =>
+      part.field
+        ? field(part.field, written.get(part.field.name) ?? {}, state, view)
+        : h("button", { type: "submit" }, submits[part.submit] ?? ""),
+    ),
   );
 }

@@ -154,9 +154,9 @@ impl Blocks {
 
     /// Found under the read lock, as hashing every key would hold up every request's lookup.
     pub(crate) fn lift(&self, id: &str, keys: &SigningKeys) -> Option<Key> {
-        let key = unpoisoned::read(&self.table)
-            .keys()
-            .copied()
+        let held: Vec<Key> = unpoisoned::read(&self.table).keys().copied().collect();
+        let key = held
+            .into_iter()
             .find(|key| keys.verifies(Signed::ShieldBlock, key.stored().as_bytes(), id))?;
         let mut table = unpoisoned::write(&self.table);
         table.remove(&key)?;

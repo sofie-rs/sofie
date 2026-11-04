@@ -92,8 +92,12 @@ impl Cast for TimeZone {
         out.push(SqlValue::Text(self.name().to_owned()));
     }
 
+    /// Any zone the database knows: one stored before input was held to the browser's list
+    /// still reads.
     fn decode(row: &mut dyn ColumnReader) -> Result<Self> {
-        sofie_core::value::stored(Self::parse(row.text()?))
+        let zone = jiff::tz::TimeZone::get(row.text()?)
+            .map_err(|_| Error::invalid("time_zone", "must be an IANA time zone"));
+        sofie_core::value::stored(zone.map(|zone| Self { zone }))
     }
 }
 
@@ -143,6 +147,16 @@ mod tests {
             TimeZone::parse,
             &["Factory", "posixrules", "posix/Europe/Istanbul", "zone.tab"],
         );
+    }
+
+    #[test]
+    fn a_zone_stored_before_input_was_held_to_the_browser_list_still_reads() {
+        let values = [SqlValue::Text("Factory".into())];
+        let zone = TimeZone::decode(&mut RowReader::new(&values)).unwrap();
+        assert_eq!(zone.name(), "Factory");
+
+        let unknown = [SqlValue::Text("Europe/Atlantis".into())];
+        assert!(TimeZone::decode(&mut RowReader::new(&unknown)).is_err());
     }
 
     #[test]

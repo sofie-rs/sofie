@@ -128,10 +128,9 @@ impl Schema<'_> {
         let dialect = db.driver().dialect();
         let framework = dialect.framework_migrations();
         for migrations in std::iter::once(&framework).chain(modules) {
-            for (name, _) in migrations.in_name_order(dialect.engine())? {
-                let key = (migrations.module.to_owned(), name.to_owned());
-                if !applied.contains_key(&key) {
-                    let module = migrations.module;
+            for (name, sql) in migrations.in_name_order(dialect.engine())? {
+                let module = migrations.module;
+                if !is_applied(&applied, module, name, &checksum(&sql))? {
                     return Ok(Some(PendingMigration { module, name }));
                 }
             }

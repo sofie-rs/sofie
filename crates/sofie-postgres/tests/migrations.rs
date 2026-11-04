@@ -248,6 +248,28 @@ async fn the_first_pending_migration_is_named_until_every_one_is_applied() {
 }
 
 #[tokio::test]
+async fn an_applied_migration_that_changed_is_refused_by_the_start_check_too() {
+    let database = TestDatabase::create().await;
+    let db = Db::new(Postgres::connect(database.url()).unwrap());
+    db.schema()
+        .migrate(&[shop_migrations(&[CREATE_ITEMS, INSERT_ITEM])])
+        .await
+        .unwrap();
+
+    let edited = File::new("0002_insert_item.sql", b"INSERT INTO items VALUES (3);");
+    let error = db
+        .schema()
+        .first_pending(&[shop_migrations(&[CREATE_ITEMS, edited])])
+        .await
+        .unwrap_err();
+
+    assert!(
+        error.to_string().contains("0002_insert_item.sql"),
+        "{error}"
+    );
+}
+
+#[tokio::test]
 async fn a_failing_migration_is_not_recorded() {
     let database = TestDatabase::create().await;
     let db = Db::new(Postgres::connect(database.url()).unwrap());

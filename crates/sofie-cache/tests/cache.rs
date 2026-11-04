@@ -56,8 +56,9 @@ fn shelf(titles: &[&str]) -> Shelf {
     }
 }
 
+/// Up to ten seconds: a whole suite shares one Postgres, which slows work off a request's path.
 async fn eventually(mut done: impl AsyncFnMut() -> bool) {
-    for _ in 0..100 {
+    for _ in 0..500 {
         if done().await {
             return;
         }

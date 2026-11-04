@@ -1,5 +1,5 @@
 <p align="center">
-  <img src=".github/assets/logo.png" alt="Sofie logo" width="120">
+  <img src="https://raw.githubusercontent.com/sofie-rs/sofie/main/.github/assets/logo.png" alt="Sofie logo" width="120">
 </p>
 
 <h1 align="center">Sofie</h1>
@@ -70,7 +70,7 @@ logic; the compiler and `sofie check` keep the rest honest.**
 </table>
 
 <p align="center">
-  <img src=".github/assets/benchmark.svg" alt="Sofie against a Loco twin of the same shop: 24,313 vs 5,894 requests per second, 20.4 s vs 80.8 s clean build, 9.4 MB vs 32.6 MB binary, 365 vs 1,834 lines of app code" width="100%">
+  <img src="https://raw.githubusercontent.com/sofie-rs/sofie/main/.github/assets/benchmark.svg" alt="Sofie against a Loco twin of the same shop: 24,313 vs 5,894 requests per second, 20.4 s vs 80.8 s clean build, 9.4 MB vs 32.6 MB binary, 365 vs 1,834 lines of app code" width="100%">
 </p>
 <p align="center"><sub>Measured by <code>bench/run.sh</code> on an Apple M3 Pro on 2026-10-16. <a href="https://sofie.rs/why/performance/">Methodology and caveats</a> · <a href="bench/results.md">raw numbers</a></sub></p>
 

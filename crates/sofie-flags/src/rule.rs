@@ -55,12 +55,7 @@ impl Rule {
     }
 
     pub(crate) fn is_on(&self, name: &str, environment: &str, subject: Subject) -> bool {
-        let listed =
-            |list: &[String], value: &str| list.is_empty() || list.iter().any(|item| item == value);
-        if !self.on || !listed(&self.environments, environment) {
-            return false;
-        }
-        if !self.areas.is_empty() && !subject.area.is_some_and(|area| listed(&self.areas, area)) {
+        if !self.applies(environment, subject.area) {
             return false;
         }
         if self.percentage >= 100 {
@@ -70,6 +65,19 @@ impl Rule {
             self.principals.contains(&principal)
                 || bucket(&[name], principal, 100) < u64::from(self.percentage)
         })
+    }
+
+    /// On for at least one principal of the area, whoever asks.
+    pub(crate) fn is_on_for_someone(&self, environment: &str, area: Option<&str>) -> bool {
+        self.applies(environment, area) && (self.percentage > 0 || !self.principals.is_empty())
+    }
+
+    fn applies(&self, environment: &str, area: Option<&str>) -> bool {
+        let listed =
+            |list: &[String], value: &str| list.is_empty() || list.iter().any(|item| item == value);
+        self.on
+            && listed(&self.environments, environment)
+            && (self.areas.is_empty() || area.is_some_and(|area| listed(&self.areas, area)))
     }
 
     pub(crate) fn variant(&self, name: &str, subject: Subject) -> Option<&str> {
@@ -256,6 +264,29 @@ mod tests {
         assert!(!rule.is_on("a.b", "production", console));
         assert!(!rule.is_on("a.b", "staging", someone(1)));
         assert!(!rule.is_on("a.b", "staging", Subject::default()));
+    }
+
+    #[test]
+    fn a_partial_rollout_is_on_for_someone_though_off_for_a_caller_without_a_principal() {
+        let listed = Rule {
+            principals: vec![principal(1)],
+            percentage: 0,
+            ..Rule::everyone()
+        };
+        let partial = Rule {
+            percentage: 10,
+            ..Rule::everyone()
+        };
+        let nobody = Rule {
+            percentage: 0,
+            ..Rule::everyone()
+        };
+        for rule in [&listed, &partial] {
+            assert!(!rule.is_on("a.b", "production", Subject::default()));
+            assert!(rule.is_on_for_someone("production", Some("member")));
+        }
+        assert!(!nobody.is_on_for_someone("production", Some("member")));
+        assert!(!Rule::off().is_on_for_someone("production", Some("member")));
     }
 
     fn split() -> Rule {

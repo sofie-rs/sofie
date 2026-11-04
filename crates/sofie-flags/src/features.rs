@@ -85,6 +85,21 @@ impl Features {
         on
     }
 
+    /// Whether any principal of the subject's area could have it on: what a request that carries
+    /// no credentials, such as a CORS preflight, can be told. Not recorded.
+    #[must_use]
+    pub fn enabled_for_someone(&self, feature: Feature) -> bool {
+        let name = feature.name();
+        match self.overriding(name) {
+            Some(answer) => answer != "off",
+            None => {
+                self.snapshot.rules.get(name).is_some_and(|rule| {
+                    rule.is_on_for_someone(&self.environment, self.subject.area)
+                })
+            }
+        }
+    }
+
     /// `default` unless a value of its kind is stored.
     #[must_use]
     pub fn setting(&self, name: &str, default: SettingValue) -> SettingValue {

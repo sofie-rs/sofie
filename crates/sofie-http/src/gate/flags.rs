@@ -65,7 +65,7 @@ impl FlagGate {
         Ok(())
     }
 
-    /// As a caller without a session sees it, which is all a CORS preflight carries.
+    /// A preflight carries no credentials: hidden only when the flag is off for every principal.
     #[cfg(feature = "cors")]
     pub(super) fn hides_from_anyone(&self, target: &Target) -> bool {
         let (Some(flags), Some(feature)) = (&self.flags, target.admission.rules.feature) else {
@@ -75,7 +75,7 @@ impl FlagGate {
             area: Some(target.audience.name),
             principal: None,
         };
-        !flags.evaluate(anyone).enabled(feature)
+        !flags.evaluate(anyone).enabled_for_someone(feature)
     }
 
     /// A route whose flag is off is not found, so a hidden feature is not revealed.

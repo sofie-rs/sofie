@@ -23,8 +23,10 @@ impl Email {
             return Err(invalid_email("must be at most 254 bytes"));
         }
         // NFC, so `josé` typed composed or decomposed is one address and one account; `İ` folds
-        // to `i` rather than `i` plus a dot above, so `İlker` and `ilker` are one account too.
-        let lowercase = trimmed.replace('\u{130}', "i").to_lowercase();
+        // to `i` rather than `i` plus a dot above, so `İlker` and `ilker` are one account too. It
+        // is composed first, so `I` plus a dot above folds the same.
+        let composed: String = trimmed.nfc().collect();
+        let lowercase = composed.replace('\u{130}', "i").to_lowercase();
         Self::from_normalized(lowercase.nfc().collect())
     }
 
@@ -195,6 +197,7 @@ mod tests {
             ("Jürgen@München.de", "jürgen@münchen.de"),
             ("jose\u{301}@example.com", "jos\u{E9}@example.com"),
             ("İlker@gmail.com", "ilker@gmail.com"),
+            ("I\u{307}lker@gmail.com", "ilker@gmail.com"),
             ("i\u{307}lker@gmail.com", "i\u{307}lker@gmail.com"),
             ("नमस्ते@example.com", "नमस्ते@example.com"),
             ("ผู้ใช้@example.com", "ผู้ใช้@example.com"),

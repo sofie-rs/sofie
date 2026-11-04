@@ -129,6 +129,7 @@ impl Outcome for MembershipRemoved {
         );
         let id = SqlValue::Uuid(self.membership.id().uuid());
         plan.push_as::<Membership>(Step::statement(sql, vec![id], Some(1)));
+        plan.touched::<Membership>(Some(self.membership.account.uuid()));
         #[cfg(feature = "sessions")]
         self.ended.plan(plan)?;
         Ok(())

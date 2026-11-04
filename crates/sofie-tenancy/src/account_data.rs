@@ -137,6 +137,7 @@ impl Outcome for Left {
         let mut params = vec![SqlValue::Uuid(self.0.id().uuid())];
         plan.stamp().now.encode(&mut params);
         plan.push_as::<OrganizationMember>(Step::statement(sql, params, Some(1)));
+        plan.touched::<OrganizationMember>(Some(self.0.organization().uuid()));
         plan.raise(self.0.meta().events());
         Ok(())
     }
@@ -163,6 +164,7 @@ impl Outcome for Withdrawn {
         let mut params = vec![SqlValue::Uuid(self.0.uuid())];
         plan.stamp().now.encode(&mut params);
         plan.push_as::<crate::Invitation>(Step::statement(sql, params, None));
+        plan.touched::<crate::Invitation>(None);
         Ok(())
     }
 }

@@ -381,7 +381,7 @@ impl Pipeline {
             route: target.name,
             #[cfg(feature = "idempotency")]
             work,
-            #[cfg(feature = "signed-links")]
+            #[cfg(any(feature = "signed-links", feature = "shield"))]
             keys: std::sync::Arc::clone(&self.sessions.keys),
             #[cfg(any(feature = "flags", feature = "permissions"))]
             gates: found.gates.clone(),

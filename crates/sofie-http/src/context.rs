@@ -22,7 +22,7 @@ pub(crate) struct Matched {
     pub(crate) route: Option<&'static str>,
     #[cfg(feature = "idempotency")]
     pub(crate) work: Option<sofie_db::Work>,
-    #[cfg(feature = "signed-links")]
+    #[cfg(any(feature = "signed-links", feature = "shield"))]
     pub(crate) keys: std::sync::Arc<sofie_auth::SigningKeys>,
     #[cfg(any(feature = "flags", feature = "permissions"))]
     pub(crate) gates: crate::gate::RequestGates,

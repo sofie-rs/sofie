@@ -101,6 +101,21 @@ mod tests {
     }
 
     #[test]
+    fn a_second_form_sharing_an_id_is_looked_up_under_its_own_key() {
+        let source = "{#if data.a}<Form id=\"f\" post=\"/f\"><Submit label=\"Go\" /></Form>\
+            {:else}<Form id=\"f\" post=\"/f\"><Submit label=\"Later\" /></Form>{/if}";
+
+        let svelte =
+            compile_client("forms", source, &Components::default(), Client::Svelte).unwrap();
+
+        assert_eq!(
+            svelte.matches("\"describedAs\": \"f#2\"").count(),
+            1,
+            "{svelte}"
+        );
+    }
+
+    #[test]
     fn a_svelte_screen_s_title_names_the_page_through_its_head() {
         let svelte = compile_client(
             "order",

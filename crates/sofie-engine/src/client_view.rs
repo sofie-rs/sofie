@@ -59,7 +59,7 @@ type LanguageView = Arc<Map<String, Value>>;
 
 #[derive(Debug)]
 struct ClientForm {
-    id: String,
+    key: String,
     multipart: bool,
     parts: Vec<ClientFormPart>,
 }
@@ -83,7 +83,7 @@ impl ClientParts {
             keys: owned(found.keys),
             counted: owned(found.counted),
             recorded: found.recorded,
-            forms: merged_forms(found.forms),
+            forms: described_forms(found.forms),
             enums: owned(found.enums),
             #[cfg(all(feature = "listing", any(feature = "gates", feature = "i18n")))]
             tables: found.tables,
@@ -155,59 +155,32 @@ fn owned(names: BTreeSet<&str>) -> BTreeSet<String> {
     names.into_iter().map(str::to_owned).collect()
 }
 
-/// Forms in an `{#if}`'s branches may share an id, by which alone the client looks one up, so
-/// they are described as one.
-fn merged_forms(forms: Vec<&crate::catalog::Form>) -> Vec<ClientForm> {
-    let mut merged: Vec<ClientForm> = Vec::new();
-    for form in forms.into_iter().map(ClientForm::of) {
-        match merged.iter_mut().find(|known| known.id == form.id) {
-            Some(known) => known.merge(form),
-            None => merged.push(form),
+/// Forms in an `{#if}`'s branches may share an id, so each is looked up by its id and how many
+/// before it in the template share that id; the client compiler numbers them alike.
+#[derive(Default)]
+pub(crate) struct FormKeys(BTreeMap<String, usize>);
+
+impl FormKeys {
+    pub(crate) fn next(&mut self, id: &str) -> String {
+        let seen = self.0.entry(id.to_owned()).or_default();
+        *seen += 1;
+        if *seen == 1 {
+            return id.to_owned();
         }
+        format!("{id}#{seen}")
     }
-    merged
+}
+
+fn described_forms(forms: Vec<&crate::catalog::Form>) -> Vec<ClientForm> {
+    let mut keys = FormKeys::default();
+    forms
+        .into_iter()
+        .map(|form| ClientForm::of(form, keys.next(&form.id)))
+        .collect()
 }
 
 impl ClientForm {
-    fn merge(&mut self, other: Self) {
-        self.multipart |= other.multipart;
-        let submits = self.submit_count();
-        let mut after_fields = self
-            .parts
-            .iter()
-            .rposition(|part| matches!(part, ClientFormPart::Field { .. }))
-            .map_or(0, |index| index + 1);
-        let mut other_submits = 0;
-        for part in other.parts {
-            match part {
-                ClientFormPart::Submit => other_submits += 1,
-                ClientFormPart::Field {
-                    ref description, ..
-                } if self.has_field(description) => {}
-                field @ ClientFormPart::Field { .. } => {
-                    self.parts.insert(after_fields, field);
-                    after_fields += 1;
-                }
-            }
-        }
-        self.parts
-            .extend((submits..other_submits).map(|_| ClientFormPart::Submit));
-    }
-
-    fn submit_count(&self) -> usize {
-        self.parts
-            .iter()
-            .filter(|part| matches!(part, ClientFormPart::Submit))
-            .count()
-    }
-
-    fn has_field(&self, description: &Value) -> bool {
-        self.parts.iter().any(|part| {
-            matches!(part, ClientFormPart::Field { description: known, .. } if known["name"] == description["name"])
-        })
-    }
-
-    fn of(form: &crate::catalog::Form) -> Self {
+    fn of(form: &crate::catalog::Form, key: String) -> Self {
         let parts = form
             .parts
             .iter()
@@ -224,7 +197,7 @@ impl ClientForm {
             .iter()
             .any(|part| matches!(part, FormPart::Field(field) if field.is_file()));
         Self {
-            id: form.id.clone(),
+            key,
             multipart,
             parts,
         }
@@ -437,7 +410,7 @@ impl ClientParts {
         let forms: Map<String, Value> = self
             .forms
             .iter()
-            .map(|form| (form.id.clone(), form.view(language)))
+            .map(|form| (form.key.clone(), form.view(language)))
             .collect();
         Value::Object(forms)
     }
@@ -538,7 +511,7 @@ mod tests {
     }
 
     #[test]
-    fn forms_sharing_an_id_in_two_branches_are_described_as_one() {
+    fn forms_sharing_an_id_in_two_branches_are_described_each_on_its_own() {
         let template = Template::parse(
             "screen",
             "{#if data.a}<Form id=\"f\" post=\"/f\"><Field name=\"a\" /><Submit label=\"Go\" />\
@@ -548,14 +521,20 @@ mod tests {
         .unwrap();
 
         let view = super::plain_client_view(&template);
-        let parts = view["forms"]["f"]["parts"].as_array().unwrap();
-        let shapes: Vec<Value> = parts
-            .iter()
-            .map(|part| part["field"]["name"].clone())
-            .collect();
+        let shapes = |key: &str| -> Vec<Value> {
+            view["forms"][key]["parts"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|part| part["field"]["name"].clone())
+                .collect()
+        };
 
-        assert_eq!(shapes, [json!("a"), json!("b"), Value::Null, Value::Null]);
-        assert_eq!(parts[3], json!({ "submit": 1 }));
+        assert_eq!(shapes("f"), [json!("a"), Value::Null]);
+        assert_eq!(
+            shapes("f#2"),
+            [json!("b"), json!("a"), Value::Null, Value::Null]
+        );
     }
 
     #[test]

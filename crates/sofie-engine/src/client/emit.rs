@@ -9,6 +9,7 @@ pub(super) struct Emitter {
     out: String,
     /// Loop and row names bound around the node being written.
     depth: usize,
+    forms: crate::client_view::FormKeys,
 }
 
 impl Emitter {
@@ -16,6 +17,7 @@ impl Emitter {
         Self {
             out: String::new(),
             depth: 0,
+            forms: crate::client_view::FormKeys::default(),
         }
     }
 
@@ -151,7 +153,13 @@ impl Emitter {
     }
 
     fn component(&mut self, component: &Component) -> Result<(), String> {
-        let call = ComponentCall::of(component, self.depth)?;
+        let mut call = ComponentCall::of(component, self.depth)?;
+        if let Content::Form(form) = &component.content {
+            let key = self.forms.next(&form.id);
+            if key != form.id {
+                call.props.push(("describedAs", literal(&key)));
+            }
+        }
         let props: Vec<String> = call
             .props
             .iter()

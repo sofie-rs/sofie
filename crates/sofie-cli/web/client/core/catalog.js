@@ -62,7 +62,7 @@ export const COMPONENTS = {
 
 // Fields in the order the server describes them, each with what the template wrote of it.
 function form(props, view) {
-  const description = view.forms?.[props.id] ?? { multipart: false, parts: [] };
+  const description = view.forms?.[props.describedAs ?? props.id] ?? { multipart: false, parts: [] };
   const written = new Map(
     props.parts.filter((part) => part.field).map((part) => [part.field.name, part.field]),
   );

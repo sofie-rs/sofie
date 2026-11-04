@@ -241,6 +241,17 @@ mod tests {
     }
 
     #[test]
+    fn refuses_a_mark_that_draws_nothing() {
+        let samples = [
+            "jane\u{FE0F}@example.com",
+            "jane@exa\u{34F}mple.com",
+            "jane\u{E0100}@example.com",
+            "jane\u{180B}@example.com",
+        ];
+        assert_refused(Email::parse, &samples);
+    }
+
+    #[test]
     fn rejects_invalid_addresses() {
         let too_long = format!("jane@{}com", "a.".repeat(125));
         let too_many_bytes = format!("jane@{}com", "é.".repeat(83));

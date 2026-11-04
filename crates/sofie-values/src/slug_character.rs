@@ -15,15 +15,23 @@ pub fn is_slug_character(character: char) -> bool {
         && !sofie_core::misleads_display(character)
 }
 
-/// The enclosing marks (Me) draw a circle or a sign around what comes before them.
+/// The enclosing marks (Me) draw a circle or a sign around what comes before them; the default
+/// ignorable ones (variation selectors, the grapheme joiner) draw nothing, so text holding one
+/// looks the same as text without it.
 pub(crate) fn is_word_mark(character: char) -> bool {
     is_combining_mark(character)
         && !matches!(
             character,
-            '\u{488}'..='\u{489}'
+            '\u{34f}'
+                | '\u{488}'..='\u{489}'
+                | '\u{17b4}'..='\u{17b5}'
+                | '\u{180b}'..='\u{180d}'
+                | '\u{180f}'
                 | '\u{1abe}'
                 | '\u{20dd}'..='\u{20e0}'
                 | '\u{20e2}'..='\u{20e4}'
                 | '\u{a670}'..='\u{a672}'
+                | '\u{fe00}'..='\u{fe0f}'
+                | '\u{e0100}'..='\u{e01ef}'
         )
 }

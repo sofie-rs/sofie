@@ -898,7 +898,8 @@ impl Payments for Stripe {
   is refused with one message whatever it resolved to, or whether it
   resolved at all, so a user cannot map the internal network; a failed
   lookup carries that message as `Unavailable` and is retried, so a resolver
-  outage is not read as a refusal.
+  outage is not read as a refusal. The error's kind (or its status) still
+  tells the two apart, so an app shows the user who chose the URL neither.
 - **Traced and measured.** Each call of an adapter's method is a `gateway`
   span named `<vendor>.<method>` (`stripe.charge`) with its outcome; each
   request under it an `http.client` span with the peer host, port, method,

@@ -66,7 +66,8 @@ impl Reach {
 
     /// The caller of an untrusted request chooses its URL, so telling an internal, a forbidden
     /// and an unresolvable host apart by message would let it map the internal network. A failed
-    /// lookup still stays a failure, so a resolver outage is retried rather than read as refusal.
+    /// lookup still stays a failure, so a resolver outage is retried rather than read as refusal;
+    /// its kind therefore differs, and must not reach the URL's author either.
     pub(crate) async fn resolve(
         self,
         target: &Target,

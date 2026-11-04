@@ -382,6 +382,28 @@ pub(crate) async fn sessions_started_by(read: &Read, impersonator: AccountId) ->
         .collect())
 }
 
+/// One recorded without the session it started from may have started from one of them.
+pub(crate) async fn sessions_started_from(
+    read: &Read,
+    impersonator: AccountId,
+    from: &[Uuid],
+) -> Result<Vec<Uuid>> {
+    let open = Impersonation::query()
+        .where_(Impersonation::IMPERSONATOR.eq(impersonator))
+        .where_(Impersonation::ENDED_AT.is_null())
+        .all(read)
+        .await?;
+    Ok(open
+        .into_iter()
+        .filter(|impersonation| {
+            impersonation
+                .started_from
+                .is_none_or(|started| from.contains(&started))
+        })
+        .map(|impersonation| impersonation.session)
+        .collect())
+}
+
 async fn of_session(read: &Read, session: Option<Uuid>) -> Result<Option<Impersonation>> {
     let Some(session) = session else {
         return Ok(None);

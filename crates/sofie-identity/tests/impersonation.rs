@@ -700,6 +700,37 @@ async fn removing_the_impersonators_membership_ends_the_impersonations_it_starte
 }
 
 #[tokio::test]
+async fn removing_the_impersonators_membership_of_another_area_keeps_its_impersonations() {
+    let app = started().await;
+    let (grace, staff) = support::joined::<Console>(&app, "grace@example.com").await;
+    support::confirm(&app, grace).await;
+    support::joined::<Member>(&app, "ada@example.com").await;
+    grant_impersonation(&app, grace).await;
+    let read = app.db().read();
+    let email = sofie::values::Email::parse("grace@example.com").unwrap();
+    let mut added = sofie_identity::add_member(&read, &app.db().clock(), email, Member::NAME)
+        .await
+        .unwrap();
+    app.db().commit(&mut added).await.unwrap();
+    let ada = impersonate(&app, &staff, "ada@example.com")
+        .await
+        .session()
+        .unwrap();
+
+    let mut removed =
+        sofie_identity::remove_membership(&read, grace, Member::NAME, app.db().clock().now())
+            .await
+            .unwrap();
+    app.db().commit(&mut removed).await.unwrap();
+
+    app.get("/account/who")
+        .session(&ada)
+        .accept_json()
+        .await
+        .assert_ok();
+}
+
+#[tokio::test]
 async fn closing_an_impersonated_account_ends_the_impersonation_on_the_record() {
     let app = started().await;
     let (grace, staff) = support::joined::<Console>(&app, "grace@example.com").await;

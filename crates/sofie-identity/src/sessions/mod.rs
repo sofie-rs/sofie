@@ -290,17 +290,25 @@ pub(crate) async fn ending_all(
     ending(read, which, now).await
 }
 
-/// Each of the account's live sessions in `area`, and those of the impersonations it started,
-/// ended: for a membership of it removed, committed with the removal.
+/// Each of the account's live sessions in `area`, and those of the impersonations it started
+/// from there, ended: for a membership of it removed, committed with the removal.
 pub async fn ending_in(read: &Read, account: AccountId, area: &str, now: Instant) -> Result<Ended> {
     let which = AccountSession::query()
         .where_(AccountSession::ACCOUNT.eq(account))
         .where_(AccountSession::AREA.eq(area.to_owned()));
+    #[cfg(feature = "impersonation")]
+    let from: Vec<Uuid> = which
+        .clone()
+        .all(read)
+        .await?
+        .into_iter()
+        .map(|record| record.session)
+        .collect();
     #[cfg_attr(not(feature = "impersonation"), expect(unused_mut))]
     let mut ended = ending(read, which, now).await?;
     #[cfg(feature = "impersonation")]
     {
-        let started = crate::impersonation::sessions_started_by(read, account).await?;
+        let started = crate::impersonation::sessions_started_from(read, account, &from).await?;
         let impersonated = AccountSession::query().where_(AccountSession::SESSION.in_(started));
         ended.add(ending(read, impersonated, now).await?);
     }

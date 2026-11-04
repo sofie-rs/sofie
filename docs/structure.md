@@ -174,7 +174,7 @@ appears when its first file does.
 | Config | `config.rs` | Typed config struct, boot-time validation, the module's `.env.example`, injection into the module's handlers |
 | Aggregate | `<aggregate>/mod.rs` | Through its derive: columns, typed column constants, field metadata. From that, in the library: load and save, validation, input DTOs, permissions, form fields and table columns, fixtures, `schema:check`. Through `sofie gen`: contract DTOs for exposed fields |
 | Read model | beside the queries that use it | One SQL statement with its joins, decoding, screen binding |
-| Migration | `migrations/*.sql` | Applied in order; compared with the schema by `schema:check`; held by `sofie check` to not lock a table the running version uses and to name no other module's schema. `sofie gen` writes `0000_module_role.sql` once: the module's database role |
+| Migration | `migrations/*.sql` | Applied in order; compared with the schema by `schema:check`; held by `sofie check` to not lock a table the running version uses and to name no other module's schema. `sofie gen` writes `0000_module_role.sql` once: the module's database role, with a comment-only SQLite twin |
 | Factory | `<aggregate>/factory.rs` | The only constructor, enforced by module privacy; derived by default when absent |
 | Action | `actions/*.rs` | Arguments resolved by type, the commit of what it returns, span and metrics, and by annotation: queued job, schedule, event listener |
 | Query | `queries/*.rs` | Read-only connection (a type, so writing does not compile), screen data binding |

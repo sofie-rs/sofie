@@ -647,7 +647,8 @@ stays local.
   migration, `0000_module_role.sql`, once (an applied migration never
   changes); it only calls `sofie.module_role('<module>')`, which the
   framework's migrations define, so the grants are library code and not
-  copied into every module. It makes a role named as the module's schema
+  copied into every module; a module with `migrations/sqlite/` gets a
+  comment-only twin there, since SQLite has no roles. It makes a role named as the module's schema
   that owns the schema and
   every table in it, and of `sofie` gets what a commit writes (messages,
   history, idempotency keys, flags read). The app's login migrates as the

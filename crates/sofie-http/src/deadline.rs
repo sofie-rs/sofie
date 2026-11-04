@@ -7,7 +7,9 @@ use std::time::Duration;
 use sofie_core::unpoisoned;
 use tokio::time::Instant;
 
+#[cfg(feature = "engine")]
 use crate::answer::Response;
+#[cfg(feature = "engine")]
 use crate::caller::Caller;
 
 pub(crate) const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);

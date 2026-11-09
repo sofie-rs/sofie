@@ -3,7 +3,7 @@
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
-use sofie_auth::{SIGNING_KEYS, new_signing_key};
+use sofie_auth::{OLD_SIGNING_KEYS, SIGNING_KEYS, new_signing_key};
 use sofie_testing::TestDatabase;
 
 fn shop() -> PathBuf {
@@ -17,11 +17,14 @@ fn sofie_on_shop(arguments: &[&str]) -> String {
         .build()
         .unwrap()
         .block_on(TestDatabase::create());
+    let key = new_signing_key().unwrap();
+    // The same under the old name too, as a `.env` may still set that.
     let output: Output = Command::new(env!("CARGO_BIN_EXE_sofie"))
         .args(arguments)
         .arg(shop())
         .env("DATABASE_URL", database.url())
-        .env(SIGNING_KEYS, new_signing_key().unwrap())
+        .env(SIGNING_KEYS, &key)
+        .env(OLD_SIGNING_KEYS, &key)
         .output()
         .unwrap();
     drop(database);

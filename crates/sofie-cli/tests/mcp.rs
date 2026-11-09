@@ -799,14 +799,14 @@ fn app_tools_run_the_shop_and_answer_a_request_with_its_span_tree() {
         .build()
         .unwrap()
         .block_on(sofie_testing::TestDatabase::create());
+    let key = sofie_auth::new_signing_key().unwrap();
+    // The same under the old name too, as a `.env` may still set that.
     let mut mcp = Command::new(env!("CARGO_BIN_EXE_sofie"))
         .arg("mcp")
         .arg(shop())
         .env("DATABASE_URL", database.url())
-        .env(
-            sofie_auth::SIGNING_KEYS,
-            sofie_auth::new_signing_key().unwrap(),
-        )
+        .env(sofie_auth::SIGNING_KEYS, &key)
+        .env(sofie_auth::OLD_SIGNING_KEYS, &key)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .spawn()

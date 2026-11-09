@@ -16,6 +16,8 @@ use crate::membership::Membership;
 
 /// A write per request would cost more than the request itself.
 const LAST_USE_PRECISION: Duration = Duration::from_secs(60);
+#[cfg(feature = "token-screens")]
+const REVEALING: &str = "sofie_identity.access_token.revealing";
 
 /// Only the digest of its text is stored; revoking deletes it softly.
 #[derive(Aggregate)]
@@ -29,6 +31,8 @@ pub struct AccessToken {
     scopes: String,
     expires_at: Instant,
     last_used_at: Option<Instant>,
+    /// Sealed, so the token screen shows a token it issued until its owner has seen it.
+    revealing: Option<String>,
 }
 
 pub type AccessTokenId = Id<AccessToken>;
@@ -90,6 +94,7 @@ async fn record_use(db: &Db, token: &mut AccessToken, now: Instant) -> Result<()
         return Ok(());
     }
     token.last_used_at = Some(now);
+    token.revealing = None;
     match db.commit(token).await {
         // A request with the same token recorded its use first.
         Err(Error::Conflict) => Ok(()),

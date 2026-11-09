@@ -90,6 +90,40 @@ async fn a_principal_lists_and_revokes_only_its_own_tokens() {
     assert_eq!(held.len(), 1);
 }
 
+#[tokio::test]
+async fn a_principal_issues_a_token_whose_secret_shows_until_it_says_done() {
+    let app = started().await;
+    let (_, session) = member(&app, "ada@example.com").await;
+
+    let issued = app
+        .post("/console/tokens/new")
+        .session(&session)
+        .accept_json()
+        .json(&json!({ "scopes": "sofie_identity.access_token.*.read", "days": 30 }))
+        .await;
+    issued.assert_ok();
+    let secret = issued.json()["token"].as_str().unwrap().to_owned();
+    let shown = app.get("/console/tokens/new").session(&session).await;
+    assert_eq!(shown.status, 200, "{}", shown.body);
+    assert!(shown.body.contains(&secret), "{}", shown.body);
+    let listed = app
+        .get("/console/tokens")
+        .session(&session)
+        .accept_json()
+        .await
+        .json();
+    assert_eq!(listed[0]["scopes"], "sofie_identity.access_token.*.read");
+
+    app.post("/console/tokens/new/done")
+        .session(&session)
+        .json(&json!({}))
+        .await
+        .assert_ok();
+    let hidden = app.get("/console/tokens/new").session(&session).await;
+    assert_eq!(hidden.status, 200, "{}", hidden.body);
+    assert!(!hidden.body.contains(&secret), "{}", hidden.body);
+}
+
 #[cfg(feature = "impersonation")]
 struct Partner;
 

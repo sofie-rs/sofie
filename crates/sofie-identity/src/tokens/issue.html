@@ -1,0 +1,10 @@
+<Section id="issued" title={t("identity.tokens.issue_title")}>
+  {#if data.revealed}
+    <p>{t("identity.tokens.shown_until_done")}</p>
+    <p><code>{data.revealed.token}</code></p>
+    <Action post="tokens/new/done" label={t("identity.tokens.done")} target="issued" />
+  {/if}
+  <Form id="issue-token" post="tokens/new" target="issued">
+    <Submit label={t("identity.tokens.issue")} />
+  </Form>
+</Section>

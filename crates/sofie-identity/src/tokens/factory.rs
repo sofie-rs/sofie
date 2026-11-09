@@ -25,6 +25,13 @@ impl Issued {
     pub fn secret(&self) -> &BearerToken {
         &self.secret
     }
+
+    #[cfg(feature = "token-screens")]
+    pub(crate) fn revealed(mut self, sealing: &sofie::http::Sealing) -> Result<Self> {
+        let sealed = sealing.seal(super::REVEALING, self.secret.expose().as_bytes())?;
+        self.token.revealing = Some(sealed);
+        Ok(self)
+    }
 }
 
 impl Outcome for Issued {
@@ -69,6 +76,7 @@ pub async fn issue<A: Area>(
         scopes: scopes.join(" "),
         expires_at,
         last_used_at: None,
+        revealing: None,
     };
     Ok(Issued { token, secret })
 }

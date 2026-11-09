@@ -9,7 +9,7 @@ use serde::Deserialize;
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 use sofie_auth::SigningKeys;
-use sofie_core::{Error, FieldError, Result, Timestamp, Uuid};
+use sofie_core::{Error, ErrorStatus, FieldError, Result, Timestamp, Uuid};
 use sofie_db::remote::{CONTRACTS_PATH, FEED_PATH, LOOKUPS_PATH, PRINCIPAL_HEADER, lookup_name};
 use sofie_db::{BoxFuture, FeedEntry, FeedSource, Lookup};
 use tracing::Instrument;
@@ -89,11 +89,11 @@ struct RefusedField {
 /// The error the serving app answered with, so a caller handles it as an in-process one.
 fn refused(app: &str, response: &Response) -> Error {
     let refusal: Refusal = serde_json::from_slice(response.body()).unwrap_or_default();
-    match response.status() {
-        400 => Error::BadRequest(refusal.error),
-        404 => Error::NotFound,
-        409 => Error::Conflict,
-        422 => match refusal.errors {
+    match ErrorStatus::from_code(response.status()) {
+        Some(ErrorStatus::BadRequest) => Error::BadRequest(refusal.error),
+        Some(ErrorStatus::NotFound) => Error::NotFound,
+        Some(ErrorStatus::Conflict) => Error::Conflict,
+        Some(ErrorStatus::Unprocessable) => match refusal.errors {
             Some(fields) => Error::Invalid(
                 fields
                     .into_iter()
@@ -102,10 +102,11 @@ fn refused(app: &str, response: &Response) -> Error {
             ),
             None => Error::Rule(refusal.error),
         },
-        429 => Error::TooManyRequests(retry_after(response)),
-        503 => Error::Unavailable(format!("{app} is unavailable")),
-        status => Error::internal_message(format!(
-            "{app} answered {status}; its own trace holds the reason"
+        Some(ErrorStatus::TooManyRequests) => Error::TooManyRequests(retry_after(response)),
+        Some(ErrorStatus::Unavailable) => Error::Unavailable(format!("{app} is unavailable")),
+        Some(ErrorStatus::Internal) | None => Error::internal_message(format!(
+            "{app} answered {}; its own trace holds the reason",
+            response.status()
         )),
     }
 }
@@ -272,6 +273,9 @@ mod tests {
             matches!(answered(400, "not json"), Error::BadRequest(message) if message.is_empty())
         );
         assert!(matches!(answered(404, ""), Error::NotFound));
+        assert!(matches!(answered(503, ""), Error::Unavailable(_)));
+        assert!(matches!(answered(500, ""), Error::Internal { .. }));
+        assert!(matches!(answered(502, ""), Error::Internal { .. }));
     }
 
     #[test]

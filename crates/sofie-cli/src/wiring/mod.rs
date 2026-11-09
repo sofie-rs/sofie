@@ -51,6 +51,7 @@ pub(crate) fn render_wiring(
         optional(wiring.mails.as_ref()),
         components(app).to_string(),
         wiring.screens().to_string(),
+        optional(wiring.translations().as_ref()),
     ];
     let mut text = HEADER.to_owned();
     for item in items.iter().filter(|item| !item.is_empty()) {
@@ -194,6 +195,7 @@ impl<'app> Wiring<'app> {
         let settings = self.gating.declared_settings();
         let provide = self.provide.is_some().then(|| quote!(provide(&db);));
         let mails = mails::register(self.mails.as_ref());
+        let mail_translations = self.mail_translations(&quote!(translations()?));
         let personal_data = self.personal_data();
         let gateways = self.gateways.is_some().then(|| quote!(gateways()?;));
         let connections = remote::connections(self.app);
@@ -213,6 +215,7 @@ impl<'app> Wiring<'app> {
                 #gateways
                 #(#connections)*
                 #mails
+                #mail_translations
                 #provide
                 #personal_data
                 #serving
@@ -250,6 +253,9 @@ impl<'app> Wiring<'app> {
         let flags = self.gating.flags_parameter(true);
         let provide = self.provide.is_some().then(|| quote!(provide(&db);));
         let mails = mails::register(self.mails.as_ref());
+        let mail_translations = self.mail_translations(&quote!(
+            translations().expect("the app's translations load, as `sofie check` read them")
+        ));
         let billing = self
             .plans
             .as_ref()
@@ -258,6 +264,7 @@ impl<'app> Wiring<'app> {
             #[must_use]
             pub fn worker(db: Db #flags) -> Worker {
                 #mails
+                #mail_translations
                 #provide
                 #billing
                 #worker
@@ -289,11 +296,22 @@ impl<'app> Wiring<'app> {
         })
     }
 
+    fn translations(&self) -> Option<TokenStream> {
+        self.languages
+            .map(|languages| languages.translations_function(self.app))
+    }
+
+    /// A mail is written in its reader's language, from the same files as the screens.
+    fn mail_translations(&self, built: &TokenStream) -> Option<TokenStream> {
+        (self.languages.is_some() && self.mails.is_some())
+            .then(|| quote!(sofie::mail::translations(&db, std::sync::Arc::new(#built));))
+    }
+
     fn screens(&self) -> TokenStream {
         let table = quote!(sofie::http::wired_screens(MODULES, COMPONENTS));
         let translate = self
             .languages
-            .map(|languages| languages.translate_statement(self.app));
+            .map(|_| quote!(screens.translate(translations()?);));
         let statements: Vec<TokenStream> = translate
             .into_iter()
             .chain(self.islands.clone())

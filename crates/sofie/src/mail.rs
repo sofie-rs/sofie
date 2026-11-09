@@ -1,5 +1,7 @@
 //! Queued by a handler, delivered by the worker.
 
+#[cfg(feature = "i18n")]
+pub use sofie_mail::translations;
 #[cfg(feature = "mail-web")]
 pub use sofie_mail::web;
 pub use sofie_mail::{

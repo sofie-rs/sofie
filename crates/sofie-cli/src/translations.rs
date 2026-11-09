@@ -7,7 +7,8 @@ use sofie_check::{Finding, Rule, Screens};
 use sofie_engine::{KeyUse, Template, TranslationError, Translations, check_translations};
 use sofie_model::App;
 use sofie_model::naming::{
-    IDENTITY_PACKAGE, SOURCE_LANGUAGE, crate_name, file_stem, key_constant, snake_case,
+    IDENTITY_PACKAGE, SOURCE_LANGUAGE, TENANCY_PACKAGE, crate_name, file_stem, key_constant,
+    snake_case,
 };
 
 use crate::gen_command::{GenError, io_error, readable_screen};
@@ -17,7 +18,7 @@ use crate::source_edits::files_with_extension;
 pub(crate) struct AppLanguages {
     languages: Vec<String>,
     files: Vec<LanguageFile>,
-    identity: Option<Identity>,
+    packages: Vec<Package>,
 }
 
 pub(crate) struct LanguageFile {
@@ -27,7 +28,9 @@ pub(crate) struct LanguageFile {
     source: String,
 }
 
-struct Identity {
+/// A sofie package the app depends on, whose `lang/` files ship beside its `TRANSLATIONS`.
+struct Package {
+    crate_name: String,
     files: Vec<LanguageFile>,
     screens: Vec<PathBuf>,
 }
@@ -41,15 +44,17 @@ impl AppLanguages {
         if files.is_empty() {
             return Ok(None);
         }
-        let identity = app
-            .identity
-            .as_ref()
-            .map(|_| read_identity(app))
-            .transpose()?;
-        Ok(Some(Self::new(files, identity)))
+        let mut packages = Vec::new();
+        if app.identity.is_some() {
+            packages.push(read_package(app, IDENTITY_PACKAGE)?);
+        }
+        if app.depends_on(TENANCY_PACKAGE) {
+            packages.push(read_package(app, TENANCY_PACKAGE)?);
+        }
+        Ok(Some(Self::new(files, packages)))
     }
 
-    fn new(files: Vec<LanguageFile>, identity: Option<Identity>) -> Self {
+    fn new(files: Vec<LanguageFile>, packages: Vec<Package>) -> Self {
         let named = files.iter().map(|file| file.language.clone());
         let mut languages =
             crate::sorted::first_seen(std::iter::once(SOURCE_LANGUAGE.to_owned()).chain(named));
@@ -57,7 +62,7 @@ impl AppLanguages {
         Self {
             languages,
             files,
-            identity,
+            packages,
         }
     }
 
@@ -67,13 +72,13 @@ impl AppLanguages {
         for file in &self.files {
             translations.add(&file.module, &file.language, &file.source)?;
         }
-        if let Some(identity) = &self.identity {
-            let builtin: Vec<(&str, &str)> = identity
+        for package in &self.packages {
+            let builtin: Vec<(&str, &str)> = package
                 .files
                 .iter()
                 .map(|file| (file.language.as_str(), file.source.as_str()))
                 .collect();
-            translations.add_builtin(&crate_name(IDENTITY_PACKAGE), &builtin)?;
+            translations.add_builtin(&package.crate_name, &builtin)?;
         }
         Ok(translations)
     }
@@ -83,15 +88,15 @@ impl AppLanguages {
             Ok(translations) => translations,
             Err(error) => return Ok(vec![self.load_finding(&error)]),
         };
-        let identity_templates = self.identity_templates()?;
-        let identity_templates = identity_templates
+        let package_templates = self.package_templates()?;
+        let package_templates = package_templates
             .iter()
             .map(|(file, template)| (file.as_path(), template));
         let mut findings = Vec::new();
         let mut uses: Vec<KeyUse> = Vec::new();
         for (file, template) in module_templates(app, screens)?
             .into_iter()
-            .chain(identity_templates)
+            .chain(package_templates)
         {
             if let Err(error) = check_translations(template, &translations) {
                 findings.push(finding(
@@ -188,9 +193,9 @@ impl AppLanguages {
             .collect())
     }
 
-    fn identity_templates(&self) -> Result<Vec<(PathBuf, Template)>, GenError> {
+    fn package_templates(&self) -> Result<Vec<(PathBuf, Template)>, GenError> {
         let mut templates = Vec::new();
-        for file in self.identity.iter().flat_map(|identity| &identity.screens) {
+        for file in self.packages.iter().flat_map(|package| &package.screens) {
             let source = fs::read_to_string(file).map_err(|source| io_error(file, source))?;
             if let Ok(template) = Template::parse(&file.display().to_string(), &source) {
                 templates.push((file.clone(), template));
@@ -220,8 +225,8 @@ impl AppLanguages {
     }
 
     fn all_files(&self) -> impl Iterator<Item = &LanguageFile> {
-        let identity = self.identity.iter().flat_map(|identity| &identity.files);
-        self.files.iter().chain(identity)
+        let packages = self.packages.iter().flat_map(|package| &package.files);
+        self.files.iter().chain(packages)
     }
 
     fn file_for(&self, language: &str) -> PathBuf {
@@ -233,7 +238,8 @@ impl AppLanguages {
             .unwrap_or_default()
     }
 
-    pub(crate) fn translate_statement(&self, app: &App) -> TokenStream {
+    /// Built once for the screens and once for mail, as `Screens::translate` takes them whole.
+    pub(crate) fn translations_function(&self, app: &App) -> TokenStream {
         let languages = &self.languages;
         let files = self.files.iter().map(|file| {
             let module = &file.module;
@@ -247,18 +253,20 @@ impl AppLanguages {
             });
             quote!((#name, &[#(#variants),*]))
         });
-        let builtin = self.identity.iter().map(|_| {
-            let name = crate_name(IDENTITY_PACKAGE);
-            let identity = crate::wiring::path(&name);
-            quote!((#name, #identity::TRANSLATIONS))
+        let builtin = self.packages.iter().map(|package| {
+            let name = &package.crate_name;
+            let package = crate::wiring::path(name);
+            quote!((#name, #package::TRANSLATIONS))
         });
         quote! {
-            screens.translate(sofie::http::translations(
-                &[#(#languages),*],
-                &[#(#files),*],
-                &[#(#builtin),*],
-                &[#(#enums),*],
-            )?);
+            fn translations() -> Result<sofie::engine::Translations> {
+                sofie::http::translations(
+                    &[#(#languages),*],
+                    &[#(#files),*],
+                    &[#(#builtin),*],
+                    &[#(#enums),*],
+                )
+            }
         }
     }
 }
@@ -368,21 +376,23 @@ fn module_templates<'s>(
     Ok(templates)
 }
 
-fn read_identity(app: &App) -> Result<Identity, GenError> {
-    let krate = sofie_model::dependency_crate(&app.root, IDENTITY_PACKAGE)
+fn read_package(app: &App, package: &str) -> Result<Package, GenError> {
+    let krate = sofie_model::dependency_crate(&app.root, package)
         .map_err(GenError::Model)?
         .ok_or_else(|| {
             GenError::Model(sofie_model::ModelError::in_file(
                 &app.app.path.join("Cargo.toml"),
-                "the app uses sofie-identity but cargo does not list it",
+                format!("the app uses {package} but cargo does not list it"),
             ))
         })?;
-    Ok(Identity {
+    let crate_name = crate_name(package);
+    Ok(Package {
         files: language_files(
-            &crate_name(IDENTITY_PACKAGE),
+            &crate_name,
             &files_with_extension(&krate.path.join("lang"), "toml")?,
         )?,
         screens: files_with_extension(&krate.path.join("src/screens"), "html")?,
+        crate_name,
     })
 }
 
@@ -408,11 +418,10 @@ mod tests {
 
     #[test]
     fn declares_the_source_language_then_each_file_s() {
-        let languages = AppLanguages::new(vec![file("tr", ""), file("de", "")], None);
+        let languages = AppLanguages::new(vec![file("tr", ""), file("de", "")], Vec::new());
         let shop = app("shop", vec![module("order", "shop/modules/order")]);
 
-        let statement = languages.translate_statement(&shop);
-        let statement = rendered(&quote!(fn screens() { #statement }));
+        let statement = rendered(&languages.translations_function(&shop));
 
         assert!(
             statement.contains("&[\"en\", \"de\", \"tr\"]"),
@@ -426,7 +435,7 @@ mod tests {
 
     #[test]
     fn a_file_that_does_not_load_is_a_finding_at_that_file() {
-        let languages = AppLanguages::new(vec![file("tr", "[orders\n")], None);
+        let languages = AppLanguages::new(vec![file("tr", "[orders\n")], Vec::new());
 
         let findings = languages
             .findings(&app("shop", Vec::new()), &Screens::read(&[]))
@@ -447,7 +456,7 @@ mod tests {
                 file("de", "[orders]\ntitle = \"Bestellungen\"\n"),
                 file("tr", "[label]\nstatus = \"Durum\"\n"),
             ],
-            None,
+            Vec::new(),
         );
 
         let findings = languages
@@ -477,7 +486,7 @@ mod tests {
                 "en",
                 "orders_title = \"Orders\"\n[404]\ntitle = \"Not found\"\n[orders]\ntitle = \"Orders\"\n",
             )],
-            None,
+            Vec::new(),
         );
         let shop = app("shop", vec![module("order", "shop/modules/order")]);
 
@@ -494,15 +503,14 @@ mod tests {
 
     #[test]
     fn registers_each_module_enum_with_its_tones() {
-        let languages = AppLanguages::new(vec![file("tr", "")], None);
+        let languages = AppLanguages::new(vec![file("tr", "")], Vec::new());
         let mut order = module("order", "shop/modules/order");
         let mut status =
             sofie_model::testing::enumeration("OrderStatus", &[("Open", &[]), ("Paid", &[])]);
         status.variants[1].tone = Some("success".to_owned());
         order.code.enums.push(status);
 
-        let statement = languages.translate_statement(&app("shop", vec![order]));
-        let statement = rendered(&quote!(fn screens() { #statement }));
+        let statement = rendered(&languages.translations_function(&app("shop", vec![order])));
 
         assert!(
             statement.contains(
@@ -514,6 +522,33 @@ mod tests {
     }
 
     #[test]
+    fn an_app_with_mails_writes_them_in_its_languages_on_the_app_and_the_worker() {
+        let languages = AppLanguages::new(vec![file("tr", "")], Vec::new());
+        let mut order = module("order", "shop/modules/order");
+        order.mails = vec![sofie_model::MailTemplate {
+            key: "order/receipt".to_owned(),
+            file: PathBuf::from("shop/modules/order/src/mails/receipt.html"),
+        }];
+
+        let wiring = crate::wiring::render_wiring(&app("shop", vec![order]), Some(&languages), &[]);
+        let plain = crate::wiring::render_wiring(
+            &app("shop", vec![module("order", "shop/modules/order")]),
+            Some(&languages),
+            &[],
+        );
+
+        let registered =
+            "sofie :: mail :: translations (& db , std :: sync :: Arc :: new (translations ()";
+        assert_eq!(wiring.matches(registered).count(), 2, "{wiring}");
+        assert!(
+            wiring.contains("screens . translate (translations () ?)"),
+            "{wiring}"
+        );
+        assert!(wiring.contains("fn translations ()"), "{wiring}");
+        assert!(!plain.contains("sofie :: mail"), "{plain}");
+    }
+
+    #[test]
     fn a_tone_starting_with_a_letter_of_several_bytes_is_capitalized_without_panicking() {
         assert_eq!(tone_variant(Some("ünlü")), "Ünlü");
         assert_eq!(tone_variant(None), "Neutral");
@@ -521,7 +556,8 @@ mod tests {
 
     #[test]
     fn a_key_rust_names_must_be_in_the_source_language() {
-        let languages = AppLanguages::new(vec![file("en", "[order]\nlate = \"Late\"\n")], None);
+        let languages =
+            AppLanguages::new(vec![file("en", "[order]\nlate = \"Late\"\n")], Vec::new());
         let mut order = module("order", "shop/modules/order");
         let literal = |key: &str, line| sofie_model::KeyLiteral {
             key: key.to_owned(),

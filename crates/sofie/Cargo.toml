@@ -21,7 +21,7 @@ postgres-tls = ["postgres", "sofie-postgres/tls"]
 engine = ["dep:sofie-engine", "sofie-http/engine"]
 chosen-screens = ["engine", "sofie-http/chosen-screens"]
 # Screens, notices and field errors in the language each request negotiates.
-i18n = ["engine", "sofie-http/i18n"]
+i18n = ["engine", "sofie-http/i18n", "sofie-mail?/i18n"]
 # `Grid`, `Card` and `Image`, for screens that are not records.
 layout = ["engine", "sofie-engine/layout"]
 # `<Markdown text={…} />` and `<Head …/>`: written text and a page's search and link-preview tags.
@@ -173,6 +173,8 @@ mail = ["jobs", "dep:sofie-mail"]
 mail-web = ["mail", "resources", "signed-links", "webhooks", "sofie-mail/web"]
 # Notifications over the inbox, mail and web push (`SOFIE_NOTIFY_VAPID_*`).
 notify = ["mail", "local-time", "dep:sofie-notify"]
+# `sofie::notify::inbox_routes`: the inbox screen, kept current through live screens.
+notify-screens = ["notify", "resources", "live", "sofie-notify/screens"]
 # Smaller copies of an image made by a `Resizer` the app brings, in a job taking `Dep<Storage>`.
 image-variants = ["storage", "sofie-storage/variants"]
 # Plans, entitlements and quotas; a provider from `SOFIE_BILLING_*`, heard through a webhook.

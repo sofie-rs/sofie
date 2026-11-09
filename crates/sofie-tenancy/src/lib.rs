@@ -26,6 +26,9 @@ pub use organizations::{ROUTES as MEMBER_ROUTES, routes as member_routes};
 
 const MODULE_NAME: &str = "sofie_tenancy";
 
+pub const TRANSLATIONS: &[sofie::db::File] =
+    sofie::db::embed!("lang", ["de.toml", "en.toml", "tr.toml"]);
+
 /// Its routes are mounted in the app's own areas (`member_routes`, `organization_routes`).
 pub const MODULE: sofie::http::Module = sofie::http::Module {
     migrations: Some(migrations()),

@@ -1205,7 +1205,8 @@ by default.
 ### Notifications: one send, every channel
 
 The `sofie-notify` crate, behind the `sofie` facade's `notify` feature (which
-brings `mail` and `local-time`), off by default. Its tables are framework
+brings `mail` and `local-time`), off by default; `notify-screens` adds the
+inbox screen (`sofie::notify::inbox_routes`). Its tables are framework
 migrations, so nothing is wired per app.
 
 - **Declared and sent.** A module declares `Topic` constants
@@ -1462,11 +1463,15 @@ compiled by the app's build script, loaded at boot and rendered by the engine.
   `sofie check` runs; `Translations::keys` is what `sofie gen` writes as constants.
   `<Badge value={…} enum="order_status" />` and a select whose quoted
   `options` names a registered enum show translated variants with their tone.
-  The `sofie` facade forwards the feature as `i18n` (sofie-http's `i18n`). `sofie gen`
+  The `sofie` facade forwards the feature as `i18n` (sofie-http's and
+  sofie-mail's `i18n`). `sofie gen`
   then declares the app's languages from the `lang/*.toml` files present
   (`en`, the language names are written in, first), embeds every module's
-  files and sofie-identity's own, and hands them to `Screens::translate` (the
-  screens were checked against them as the app was built). Each request
+  files and sofie-identity's and sofie-tenancy's own (each package's
+  `TRANSLATIONS`) in the wiring's `translations()`, and hands them to
+  `Screens::translate` (the screens were checked against them as the app was
+  built) and, for an app with mails, to `sofie::mail::translations` on the
+  app's and the worker's database. Each request
   negotiates its language from the signed-in account's chosen locale
   (`SessionRecord::Live`'s `language`, which sofie-identity fills from the
   account's `locale`, set on `sessions::language_routes`), then

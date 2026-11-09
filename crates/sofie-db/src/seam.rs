@@ -158,6 +158,11 @@ pub trait Driver: Send + Sync + 'static {
         None
     }
 
+    /// Woken by `Dialect::flags_notify`.
+    fn flag_wakeups(&self) -> Option<BoxFuture<'_, Result<Box<dyn Wakeups>>>> {
+        None
+    }
+
     #[cfg(feature = "shield")]
     fn shield_wakeups(&self) -> Option<BoxFuture<'_, Result<Box<dyn Wakeups>>>> {
         None
@@ -309,6 +314,11 @@ pub trait Dialect: Send + Sync + std::any::Any {
     fn framework_migrations(&self) -> Migrations;
 
     fn messages(&self) -> &'static MessageSql;
+
+    /// Committed with a change to the stored flags or settings.
+    fn flags_notify(&self) -> Option<&'static str> {
+        None
+    }
 
     #[cfg(feature = "shield")]
     fn shield(&self) -> Option<&'static crate::ShieldSql> {

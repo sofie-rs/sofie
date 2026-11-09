@@ -68,6 +68,10 @@ impl Dialect for Postgres {
         &MESSAGES
     }
 
+    fn flags_notify(&self) -> Option<&'static str> {
+        Some("NOTIFY sofie_flags")
+    }
+
     #[cfg(feature = "shield")]
     fn shield(&self) -> Option<&'static sofie_db::ShieldSql> {
         Some(&crate::shield::SHIELD)

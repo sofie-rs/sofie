@@ -329,7 +329,7 @@ impl Driver for Interrupted {
         self.postgres.transaction(steps)
     }
 
-    fn wakeups(&self) -> Option<BoxFuture<'_, Result<Box<dyn Wakeups>>>> {
+    fn flag_wakeups(&self) -> Option<BoxFuture<'_, Result<Box<dyn Wakeups>>>> {
         let subscription = self.subscriptions.fetch_add(1, Ordering::SeqCst);
         Some(Box::pin(async move {
             if subscription == 0 {
@@ -392,7 +392,7 @@ impl Driver for Dropping {
         self.postgres.transaction(steps)
     }
 
-    fn wakeups(&self) -> Option<BoxFuture<'_, Result<Box<dyn Wakeups>>>> {
+    fn flag_wakeups(&self) -> Option<BoxFuture<'_, Result<Box<dyn Wakeups>>>> {
         self.subscriptions.fetch_add(1, Ordering::SeqCst);
         Some(Box::pin(async {
             Ok(Box::new(Failing) as Box<dyn Wakeups>)
@@ -420,4 +420,65 @@ async fn a_listener_that_keeps_dropping_is_not_resubscribed_in_a_tight_loop() {
         subscribed <= 10,
         "subscribed {subscribed} times in a second"
     );
+}
+
+/// Counts each read of the flags table.
+struct CountingReads {
+    postgres: Postgres,
+    reads: Arc<AtomicUsize>,
+}
+
+impl Driver for CountingReads {
+    fn dialect(&self) -> &dyn Dialect {
+        self.postgres.dialect()
+    }
+
+    fn query<'a>(
+        &'a self,
+        sql: &'a str,
+        params: &'a [SqlValue],
+        rows: &'a mut dyn RowSink,
+    ) -> BoxFuture<'a, Result<()>> {
+        if sql.contains("\"flags\"") {
+            self.reads.fetch_add(1, Ordering::SeqCst);
+        }
+        self.postgres.query(sql, params, rows)
+    }
+
+    fn transaction(&self, steps: Vec<Step>) -> BoxFuture<'_, Result<()>> {
+        self.postgres.transaction(steps)
+    }
+
+    fn wakeups(&self) -> Option<BoxFuture<'_, Result<Box<dyn Wakeups>>>> {
+        self.postgres.wakeups()
+    }
+
+    fn flag_wakeups(&self) -> Option<BoxFuture<'_, Result<Box<dyn Wakeups>>>> {
+        self.postgres.flag_wakeups()
+    }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn queued_messages_do_not_make_the_flags_read_again() {
+    let database = TestDatabase::create().await;
+    migrated(&database).await;
+    let reads = Arc::new(AtomicUsize::new(0));
+    let counting = CountingReads {
+        postgres: Postgres::connect(database.url()).unwrap(),
+        reads: Arc::clone(&reads),
+    };
+    let _flags = Flags::start(&Db::new(counting), "production")
+        .await
+        .unwrap();
+    let started = reads.load(Ordering::SeqCst);
+
+    let notify = Step::Script("NOTIFY sofie_messages".to_owned());
+    Postgres::connect(database.url())
+        .unwrap()
+        .transaction(vec![notify])
+        .await
+        .unwrap();
+    tokio::time::sleep(Duration::from_millis(500)).await;
+
+    assert_eq!(reads.load(Ordering::SeqCst), started);
 }

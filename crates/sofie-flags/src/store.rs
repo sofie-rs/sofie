@@ -134,7 +134,7 @@ struct Changed<A>(A);
 impl<A: Aggregate> Outcome for Changed<A> {
     fn plan(&self, plan: &mut Plan<'_>) -> Result<()> {
         self.0.plan(plan)?;
-        if let Some(notify) = plan.dialect().messages().notify {
+        if let Some(notify) = plan.dialect().flags_notify() {
             plan.push(Step::Script(notify.to_owned()));
         }
         Ok(())

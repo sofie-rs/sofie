@@ -135,7 +135,7 @@ sofie-cli                               sofie new, gen, check, fix, docs, openap
 | `sofie-client` | Outgoing HTTP: the client every gateway adapter and remote contract is given, with tracing, limits and egress rules | An app that calls nothing outside itself |
 | `sofie-engine` | Template renderer and the loader of compiled templates, the parser behind `parse`, the component catalog, the embedded htmx and client, island mounting | A JSON-only API: `sofie-http`'s `engine` feature (on by default, and turned on by `sofie`'s) brings in screens, htmx notices and form bodies |
 | `sofie-telemetry` | The `tracing` setup, log masking, metrics; OTLP export behind a feature | Nobody, but the exporter is optional |
-| `sofie-flags` | Feature flags: `Feature` and `Variants` constants, rules in `sofie.flags`, held in process and refreshed on the messages channel's wake-ups (or every 30 s), `Features` per request, `gated` jobs; runtime settings in `sofie.settings`, held in the same snapshot and read through `sofie::RuntimeSettings` | An app without flags: it is behind `sofie`'s `feature-flags` |
+| `sofie-flags` | Feature flags: `Feature` and `Variants` constants, rules in `sofie.flags`, held in process and refreshed on their own `sofie_flags` notification, which saving a flag or setting commits with (or every 30 s), `Features` per request, `gated` jobs; runtime settings in `sofie.settings`, held in the same snapshot and read through `sofie::RuntimeSettings` | An app without flags: it is behind `sofie`'s `feature-flags` |
 | `sofie-cache` | `Cache` with typed `Key`s, explicit expiry, single-flight `get_or_compute` and drops by aggregate change, over a bounded memory tier, `sofie.cache` (feature `database`) or Redis through its own RESP client (feature `redis`) | Every app that caches nothing: it is behind `sofie`'s `cache`, `cache-database`, `cache-redis` |
 | `sofie-storage` | `Storage` over a `Store`: files under generated `StorageKey`s, streamed in and out, signed download links; a local directory (feature `local`) or an S3-compatible bucket signed with SigV4 through sofie-client (feature `s3`) | Every app that keeps no files: it is behind `sofie`'s `storage`, `storage-s3`, `uploads` |
 | `sofie-sqlite` | The database seam for SQLite: one file, statements on one connection, `BEGIN IMMEDIATE` transactions, polling instead of `LISTEN` | Every app on Postgres: it is behind `sofie`'s `sqlite` |
@@ -1212,7 +1212,9 @@ migrations, so nothing is wired per app.
   retries only its own.
 - **Inbox.** `Inbox` (the request's principal): `latest`, `unread`,
   `mark_read`, `mark_all_read`. A screen route listing it with `.live(…)`
-  refreshes as the worker commits new rows.
+  refreshes as the worker commits new rows. With the crate's `screens` feature,
+  `inbox_routes::<A>` mounts such a screen at `/notifications` (its newest 50, linked,
+  and "mark all read"), its texts under `notify.inbox.*` in `TRANSLATIONS`.
 - **Retention.** Hourly, `sofie_notify.prune` deletes inbox items read and
   digest items mailed more than 90 days ago; unread and unsent ones stay,
   and mail suppressions are kept.

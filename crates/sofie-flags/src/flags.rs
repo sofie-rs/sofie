@@ -11,7 +11,7 @@ use crate::{DeclaredSetting, Features, HeldSetting, Rule, SettingValue, Subject}
 
 /// Fallback re-read should a change's wake-up be lost.
 const EXPIRY: Duration = Duration::from_secs(30);
-/// A burst of wake-ups (every committed event sends one) is read once.
+/// A burst of wake-ups is read once.
 const SETTLE: Duration = Duration::from_millis(200);
 
 /// A request reads what is held and never waits for a refresh.
@@ -48,7 +48,7 @@ pub struct Settled {
 impl Flags {
     /// Listens before it reads, so a change committed once this returns always wakes it.
     pub async fn start(db: &Db, environment: &str) -> Result<Self> {
-        let listening = Listening::start(db.clone(), Channel::Messages, EXPIRY).await;
+        let listening = Listening::start(db.clone(), Channel::Flags, EXPIRY).await;
         let flags = Self {
             shared: Arc::new(Shared {
                 db: db.clone(),

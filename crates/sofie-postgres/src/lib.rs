@@ -172,6 +172,10 @@ impl Driver for Postgres {
         Some(self.subscribe(messages::LISTEN))
     }
 
+    fn flag_wakeups(&self) -> Option<BoxFuture<'_, Result<Box<dyn Wakeups>>>> {
+        Some(self.subscribe("LISTEN sofie_flags"))
+    }
+
     #[cfg(feature = "shield")]
     fn shield_wakeups(&self) -> Option<BoxFuture<'_, Result<Box<dyn Wakeups>>>> {
         Some(self.subscribe(shield::LISTEN))

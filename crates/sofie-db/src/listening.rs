@@ -10,6 +10,7 @@ const RESUBSCRIBE_AFTER: Duration = Duration::from_secs(1);
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Channel {
     Messages,
+    Flags,
     #[cfg(feature = "shield")]
     ShieldBlocks,
 }
@@ -18,6 +19,7 @@ impl Channel {
     fn name(self) -> &'static str {
         match self {
             Self::Messages => "messages",
+            Self::Flags => "flags",
             #[cfg(feature = "shield")]
             Self::ShieldBlocks => "shield_blocks",
         }
@@ -26,6 +28,7 @@ impl Channel {
     fn subscribe(self, db: &Db) -> Option<BoxFuture<'_, Result<Box<dyn Wakeups>>>> {
         match self {
             Self::Messages => db.driver().wakeups(),
+            Self::Flags => db.driver().flag_wakeups(),
             #[cfg(feature = "shield")]
             Self::ShieldBlocks => crate::SharedBlocks::of(db).wakeups(),
         }

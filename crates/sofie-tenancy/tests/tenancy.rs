@@ -1068,6 +1068,43 @@ async fn a_plan_started_for_a_deleted_organization_is_canceled_at_the_provider()
     );
 }
 
+/// The plan's own change was heard before the deletion committed, so only the deletion
+/// finds the plan running.
+#[tokio::test]
+async fn a_plan_running_once_its_organization_is_deleted_is_canceled_at_the_provider() {
+    const PRO: Plan = Plan::new("pro").seats(5).trial_days(14);
+    const PLANS: Plans = Plans::new(Plan::new("free"), &[PRO]);
+    let app = started_with(&PLANS).await;
+    let (ada, acme) = founded(&app).await;
+    let organization: sofie::db::Uuid = acme.as_str().unwrap().parse().unwrap();
+    let billing = sofie::billing::install(app.db(), &PLANS);
+    let mut trial = billing
+        .start_trial(sofie::billing::Subscriber::new(organization), PRO)
+        .await
+        .unwrap();
+    app.db().commit(&mut trial).await.unwrap();
+    app.drain().await;
+    post(&app, "/org/organization/delete", &ada, &json!({}))
+        .await
+        .assert_ok();
+    app.query(
+        "UPDATE sofie_billing.subscription SET status = 'active', provider = 'stripe', \
+         reference = 'sub_1' WHERE subscriber = $1 RETURNING id",
+        &[sofie::core::SqlValue::Uuid(organization)],
+    )
+    .await;
+
+    let failures = sofie_testing::drain_failing(&app).await;
+
+    assert_eq!(failures.len(), 1, "{failures:?}");
+    assert_eq!(failures[0].job, "sofie_tenancy.cancel_plan_of_deleted");
+    assert!(
+        failures[0].error.contains("no payment provider"),
+        "{}",
+        failures[0].error
+    );
+}
+
 #[tokio::test]
 async fn closing_the_last_owner_s_account_names_every_organization_it_holds_alone() {
     let app = started().await;

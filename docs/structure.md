@@ -2484,7 +2484,9 @@ the organization is deleted softly under its row's lock, every member leaves
 and their sessions acting for it end, its open invitations are withdrawn and
 `OrganizationDeleted` is raised (with `billing`, refused while its plan renews
 at the provider, and a plan whose checkout completes after the deletion is canceled at
-the provider by the `sofie_tenancy.cancel_deleted_plan` listener; inviting to or accepting for a deleted organization is 404); records it owns in other
+the provider by the `sofie_tenancy.cancel_deleted_plan` listener, and one whose change was
+heard before the deletion committed by the `sofie_tenancy.cancel_plan_of_deleted` listener of
+`OrganizationDeleted`; inviting to or accepting for a deleted organization is 404); records it owns in other
 modules stay until those modules erase them on that event. Accepting an
 invitation needs its signed link and an account of the invited address, and
 confirms that address.

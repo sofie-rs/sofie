@@ -280,6 +280,19 @@ pub(crate) async fn cancel_deleted_plan(
         .await
 }
 
+/// A plan's change heard before the deletion committed found the organization still there,
+/// so the deletion cancels whatever plan runs by then.
+#[cfg(feature = "billing")]
+pub(crate) async fn cancel_plan_of_deleted(
+    deleted: OrganizationDeleted,
+    billing: sofie::billing::Billing,
+    key: sofie::db::IdempotencyKey,
+) -> Result<()> {
+    billing
+        .cancel_at_provider(sofie::billing::Subscriber::new(deleted.organization), &key)
+        .await
+}
+
 #[cfg(feature = "billing")]
 const SEATS_TAKEN: &str =
     "Every seat of the organization's plan is taken; add seats or remove a member first.";

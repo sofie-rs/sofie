@@ -37,10 +37,15 @@ pub const MODULE: sofie::http::Module = sofie::http::Module {
 #[cfg(feature = "billing")]
 #[must_use]
 pub fn worker(worker: sofie::worker::Worker) -> sofie::worker::Worker {
-    worker.on::<sofie::billing::SubscriptionChanged, _>(
-        "sofie_tenancy.cancel_deleted_plan",
-        organization::cancel_deleted_plan,
-    )
+    worker
+        .on::<sofie::billing::SubscriptionChanged, _>(
+            "sofie_tenancy.cancel_deleted_plan",
+            organization::cancel_deleted_plan,
+        )
+        .on::<OrganizationDeleted, _>(
+            "sofie_tenancy.cancel_plan_of_deleted",
+            organization::cancel_plan_of_deleted,
+        )
 }
 
 #[must_use]

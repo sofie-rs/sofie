@@ -400,6 +400,39 @@ async fn an_impersonation_ends_once_its_member_is_granted_more() {
 }
 
 #[tokio::test]
+async fn an_impersonation_ends_once_its_impersonator_loses_what_it_covered() {
+    let app = started().await;
+    let (grace, staff) = support::joined::<Console>(&app, "grace@example.com").await;
+    let support_role = support::grant_role(
+        &app,
+        grace,
+        "support",
+        &["sofie_identity.impersonation.*.*", "shop.order.*.read"],
+    )
+    .await;
+    let (bob, _) = support::joined::<Member>(&app, "bob@example.com").await;
+    support::grant_role_in(&app, "member", bob, "reader", &["shop.order.*.read"]).await;
+    let bob = impersonate(&app, &staff, "bob@example.com")
+        .await
+        .session()
+        .unwrap();
+    json(&app, "/account/who", &bob).await;
+
+    let mut revoked = sofie_identity::revoke(&app.db().read(), support_role, "shop.order.*.read")
+        .await
+        .unwrap();
+    app.db().commit(&mut revoked).await.unwrap();
+    app.clock().advance(Duration::from_mins(2)).unwrap();
+
+    app.get("/account/who")
+        .session(&bob)
+        .accept_json()
+        .await
+        .assert_status(401);
+    assert_raised::<ImpersonationEnded>(&app);
+}
+
+#[tokio::test]
 async fn an_impersonation_ends_by_itself_and_never_reaches_staff() {
     let app = started().await;
     let (grace, staff) = support::joined::<Console>(&app, "grace@example.com").await;

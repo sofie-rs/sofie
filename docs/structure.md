@@ -2460,8 +2460,9 @@ the impersonations it started. A member of the impersonating area is never
 impersonated, nor a member whose role's grants in its area are not all covered
 by the impersonator's own permissions, the rule granting follows. The member's
 permissions at the start are kept (`impersonation.granted`); once the member
-holds one more, the impersonation ends when its session record is next read
-(at most a minute later, through the session cache). The dev toolbar's "act as" stays a debug-build tool.
+holds one more, or the impersonator no longer holds one it held in its own area at the
+start (`impersonation.impersonator_granted`), the impersonation ends when its session
+record is next read (at most a minute later, through the session cache). The dev toolbar's "act as" stays a debug-build tool.
 
 **Organizations** (`sofie-tenancy`): an organization area's principal is the
 organization (`type Principal = sofie_tenancy::Organization;` and

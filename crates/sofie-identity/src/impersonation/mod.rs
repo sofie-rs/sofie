@@ -46,6 +46,10 @@ pub struct Impersonation {
     /// The member's permissions at the start, which the impersonator's covered; a request
     /// finding the member holding another ends the impersonation, as it may reach beyond them.
     granted: String,
+    impersonator_area: String,
+    /// Likewise the impersonator's at the start: a request finding one gone ends it, as what
+    /// is left may no longer cover the member's.
+    impersonator_granted: String,
 }
 
 const GRANTED_SEPARATOR: char = ' ';
@@ -58,13 +62,24 @@ impl Impersonation {
         })
     }
 
-    fn still_covers(&self, granted: &[String]) -> bool {
-        granted.iter().all(|permission| {
-            self.granted
-                .split(GRANTED_SEPARATOR)
-                .any(|held| held == permission)
-        })
+    fn still_covers(&self, member_holds: &[String], impersonator_holds: &[String]) -> bool {
+        let member_within = member_holds
+            .iter()
+            .all(|permission| listed(&self.granted).any(|granted| granted == permission));
+        let impersonator_kept = listed(&self.impersonator_granted)
+            .all(|granted| impersonator_holds.iter().any(|held| held == granted));
+        member_within && impersonator_kept
     }
+}
+
+fn listed(granted: &str) -> impl Iterator<Item = &str> {
+    granted
+        .split(GRANTED_SEPARATOR)
+        .filter(|permission| !permission.is_empty())
+}
+
+fn joined(granted: &[String]) -> String {
+    granted.join(&GRANTED_SEPARATOR.to_string())
 }
 
 /// Raised when an impersonation starts; an app keeps its own audit log by `#[on]`.
@@ -221,6 +236,8 @@ where
         return Err(Error::invalid("email", PERMITTED_ELSEWHERE));
     }
     let granted = refuse_unless_within(&read, &permissions, member.id(), M::NAME).await?;
+    let impersonator_granted =
+        membership::roles::granted(&read, S::NAME, impersonator.id()).await?;
     let now = clock.now();
     let ends_at = now.checked_add(LASTS)?;
     let started_from = session.current();
@@ -238,7 +255,9 @@ where
         started_from,
         ends_at,
         ended_at: None,
-        granted: granted.join(&GRANTED_SEPARATOR.to_string()),
+        granted: joined(&granted),
+        impersonator_area: S::NAME.to_owned(),
+        impersonator_granted: joined(&impersonator_granted),
     };
     impersonation.meta.raise(ImpersonationStarted {
         impersonation: impersonation.id().uuid(),
@@ -426,9 +445,15 @@ pub(crate) async fn checked(read: &Read, session: Uuid) -> Result<Checked> {
     let Some(impersonation) = of_session(read, Some(session)).await? else {
         return Ok(Checked::Absent);
     };
-    let granted =
+    let member_holds =
         membership::roles::granted(read, &impersonation.area, impersonation.account).await?;
-    if impersonation.still_covers(&granted) {
+    let impersonator_holds = membership::roles::granted(
+        read,
+        &impersonation.impersonator_area,
+        impersonation.impersonator,
+    )
+    .await?;
+    if impersonation.still_covers(&member_holds, &impersonator_holds) {
         return Ok(Checked::By(impersonation.impersonator.uuid()));
     }
     Ok(Checked::Beyond(Box::new(impersonation)))

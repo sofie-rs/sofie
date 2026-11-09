@@ -185,6 +185,19 @@ pub fn feature(_arguments: TokenStream, item: TokenStream) -> TokenStream {
     item
 }
 
+/// For a type tests draw, such as a DTO `sofie gen` writes into a contract; it expands to
+/// nothing unless sofie's `fixtures` feature is on.
+#[proc_macro_derive(Fixture)]
+pub fn derive_fixture(item: TokenStream) -> TokenStream {
+    #[cfg(feature = "fixtures")]
+    return expand(item, fixture::derive_fixture);
+    #[cfg(not(feature = "fixtures"))]
+    {
+        drop(item);
+        TokenStream::new()
+    }
+}
+
 /// One database per test; the crate's wiring must export `MODULES`, `app` and `worker`.
 #[cfg(feature = "fixtures")]
 #[proc_macro_attribute]

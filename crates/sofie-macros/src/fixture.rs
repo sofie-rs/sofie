@@ -45,6 +45,24 @@ fn as_sent(ty: &Type) -> Type {
     ty.clone()
 }
 
+/// Higher-ranked, so a field without a fixture leaves the struct without one.
+pub(crate) fn derive_fixture(input: &syn::DeriveInput) -> syn::Result<TokenStream> {
+    let fields = crate::shape::named_fields(input, "Fixture")?;
+    let ident = &input.ident;
+    let types = fields.iter().map(|field| field.ty);
+    let names = fields.iter().map(|field| field.ident);
+    Ok(quote! {
+        impl ::sofie::values::Fixture for #ident
+        where
+            #(for<'sofie> #types: ::sofie::values::Fixture,)*
+        {
+            fn fixture(seed: &mut ::sofie::values::Seed) -> Self {
+                Self { #(#names: ::sofie::values::Fixture::fixture(seed),)* }
+            }
+        }
+    })
+}
+
 pub(crate) fn enum_fixture(ident: &Ident) -> TokenStream {
     quote! {
         impl ::sofie::values::Fixture for #ident {

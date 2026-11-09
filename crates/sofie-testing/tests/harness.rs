@@ -396,6 +396,33 @@ async fn a_contract_s_fake_records_calls_and_fails_when_told() {
     assert_eq!(fake.calls.made(), ["reserve", "reserve"]);
 }
 
+/// As `sofie gen` writes a DTO into a contract.
+#[derive(sofie::serde::Deserialize, sofie::serde::Serialize, sofie::Fixture)]
+#[serde(crate = "sofie::serde")]
+pub struct Shelved {
+    pub id: sofie::db::Uuid,
+    pub sku: String,
+    pub count: i64,
+}
+
+#[sofie::contract]
+pub trait Shelves: Send + Sync {
+    async fn shelved(&self, sku: &str) -> Result<Shelved>;
+}
+
+#[tokio::test]
+async fn a_contract_answering_a_dto_gets_a_fake_drawing_it() {
+    let fake = FakeShelves::default();
+
+    let shelved = fake.shelved("MUG-1").await.unwrap();
+
+    let drawn = Shelved::fixture(&mut sofie::values::Seed::new(0));
+    assert_eq!(
+        (shelved.id, shelved.sku, shelved.count),
+        (drawn.id, drawn.sku, drawn.count)
+    );
+}
+
 #[cfg(feature = "contracts")]
 #[tokio::test]
 async fn a_test_answers_a_dependency_of_the_app_with_its_fake() {

@@ -1811,7 +1811,10 @@ async fn customer_cancels_own_order(app: TestApp) {
 - Requests are built with the generated route builders and typed inputs.
 - Contracts are replaced by fakes `#[contract]` generates beside each trait
   (`FakeOrders`, with `fixtures`): each call is recorded in `calls` and
-  answered with a fixture, or fails once `calls.fail("method")` says so.
+  answered with a fixture, or fails once `calls.fail("method")` says so. A
+  DTO `sofie gen` writes into a contract derives `sofie::Fixture`, which
+  draws each field and expands to nothing without `fixtures`, so a fake
+  answering one is built too.
 - Events are delivered with `app.drain()`, so a whole flow runs inside one
   test; a job that fails or panics fails the drain, and
   `sofie_testing::drain_failing(&app)` returns the failures instead; `assert_raised::<E>(&app)` finds every `E` committed, delivered or

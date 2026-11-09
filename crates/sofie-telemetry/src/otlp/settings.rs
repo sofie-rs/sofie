@@ -5,6 +5,7 @@ use std::time::Duration;
 
 use http::header::{HeaderName, HeaderValue};
 use http::uri::{Scheme, Uri};
+use sofie_core::encoding::percent;
 
 use super::common;
 use crate::InitError;
@@ -132,20 +133,7 @@ fn headers(text: &str) -> Result<Vec<(HeaderName, HeaderValue)>, InitError> {
 }
 
 fn percent_decoded(text: &str) -> Option<String> {
-    let bytes = text.as_bytes();
-    let mut decoded = Vec::with_capacity(bytes.len());
-    let mut index = 0;
-    while index < bytes.len() {
-        if bytes[index] == b'%' {
-            let hex = text.get(index + 1..index + 3)?;
-            decoded.push(u8::from_str_radix(hex, 16).ok()?);
-            index += 3;
-        } else {
-            decoded.push(bytes[index]);
-            index += 1;
-        }
-    }
-    String::from_utf8(decoded).ok()
+    percent::decode(text.as_bytes()).and_then(|bytes| String::from_utf8(bytes).ok())
 }
 
 /// In milliseconds.
@@ -240,7 +228,7 @@ mod tests {
 
     #[test]
     fn an_invalid_header_is_named_without_its_value() {
-        for text in ["api-key=sk_live_1%zz", "sk_live_1"] {
+        for text in ["api-key=sk_live_1%zz", "api-key=sk_live_1%+1", "sk_live_1"] {
             let error = headers(text).unwrap_err().to_string();
 
             assert!(!error.contains("sk_live_1"), "{error}");

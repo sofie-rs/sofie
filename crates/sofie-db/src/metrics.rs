@@ -184,6 +184,10 @@ impl<D: Driver> Driver for Counted<D> {
         self.0.wakeups()
     }
 
+    fn flag_wakeups(&self) -> Option<BoxFuture<'_, Result<Box<dyn Wakeups>>>> {
+        self.0.flag_wakeups()
+    }
+
     #[cfg(feature = "shield")]
     fn shield_wakeups(&self) -> Option<BoxFuture<'_, Result<Box<dyn Wakeups>>>> {
         self.0.shield_wakeups()

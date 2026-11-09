@@ -2333,9 +2333,9 @@ only as its member, and signing up at an area's `SIGN_UP` path makes it one.
 Signing up signs nobody in and answers alike, after hashing the password
 either way, whether or not the address has an account: a new address gets its
 account, a taken one changes nothing. The browser goes to `{PREFIX}/link-sent`
-with `email-verification` and to `SIGN_IN` without. Only a sign-up racing
-another for one address to the unique index is answered "is already
-registered". Passwords are hashed with Argon2id (19 MiB, two passes, one lane)
+with `email-verification` and to `SIGN_IN` without. A sign-up losing a race
+for one address to the unique index is answered as for a taken address too.
+Passwords are hashed with Argon2id (19 MiB, two passes, one lane)
 in the PHC string format, at most one hash per core at a time; a PBKDF2 hash
 stored before still verifies, and a sign-in that proves it stores an Argon2id
 one in the same commit.

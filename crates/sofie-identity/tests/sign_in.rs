@@ -273,3 +273,21 @@ async fn an_app_checks_a_current_password_chosen_under_an_older_length_policy() 
     assert!(sofie_identity::Password::parse(short.to_owned()).is_err());
     assert!(current.check(Some(&hash)).await.unwrap().is_right());
 }
+
+#[tokio::test]
+async fn two_sign_ups_racing_for_one_address_are_answered_alike() {
+    let app = started().await;
+
+    let (first, second) = tokio::join!(
+        app.post("/sign-up").json(&credentials(PASSWORD)),
+        app.post("/sign-up").json(&credentials(PASSWORD)),
+    );
+
+    assert_eq!(
+        first.status, second.status,
+        "{} / {}",
+        first.body, second.body
+    );
+    assert_eq!(first.body, second.body);
+    first.assert_ok();
+}

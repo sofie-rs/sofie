@@ -5,7 +5,7 @@ use sofie::values::Secret;
 use crate::account::{ALREADY_REGISTERED, Account, EMAIL_INDEX, factory};
 use crate::membership::{self, Membership};
 use crate::signing_in::{Door, Entered};
-use crate::{AccountId, MemberArea, Password, PasswordCheck, PasswordHash};
+use crate::{AccountId, MemberArea, Password, PasswordCheck, PasswordHash, Unscoped};
 
 pub(crate) const NOT_RIGHT: &str = "The email or password is not right.";
 /// One answer for a wrong password and an unconfirmed address, so signing in with the password
@@ -73,7 +73,6 @@ impl Attempt {
 
 /// Replies nothing and signs nobody in, whether the address was free or taken.
 pub struct Registration {
-    opened: Option<(Account, Membership)>,
     /// Tells a taken address's owner that someone tried, or invites it to join.
     #[cfg(feature = "links")]
     told: Option<crate::notice::Notice>,
@@ -81,23 +80,30 @@ pub struct Registration {
 
 impl Outcome for Registration {
     fn plan(&self, plan: &mut Plan<'_>) -> Result<()> {
-        if let Some((account, membership)) = &self.opened {
-            plan.unique(EMAIL_INDEX, "email", ALREADY_REGISTERED);
-            account.plan(plan)?;
-            membership.plan(plan)?;
-        }
         #[cfg(feature = "links")]
         if let Some(told) = &self.told {
             told.plan(plan)?;
         }
+        let _ = plan;
         Ok(())
+    }
+}
+
+struct Opened {
+    account: Account,
+    membership: Membership,
+}
+
+impl Outcome for Opened {
+    fn plan(&self, plan: &mut Plan<'_>) -> Result<()> {
+        plan.unique(EMAIL_INDEX, "email", ALREADY_REGISTERED);
+        self.account.plan(plan)?;
+        self.membership.plan(plan)
     }
 
     fn committed(&mut self, stamp: Stamp) {
-        if let Some((account, membership)) = &mut self.opened {
-            account.committed(stamp);
-            membership.committed(stamp);
-        }
+        self.account.committed(stamp);
+        self.membership.committed(stamp);
     }
 }
 
@@ -105,10 +111,12 @@ impl Outcome for Registration {
 /// signs nobody in. A new address gets its account and, with `email-verification`, a link to
 /// confirm it. A taken address's owner is mailed: a member of the area that someone tried,
 /// with a link to set a new password (`password-reset`), any other account a link to sign in
-/// and join the area. Only two sign-ups racing for one address are told it is taken.
+/// and join the area. The account is committed here, so a sign-up losing a race for the
+/// address to another is answered as for a taken one.
 pub async fn sign_up<A: MemberArea>(
     credentials: Credentials,
     read: Read,
+    unscoped: Unscoped,
     #[cfg(feature = "shield")] sign_ins: sofie::http::SignIns,
 ) -> Result<Registration> {
     #[cfg(feature = "shield")]
@@ -116,23 +124,51 @@ pub async fn sign_up<A: MemberArea>(
     let email = credentials.email;
     let Some(account) = factory::register(&read, email.clone(), &credentials.password).await?
     else {
-        #[cfg(feature = "links")]
-        let told = Some(crate::notice::Notice::of(
-            crate::mailed::LinkAsked::sign_up_repeated::<A>(email),
-        )?);
-        return Ok(Registration {
-            opened: None,
-            #[cfg(feature = "links")]
-            told,
-        });
+        return taken::<A>(email);
     };
     #[cfg(feature = "email-verification")]
     let account = account.asking_verification::<A>()?;
     let membership = membership::factory::grant(account.id(), A::NAME)?;
+    match unscoped
+        .0
+        .commit(&mut Opened {
+            account,
+            membership,
+        })
+        .await
+    {
+        Ok(()) => Ok(Registration {
+            #[cfg(feature = "links")]
+            told: None,
+        }),
+        Err(Error::Invalid(errors)) if errors.iter().any(is_taken) => taken::<A>(email),
+        Err(error) => Err(error),
+    }
+}
+
+fn is_taken(error: &sofie::core::FieldError) -> bool {
+    error.field == "email" && error.message == ALREADY_REGISTERED
+}
+
+#[cfg_attr(
+    not(feature = "links"),
+    expect(
+        clippy::extra_unused_type_parameters,
+        clippy::needless_pass_by_value,
+        clippy::unnecessary_wraps,
+        reason = "only the notice, which may fail, names the area and the address"
+    )
+)]
+fn taken<A: MemberArea>(email: Email) -> Result<Registration> {
+    #[cfg(feature = "links")]
+    let told = Some(crate::notice::Notice::of(
+        crate::mailed::LinkAsked::sign_up_repeated::<A>(email),
+    )?);
+    #[cfg(not(feature = "links"))]
+    let _ = email;
     Ok(Registration {
-        opened: Some((account, membership)),
         #[cfg(feature = "links")]
-        told: None,
+        told,
     })
 }
 

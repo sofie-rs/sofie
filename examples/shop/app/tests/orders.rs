@@ -84,7 +84,7 @@ async fn a_customer_places_lists_and_cancels_an_order_once(app: TestApp) {
     assert_eq!(
         again.json()["errors"],
         json!([{
-            "field": "order_status",
+            "field": "status",
             "key": "validation.move",
             "arguments": { "from": "CANCELLED", "to": "CANCELLED" },
             "message": "cannot move from CANCELLED to CANCELLED",
@@ -378,7 +378,7 @@ async fn a_failed_htmx_action_shows_its_message_in_the_notice_region(app: TestAp
     assert_notice(&notice);
     assert_eq!(
         notice.body,
-        "<p>Order status: cannot move from CANCELLED to CANCELLED</p>"
+        "<p>Status: cannot move from CANCELLED to CANCELLED</p>"
     );
 }
 

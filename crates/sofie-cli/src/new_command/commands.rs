@@ -152,7 +152,7 @@ pub const NEW_COMMANDS: &[NewCommand] = &[
         tool: "new_aggregate",
         description: "`sofie new aggregate`: `src/<name>/mod.rs` with `#[derive(Aggregate)]`, its \
                       `mod` line and re-export in `lib.rs`, and a migration creating its table; \
-                      then `sofie gen` and `sofie check`, which reports it unused until code names it.",
+                      then `sofie gen`, whose wiring registers its table, and `sofie check`.",
         arguments: &[
             MODULE,
             required("name", "Name", "The aggregate's type name, as `Invoice`."),

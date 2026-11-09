@@ -1878,8 +1878,9 @@ case for modules, functions and screens, Pascal case for types):
   `#[derive(Aggregate)]` and `meta: Meta`, its `mod` line and root re-export
   in `lib.rs`, and a migration creating its quoted table with `id` and the
   default behaviors' columns. No `factory.rs`: one nothing calls is dead
-  code, and with `sofie/factories` the derive writes the default one. Until code
-  names the aggregate, `sofie check` reports it unused.
+  code, and with `sofie/factories` the derive writes the default one. The
+  module's wiring names the aggregate for its table, so `sofie check` does
+  not report it unused.
 - `sofie new event MODULE Name`: a `#[derive(Event)]` struct in
   `contract/src/events.rs`, declared and re-exported by the contract, which
   then depends on `sofie`.

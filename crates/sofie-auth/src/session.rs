@@ -222,12 +222,6 @@ impl SigningKeys {
         Self::new(&[crate::random_bytes("a key")?])
     }
 
-    /// One new key as `SOFIE_SIGNING_KEYS` takes it: what `openssl rand -base64 32` prints.
-    pub fn generate_text() -> Result<String> {
-        let key: [u8; KEY_LENGTH] = crate::random_bytes("a key")?;
-        Ok(base64::encode_padded(&STANDARD, &key))
-    }
-
     pub fn seal_value(&self, purpose: &str, plain: &[u8]) -> Result<String> {
         self.sealed(&value_purpose(purpose), plain.to_vec())
     }
@@ -306,6 +300,12 @@ fn open_with(
 }
 
 /// Names the key by its position only; the key itself is a secret.
+/// One new key as `SOFIE_SIGNING_KEYS` takes it: what `openssl rand -base64 32` prints.
+pub fn new_signing_key() -> Result<String> {
+    let key: [u8; KEY_LENGTH] = crate::random_bytes("a key")?;
+    Ok(base64::encode_padded(&STANDARD, &key))
+}
+
 fn decode_key(index: usize, text: &str) -> Result<[u8; KEY_LENGTH]> {
     base64::decode(&STANDARD, text)
         .and_then(|bytes| <[u8; KEY_LENGTH]>::try_from(bytes).ok())
@@ -346,8 +346,8 @@ pub(crate) mod tests {
 
     #[test]
     fn a_generated_key_text_is_read_back_and_differs_each_time() {
-        let first = SigningKeys::generate_text().unwrap();
-        let second = SigningKeys::generate_text().unwrap();
+        let first = new_signing_key().unwrap();
+        let second = new_signing_key().unwrap();
 
         assert_ne!(first, second);
         let keys = SigningKeys::parse(&format!("{first},{second}")).unwrap();

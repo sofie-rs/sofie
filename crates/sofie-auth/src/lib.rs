@@ -9,7 +9,9 @@ mod signing;
 pub use bearer::BearerToken;
 pub use digest::digest;
 pub use principal_token::{Acting, TokenRefused};
-pub use session::{OLD_SIGNING_KEYS, OpenError, SIGNING_KEYS, SessionClaims, SigningKeys};
+pub use session::{
+    OLD_SIGNING_KEYS, OpenError, SIGNING_KEYS, SessionClaims, SigningKeys, new_signing_key,
+};
 pub use signing::Signed;
 
 use ring::rand::{SecureRandom, SystemRandom};

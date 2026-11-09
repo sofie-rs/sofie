@@ -805,7 +805,7 @@ fn app_tools_run_the_shop_and_answer_a_request_with_its_span_tree() {
         .env("DATABASE_URL", database.url())
         .env(
             sofie_auth::SIGNING_KEYS,
-            sofie_auth::SigningKeys::generate_text().unwrap(),
+            sofie_auth::new_signing_key().unwrap(),
         )
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())

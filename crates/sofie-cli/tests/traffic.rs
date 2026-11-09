@@ -3,7 +3,7 @@
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
-use sofie_auth::{SIGNING_KEYS, SigningKeys};
+use sofie_auth::{SIGNING_KEYS, new_signing_key};
 use sofie_testing::TestDatabase;
 
 fn shop() -> PathBuf {
@@ -21,7 +21,7 @@ fn sofie_on_shop(arguments: &[&str]) -> String {
         .args(arguments)
         .arg(shop())
         .env("DATABASE_URL", database.url())
-        .env(SIGNING_KEYS, SigningKeys::generate_text().unwrap())
+        .env(SIGNING_KEYS, new_signing_key().unwrap())
         .output()
         .unwrap();
     drop(database);

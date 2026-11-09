@@ -137,8 +137,12 @@ impl Suppression {
     }
 }
 
+/// A provider's report may name an address no parse accepts; it is still held, lowercased.
 fn normalized(address: &str) -> String {
-    address.trim().to_lowercase()
+    sofie_values::Email::parse(address).map_or_else(
+        |_| address.trim().to_lowercase(),
+        |email| email.as_str().to_owned(),
+    )
 }
 
 pub async fn scopes(read: &Read, address: &str) -> Result<Vec<Scope>> {
@@ -239,5 +243,13 @@ mod tests {
         let parsed = sofie_values::Email::parse("ÇAĞRI@Example.com").unwrap();
 
         assert_eq!(normalized(" ÇAĞRI@Example.com "), parsed.as_str());
+    }
+
+    #[test]
+    fn a_reported_address_is_folded_as_a_parsed_address_is() {
+        let parsed = sofie_values::Email::parse("ilker@example.com").unwrap();
+
+        assert_eq!(normalized("İlker@example.com"), parsed.as_str());
+        assert_eq!(normalized("I\u{307}lker@example.com"), parsed.as_str());
     }
 }

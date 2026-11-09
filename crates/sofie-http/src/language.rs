@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 
 use http::request::Parts;
-use sofie_core::FieldError;
+use sofie_core::{FieldError, KeyedRule};
 
 use crate::Screens;
 
@@ -28,6 +28,10 @@ impl Language<'_> {
 
     pub(crate) fn field_error(self, error: &FieldError) -> String {
         error.message.clone()
+    }
+
+    pub(crate) fn rule(self, rule: &KeyedRule) -> String {
+        rule.message.clone()
     }
 
     pub(crate) fn label(self, field: &str) -> String {

@@ -1,3 +1,4 @@
+use sofie::core::RuleText;
 use sofie::http::{CurrentSession, RequestContext};
 use sofie::prelude::*;
 use sofie_identity::AccountId;
@@ -5,7 +6,10 @@ use sofie_identity::AccountId;
 use crate::organization::{OrganizationArea, OrganizationMember, OrganizationRole, membership};
 use sofie::db::{Context, Resolve};
 
-const GONE: &str = "You are no longer a member of this organization.";
+const GONE: RuleText = RuleText::new(
+    "tenancy.rule.gone",
+    "You are no longer a member of this organization.",
+);
 
 /// Read on every request, so a removed member or a changed role counts at once.
 pub struct Acting {
@@ -30,13 +34,16 @@ impl Acting {
 
     pub(crate) fn owning(&self) -> Result<()> {
         if self.role() != OrganizationRole::Owner {
-            return Err(Error::Rule(ONLY_AN_OWNER.to_owned()));
+            return Err(ONLY_AN_OWNER.into());
         }
         Ok(())
     }
 }
 
-const ONLY_AN_OWNER: &str = "Only an owner renames, hands over or deletes the organization.";
+const ONLY_AN_OWNER: RuleText = RuleText::new(
+    "tenancy.rule.only_an_owner",
+    "Only an owner renames, hands over or deletes the organization.",
+);
 
 impl<O: OrganizationArea, M> Resolve<RequestContext<O, M>> for Acting {
     async fn resolve(context: &mut RequestContext<O, M>) -> Result<Self> {
@@ -48,11 +55,11 @@ impl<O: OrganizationArea, M> Resolve<RequestContext<O, M>> for Acting {
             Some(account) => AccountId::from_uuid(account),
             None => sofie_identity::sessions::account_of(&unscoped, session)
                 .await?
-                .ok_or_else(|| Error::Rule(GONE.to_owned()))?,
+                .ok_or_else(|| Error::from(GONE))?,
         };
         let member = membership(&unscoped, organization, account)
             .await?
-            .ok_or_else(|| Error::Rule(GONE.to_owned()))?;
+            .ok_or_else(|| Error::from(GONE))?;
         Ok(Self { member })
     }
 }

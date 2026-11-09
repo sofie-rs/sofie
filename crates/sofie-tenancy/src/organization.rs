@@ -1,4 +1,4 @@
-use sofie::core::{Cast, SqlValue};
+use sofie::core::{Cast, RuleText, SqlValue};
 use sofie::db::{Aggregate, ExpectedRows, Outcome, Plan, Reply, Stamp, Step, Uuid};
 use sofie::http::Area;
 use sofie::prelude::*;
@@ -77,6 +77,15 @@ pub enum OrganizationRole {
     Member,
 }
 
+const MANAGING: RuleText = RuleText::new(
+    "tenancy.rule.managing",
+    "Only an owner or an admin of the organization manages its members.",
+);
+const OWNER_ROLE: RuleText = RuleText::new(
+    "tenancy.rule.owner_role",
+    "Only an owner gives or takes the owner role.",
+);
+
 impl OrganizationRole {
     #[must_use]
     pub fn manages_members(self) -> bool {
@@ -85,14 +94,10 @@ impl OrganizationRole {
 
     pub(crate) fn managing(self, touching_owner: bool) -> Result<()> {
         if !self.manages_members() {
-            return Err(Error::Rule(
-                "Only an owner or an admin of the organization manages its members.".to_owned(),
-            ));
+            return Err(MANAGING.into());
         }
         if touching_owner && self != Self::Owner {
-            return Err(Error::Rule(
-                "Only an owner gives or takes the owner role.".to_owned(),
-            ));
+            return Err(OWNER_ROLE.into());
         }
         Ok(())
     }
@@ -246,7 +251,7 @@ pub(crate) async fn seats_kept(
     let filled = members.saturating_add(pending).saturating_add(adding);
     let filled = u32::try_from(filled).unwrap_or(u32::MAX);
     if !seats.allows(filled) {
-        return Err(Error::Rule(SEATS_TAKEN.to_owned()));
+        return Err(SEATS_TAKEN.into());
     }
     Ok(match seats {
         sofie::billing::Seats::AtMost(at_most) => Kept::Seats { at_most, now },
@@ -294,8 +299,10 @@ pub(crate) async fn cancel_plan_of_deleted(
 }
 
 #[cfg(feature = "billing")]
-const SEATS_TAKEN: &str =
-    "Every seat of the organization's plan is taken; add seats or remove a member first.";
+const SEATS_TAKEN: RuleText = RuleText::new(
+    "tenancy.rule.seats_taken",
+    "Every seat of the organization's plan is taken; add seats or remove a member first.",
+);
 
 pub(crate) struct Held<T> {
     organization: OrganizationId,

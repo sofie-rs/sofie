@@ -5,6 +5,7 @@
 use std::collections::HashMap;
 use std::time::Duration;
 
+use sofie::core::RuleText;
 use sofie::db::{Uuid, in_select};
 use sofie::http::{Admitter, ListedRoute, Query, Routes, Shipped, SignInRight, SignedUrls};
 use sofie::prelude::*;
@@ -24,8 +25,14 @@ impl Admitter for Tenancy {}
 
 const RIGHT: SignInRight = SignInRight::of::<Tenancy>();
 
-const NOT_A_MEMBER: &str = "You are not a member of this organization.";
-const ANOTHER_ADDRESS: &str = "This invitation is for another address; sign in with that one.";
+const NOT_A_MEMBER: RuleText = RuleText::new(
+    "tenancy.rule.not_a_member",
+    "You are not a member of this organization.",
+);
+const ANOTHER_ADDRESS: RuleText = RuleText::new(
+    "tenancy.rule.another_address",
+    "This invitation is for another address; sign in with that one.",
+);
 
 const ORGANIZATIONS: &str = r#"<Section id="organizations" title="Organizations">
   {#each data.organizations as organization}
@@ -191,7 +198,7 @@ async fn enter<M: MemberArea, O: OrganizationArea>(
         .await?
         .is_none()
     {
-        return Err(Error::Rule(NOT_A_MEMBER.to_owned()));
+        return Err(NOT_A_MEMBER.into());
     }
     sign_in_for::<O>(&session, RIGHT, entering.organization, account, &clock)
 }
@@ -248,7 +255,7 @@ async fn invitation_page<M: MemberArea>(
         .expires_at()
         .timestamp()
         .duration_since(now.timestamp());
-    let left = Duration::try_from(left).map_err(|_| Error::Rule(NOT_OPEN.to_owned()))?;
+    let left = Duration::try_from(left).map_err(|_| Error::from(NOT_OPEN))?;
     Ok(InvitationPage {
         invitation: Some(Open {
             organization: organization.name,
@@ -277,7 +284,7 @@ async fn accept<M: MemberArea>(
         .ok_or(Error::NotFound)?;
     let mut invitation = invited(&read, invitation_id(&query)?).await?;
     if account.email() != invitation.email() {
-        return Err(Error::Rule(ANOTHER_ADDRESS.to_owned()));
+        return Err(ANOTHER_ADDRESS.into());
     }
     let now = clock.now();
     let confirmed = account.verified_at().is_none().then(|| {

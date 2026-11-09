@@ -3,7 +3,7 @@
 
 use std::collections::HashMap;
 
-use sofie::core::{FieldError, Instant};
+use sofie::core::{FieldError, Instant, RuleText};
 use sofie::db::{Queued, in_select};
 use sofie::http::{ListedRoute, Rate, Routes, Shipped, SignedUrls};
 use sofie::mail::{Address, Mail, Mailer, Template};
@@ -305,9 +305,7 @@ async fn not_the_last_owner(read: &Read, member: &OrganizationMember) -> Result<
         .count(read)
         .await?;
     if owners <= 1 {
-        return Err(Error::Rule(
-            "An organization keeps at least one owner; make another member owner first.".to_owned(),
-        ));
+        return Err(LAST_OWNER.into());
     }
     Ok(())
 }
@@ -444,7 +442,7 @@ async fn hand_over(
 ) -> Result<Held<(OrganizationMember, OrganizationMember, Vec<Invitation>)>> {
     acting.owning()?;
     if member.id() == acting.member().id() {
-        return Err(Error::Rule(HAND_OVER_TO_ANOTHER.to_owned()));
+        return Err(HAND_OVER_TO_ANOTHER.into());
     }
     member.assign(OrganizationRole::Owner)?;
     let mut owner = acting.into_member();
@@ -464,7 +462,14 @@ async fn hand_over(
     .demoting(demoted))
 }
 
-const HAND_OVER_TO_ANOTHER: &str = "Hand the organization over to another of its members.";
+const LAST_OWNER: RuleText = RuleText::new(
+    "tenancy.rule.last_owner",
+    "An organization keeps at least one owner; make another member owner first.",
+);
+const HAND_OVER_TO_ANOTHER: RuleText = RuleText::new(
+    "tenancy.rule.hand_over_to_another",
+    "Hand the organization over to another of its members.",
+);
 
 #[derive(Input)]
 pub struct Renaming {
@@ -503,7 +508,7 @@ async fn delete<O: OrganizationArea>(
         .standing()
         .is_some_and(sofie::billing::Standing::renews_at_provider)
     {
-        return Err(Error::Rule(PLAN_RUNNING.to_owned()));
+        return Err(PLAN_RUNNING.into());
     }
     let mut organization = stored(&read, id).await?;
     organization.dissolve()?;
@@ -535,7 +540,10 @@ async fn delete<O: OrganizationArea>(
 }
 
 #[cfg(feature = "billing")]
-const PLAN_RUNNING: &str = "Cancel the organization's plan before deleting it.";
+const PLAN_RUNNING: RuleText = RuleText::new(
+    "tenancy.rule.plan_running",
+    "Cancel the organization's plan before deleting it.",
+);
 
 async fn stored(read: &Read, id: OrganizationId) -> Result<Organization> {
     Organization::query()

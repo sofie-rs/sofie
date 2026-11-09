@@ -541,11 +541,16 @@ async fn the_last_owner_keeps_its_account_and_another_leaves_with_it() {
 
     let refused = close(ada_account.clone(), "ada@example.com").await;
     assert_eq!(refused.status, 422, "{}", refused.body);
+    let refusal = refused.json();
     assert!(
-        refused.body.contains("last owner of Acme"),
-        "{}",
-        refused.body
+        refusal["error"]
+            .as_str()
+            .unwrap()
+            .contains("last owner of Acme"),
+        "{refusal}"
     );
+    assert_eq!(refusal["key"], "tenancy.rule.last_owner_of");
+    assert_eq!(refusal["arguments"], json!({ "organizations": "Acme" }));
 
     let owner = json!({ "email": "grace@example.com", "role": "OWNER" });
     post(&app, "/org/members/invite", &ada, &owner)

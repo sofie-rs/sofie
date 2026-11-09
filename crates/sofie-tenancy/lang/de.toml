@@ -7,3 +7,17 @@ ignore = "Der Link funktioniert sieben Tage lang. Kennen Sie die Person nicht, i
 [tenancy.invitation]
 invited_already = "ist bereits eingeladen"
 member_already = "ist bereits Mitglied"
+
+[tenancy.rule]
+gone = "Sie sind kein Mitglied dieser Organisation mehr."
+only_an_owner = "Nur ein Eigentümer benennt die Organisation um, übergibt oder löscht sie."
+not_a_member = "Sie sind kein Mitglied dieser Organisation."
+another_address = "Diese Einladung gilt für eine andere Adresse; melden Sie sich mit dieser an."
+not_open = "Diese Einladung wurde bereits angenommen oder ist abgelaufen."
+managing = "Nur ein Eigentümer oder Administrator der Organisation verwaltet ihre Mitglieder."
+owner_role = "Nur ein Eigentümer vergibt oder entzieht die Eigentümerrolle."
+seats_taken = "Alle Plätze des Tarifs der Organisation sind belegt; fügen Sie Plätze hinzu oder entfernen Sie zuerst ein Mitglied."
+last_owner = "Eine Organisation behält mindestens einen Eigentümer; machen Sie zuerst ein anderes Mitglied zum Eigentümer."
+hand_over_to_another = "Übergeben Sie die Organisation an ein anderes ihrer Mitglieder."
+plan_running = "Kündigen Sie den Tarif der Organisation, bevor Sie sie löschen."
+last_owner_of = "Dieses Konto ist der letzte Eigentümer von {organizations}; übergeben Sie jede an ein anderes Mitglied oder löschen Sie sie zuerst."

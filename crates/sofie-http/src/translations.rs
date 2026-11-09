@@ -1,6 +1,8 @@
 use http::header::ACCEPT_LANGUAGE;
 use http::request::Parts;
-use sofie_core::{Error, FieldError, Result};
+use std::borrow::Cow;
+
+use sofie_core::{Error, FieldError, KeyedRule, Result};
 use sofie_db::File;
 use sofie_engine::rendering::Rendering;
 use sofie_engine::{Template, Tone, TranslationError, Translations};
@@ -96,13 +98,19 @@ impl<'a> Language<'a> {
     }
 
     pub(crate) fn field_error(self, error: &FieldError) -> String {
-        let arguments: Vec<(&str, String)> = error
-            .arguments
+        self.text(&error.key, &error.arguments, &error.message)
+    }
+
+    pub(crate) fn rule(self, rule: &KeyedRule) -> String {
+        self.text(&rule.key, &rule.arguments, &rule.message)
+    }
+
+    fn text(self, key: &str, arguments: &[(Cow<'static, str>, String)], english: &str) -> String {
+        let arguments: Vec<(&str, String)> = arguments
             .iter()
             .map(|(name, value)| (name.as_ref(), value.clone()))
             .collect();
-        self.language
-            .field_error(&error.key, &arguments, &error.message)
+        self.language.field_error(key, &arguments, english)
     }
 
     pub(crate) fn label(self, field: &str) -> String {
@@ -201,6 +209,51 @@ mod tests {
         };
         assert_eq!(fields[0].field, "total.gt");
         assert_eq!(fields[0].message, "tam sayı olmalı");
+    }
+
+    #[test]
+    fn a_keyed_rule_is_answered_in_the_viewer_s_language_with_its_key() {
+        let translations = translations(
+            &["en", "tr"],
+            &[(
+                "order",
+                File::new(
+                    "lang/tr.toml",
+                    "[order.rule]\nshipped = \"{number} gönderildi\"\n".as_bytes(),
+                ),
+            )],
+            &[],
+            &[],
+        )
+        .unwrap();
+        let language = Language {
+            language: translations.negotiate(None, Some("tr")),
+            negotiated: true,
+        };
+        let shipped = || {
+            Error::rule_keyed(
+                "order.rule.shipped",
+                [("number", "7".to_owned())],
+                "7 shipped",
+            )
+        };
+
+        let json = crate::answer::in_language(Err(shipped()), language).unwrap_err();
+        let json = crate::answer::failure(json, crate::caller::Caller::Browser);
+        let notice = crate::answer::Refusal::of(shipped()).messages(language);
+
+        assert_eq!(json.status(), http::StatusCode::UNPROCESSABLE_ENTITY);
+        let body = json.into_body().into_inner().unwrap();
+        let body: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(
+            body,
+            serde_json::json!({
+                "error": "7 gönderildi",
+                "key": "order.rule.shipped",
+                "arguments": { "number": "7" },
+            })
+        );
+        assert_eq!(notice, ["7 gönderildi"]);
     }
 
     #[test]

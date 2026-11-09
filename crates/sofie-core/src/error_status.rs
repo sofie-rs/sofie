@@ -28,7 +28,7 @@ impl ErrorStatus {
             Error::NotFound | Error::Moved { .. } => Self::NotFound,
             Error::Conflict => Self::Conflict,
             Error::BadRequest(_) => Self::BadRequest,
-            Error::Invalid(_) | Error::Rule(_) => Self::Unprocessable,
+            Error::Invalid(_) | Error::Rule(_) | Error::KeyedRule(_) => Self::Unprocessable,
             Error::TooManyRequests(_) => Self::TooManyRequests,
             Error::Unavailable(_) => Self::Unavailable,
             Error::Internal { .. } => Self::Internal,

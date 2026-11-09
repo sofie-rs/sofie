@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
@@ -9,7 +10,7 @@ use http::header::{
 use http::{HeaderValue, StatusCode};
 use http_body_util::Full;
 use sofie_core::encoding::percent;
-use sofie_core::{Error, ErrorStatus, FieldError, Result};
+use sofie_core::{Error, ErrorStatus, FieldError, KeyedRule, Result};
 use sofie_db::Reply;
 
 use crate::caller::Caller;
@@ -75,6 +76,7 @@ pub(crate) fn redirect(kind: Redirect, location: &str) -> Result<Response> {
 
 pub(crate) enum Refusal {
     Message(StatusCode, String),
+    Rule(Box<KeyedRule>),
     Fields(Vec<FieldError>),
 }
 
@@ -90,6 +92,7 @@ impl Refusal {
             Error::NotFound | Error::Moved { .. } => message("Not found."),
             Error::Conflict => message(CONFLICT),
             Error::BadRequest(text) | Error::Rule(text) => Self::Message(status, text),
+            Error::KeyedRule(rule) => Self::Rule(rule),
             Error::Invalid(fields) => Self::Fields(fields),
             Error::TooManyRequests(wait) => Self::Message(
                 status,
@@ -112,14 +115,14 @@ impl Refusal {
     pub(crate) fn status(&self) -> StatusCode {
         match self {
             Self::Message(status, _) => *status,
-            Self::Fields(_) => status_code(ErrorStatus::Unprocessable),
+            Self::Rule(_) | Self::Fields(_) => status_code(ErrorStatus::Unprocessable),
         }
     }
 
     #[cfg(feature = "engine")]
     pub(crate) fn field_errors(&self, language: Language<'_>) -> Vec<(&str, String)> {
         match self {
-            Self::Message(..) => Vec::new(),
+            Self::Message(..) | Self::Rule(_) => Vec::new(),
             Self::Fields(fields) => fields
                 .iter()
                 .map(|field| (field.field.as_str(), language.field_error(field)))
@@ -155,6 +158,11 @@ impl Refusal {
                 push_html_escaped(&mut body, text);
                 body.push_str("</p>");
             }
+            Self::Rule(rule) => {
+                body.push_str("<p>");
+                push_html_escaped(&mut body, &rule.message);
+                body.push_str("</p>");
+            }
             Self::Fields(fields) => {
                 body.push_str("<ul>");
                 for field in fields {
@@ -178,6 +186,14 @@ impl Refusal {
             Self::Message(_, text) => {
                 body.extend_from_slice(b"{\"error\":");
                 push_json_string(&mut body, text);
+            }
+            Self::Rule(rule) => {
+                body.extend_from_slice(b"{\"error\":");
+                push_json_string(&mut body, &rule.message);
+                body.extend_from_slice(b",\"key\":");
+                push_json_string(&mut body, &rule.key);
+                body.extend_from_slice(b",\"arguments\":");
+                push_json_arguments(&mut body, &rule.arguments);
             }
             Self::Fields(fields) => {
                 body.extend_from_slice(b"{\"errors\":[");
@@ -214,8 +230,16 @@ fn push_json_field_error(body: &mut Vec<u8>, field: &FieldError) {
     push_json_string(body, &field.field);
     body.extend_from_slice(b",\"key\":");
     push_json_string(body, &field.key);
-    body.extend_from_slice(b",\"arguments\":{");
-    for (index, (name, value)) in field.arguments.iter().enumerate() {
+    body.extend_from_slice(b",\"arguments\":");
+    push_json_arguments(body, &field.arguments);
+    body.extend_from_slice(b",\"message\":");
+    push_json_string(body, &field.message);
+    body.push(b'}');
+}
+
+fn push_json_arguments(body: &mut Vec<u8>, arguments: &[(Cow<'static, str>, String)]) {
+    body.push(b'{');
+    for (index, (name, value)) in arguments.iter().enumerate() {
         if index > 0 {
             body.push(b',');
         }
@@ -223,8 +247,6 @@ fn push_json_field_error(body: &mut Vec<u8>, field: &FieldError) {
         body.push(b':');
         push_json_string(body, value);
     }
-    body.extend_from_slice(b"},\"message\":");
-    push_json_string(body, &field.message);
     body.push(b'}');
 }
 
@@ -430,6 +452,7 @@ impl Refusal {
     pub(crate) fn messages(&self, language: Language<'_>) -> Vec<String> {
         match self {
             Self::Message(_, text) => vec![text.clone()],
+            Self::Rule(rule) => vec![language.rule(rule)],
             Self::Fields(fields) => fields.iter().map(|field| told(field, language)).collect(),
         }
     }
@@ -470,6 +493,10 @@ pub(crate) fn in_language(result: Result<Reply>, language: Language<'_>) -> Resu
                 })
                 .collect(),
         ),
+        Error::KeyedRule(rule) => Error::KeyedRule(Box::new(KeyedRule {
+            message: language.rule(&rule),
+            ..*rule
+        })),
         other => other,
     })
 }

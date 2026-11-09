@@ -15,6 +15,8 @@ pub enum Error {
     BadRequest(String),
     Invalid(Vec<FieldError>),
     Rule(String),
+    /// A rule's refusal with a translation key, answered in the caller's language.
+    KeyedRule(Box<KeyedRule>),
     TooManyRequests(Duration),
     Unavailable(String),
     Internal {
@@ -60,6 +62,34 @@ impl FieldError {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct KeyedRule {
+    pub key: Cow<'static, str>,
+    pub arguments: Vec<(Cow<'static, str>, String)>,
+    /// In the source language, with the arguments filled in.
+    pub message: String,
+}
+
+/// A rule's refusal without arguments, kept as a constant: `Err(GONE.into())`.
+#[derive(Clone, Copy, Debug)]
+pub struct RuleText {
+    key: &'static str,
+    message: &'static str,
+}
+
+impl RuleText {
+    #[must_use]
+    pub const fn new(key: &'static str, message: &'static str) -> Self {
+        Self { key, message }
+    }
+}
+
+impl From<RuleText> for Error {
+    fn from(rule: RuleText) -> Self {
+        Self::rule_keyed(rule.key, [], rule.message)
+    }
+}
+
 const INVALID: &str = "validation.invalid";
 const REQUIRED: &str = "validation.required";
 
@@ -87,6 +117,21 @@ impl Error {
         Self::Invalid(vec![FieldError::invalid(field, message)])
     }
 
+    pub fn rule_keyed(
+        key: &'static str,
+        arguments: impl IntoIterator<Item = (&'static str, String)>,
+        message: impl Into<String>,
+    ) -> Self {
+        Self::KeyedRule(Box::new(KeyedRule {
+            key: Cow::Borrowed(key),
+            arguments: arguments
+                .into_iter()
+                .map(|(name, value)| (Cow::Borrowed(name), value))
+                .collect(),
+            message: message.into(),
+        }))
+    }
+
     /// Alternate form: the field being read already names the value.
     #[must_use]
     pub fn into_deserialize_error<E: serde::de::Error>(self) -> E {
@@ -96,6 +141,7 @@ impl Error {
     fn fmt_message(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::BadRequest(message) | Self::Rule(message) => f.write_str(message),
+            Self::KeyedRule(rule) => f.write_str(&rule.message),
             Self::Invalid(errors) => {
                 let messages: Vec<&str> =
                     errors.iter().map(|error| error.message.as_str()).collect();
@@ -125,6 +171,7 @@ impl fmt::Display for Error {
                 Ok(())
             }
             Self::Rule(message) => write!(f, "refused: {message}"),
+            Self::KeyedRule(rule) => write!(f, "refused: {}", rule.message),
             Self::TooManyRequests(wait) => {
                 write!(f, "too many requests; try again in {wait:?}")
             }

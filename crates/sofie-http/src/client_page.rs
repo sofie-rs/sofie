@@ -101,7 +101,7 @@ pub(crate) fn refused(refusal: &Refusal, language: Language<'_>) -> Response {
             .iter()
             .map(|error| field_error(error, language))
             .collect(),
-        Refusal::Message(..) => Vec::new(),
+        Refusal::Message(..) | Refusal::Rule(_) => Vec::new(),
     };
     let body = json!({ "errors": errors, "notice": refusal.messages(language) });
     answer::response(refusal.status(), Some(JSON), body.to_string())

@@ -9,3 +9,17 @@ ignore = "The link works for seven days. If you do not know them, ignore this ma
 [tenancy.invitation]
 invited_already = "is invited already"
 member_already = "is a member already"
+
+[tenancy.rule]
+gone = "You are no longer a member of this organization."
+only_an_owner = "Only an owner renames, hands over or deletes the organization."
+not_a_member = "You are not a member of this organization."
+another_address = "This invitation is for another address; sign in with that one."
+not_open = "This invitation was accepted already or has expired."
+managing = "Only an owner or an admin of the organization manages its members."
+owner_role = "Only an owner gives or takes the owner role."
+seats_taken = "Every seat of the organization's plan is taken; add seats or remove a member first."
+last_owner = "An organization keeps at least one owner; make another member owner first."
+hand_over_to_another = "Hand the organization over to another of its members."
+plan_running = "Cancel the organization's plan before deleting it."
+last_owner_of = "This account is the last owner of {organizations}; hand each over to another member or delete it first."

@@ -7,3 +7,17 @@ ignore = "Bağlantı yedi gün boyunca çalışır. Bu kişiyi tanımıyorsanız
 [tenancy.invitation]
 invited_already = "zaten davet edildi"
 member_already = "zaten üye"
+
+[tenancy.rule]
+gone = "Artık bu kuruluşun üyesi değilsiniz."
+only_an_owner = "Kuruluşu yalnızca bir sahip yeniden adlandırır, devreder veya siler."
+not_a_member = "Bu kuruluşun üyesi değilsiniz."
+another_address = "Bu davet başka bir adres için; o adresle giriş yapın."
+not_open = "Bu davet zaten kabul edildi veya süresi doldu."
+managing = "Kuruluşun üyelerini yalnızca bir sahip veya yönetici yönetir."
+owner_role = "Sahip rolünü yalnızca bir sahip verir veya geri alır."
+seats_taken = "Kuruluşun planındaki tüm koltuklar dolu; önce koltuk ekleyin veya bir üyeyi çıkarın."
+last_owner = "Bir kuruluşun en az bir sahibi kalır; önce başka bir üyeyi sahip yapın."
+hand_over_to_another = "Kuruluşu üyelerinden başka birine devredin."
+plan_running = "Kuruluşu silmeden önce planını iptal edin."
+last_owner_of = "Bu hesap {organizations} kuruluşlarının son sahibi; her birini başka bir üyeye devredin veya önce silin."

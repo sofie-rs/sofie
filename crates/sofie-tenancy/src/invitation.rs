@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use sofie::core::Instant;
+use sofie::core::{Instant, RuleText};
 use sofie::db::{Query, Source};
 use sofie::prelude::*;
 
@@ -10,7 +10,10 @@ use crate::organization::{OrganizationId, OrganizationRole};
 
 /// Long enough for a colleague back from a week away.
 pub(crate) const VALID_FOR: Duration = Duration::from_hours(7 * 24);
-pub(crate) const NOT_OPEN: &str = "This invitation was accepted already or has expired.";
+pub(crate) const NOT_OPEN: RuleText = RuleText::new(
+    "tenancy.rule.not_open",
+    "This invitation was accepted already or has expired.",
+);
 
 /// A role offered to whoever holds the mailed link and signs in with its address.
 #[derive(Aggregate)]
@@ -76,7 +79,7 @@ impl Invitation {
     /// Expired at once, so its link opens nothing and its seat is free.
     pub(crate) fn withdraw(&mut self, now: Instant) -> Result<()> {
         if !self.is_open(now) {
-            return Err(Error::Rule(NOT_OPEN.to_owned()));
+            return Err(NOT_OPEN.into());
         }
         self.expires_at = now;
         Ok(())
@@ -84,7 +87,7 @@ impl Invitation {
 
     pub(crate) fn accept(&mut self, now: Instant) -> Result<()> {
         if !self.is_open(now) {
-            return Err(Error::Rule(NOT_OPEN.to_owned()));
+            return Err(NOT_OPEN.into());
         }
         self.accepted_at = Some(now);
         Ok(())

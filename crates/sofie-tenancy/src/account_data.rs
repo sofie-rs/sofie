@@ -114,11 +114,16 @@ async fn last_owner_of(read: &Read, organizations: Vec<OrganizationId>) -> Resul
         .await?;
     let mut names: Vec<&str> = organizations.iter().map(Organization::name).collect();
     names.sort_unstable();
-    Ok(Error::Rule(format!(
-        "This account is the last owner of {}; hand each over to another member or delete it \
-         first.",
-        names.join(", ")
-    )))
+    let listed = names.join(", ");
+    let message = format!(
+        "This account is the last owner of {listed}; hand each over to another member or delete \
+         it first."
+    );
+    Ok(Error::rule_keyed(
+        "tenancy.rule.last_owner_of",
+        [("organizations", listed)],
+        message,
+    ))
 }
 
 /// Written as a statement: the closing commits within the account's reach, which the

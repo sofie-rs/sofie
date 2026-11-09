@@ -32,7 +32,7 @@ pub use constraint::{Constraint, FieldRules, Measured};
 pub use display::misleads_display;
 pub use display_zone::{DisplayZone, is_iana_identifier, wall_clock_instant};
 pub use environment::{BASE_URL, Variable, base_url, base_url_missing, environment_variable};
-pub use error::{Error, FieldError, Result};
+pub use error::{Error, FieldError, KeyedRule, Result, RuleText};
 pub use error_status::ErrorStatus;
 pub use field_name::{IDEMPOTENCY_KEY_FIELD, is_field_name};
 pub use fnv::Fnv1a64;

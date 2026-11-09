@@ -1471,7 +1471,10 @@ compiled by the app's build script, loaded at boot and rendered by the engine.
   `Page.lang` is the negotiated tag, and the notice of a refused form, its
   field messages (`validation.*` keys) and their labels are translated, and
   so are a list's refused filters on the page and the messages of a
-  handler's JSON 422; the currency box's label is `field.currency`. `sofie
+  handler's JSON 422. A rule refused with a key (`Error::rule_keyed(key,
+  arguments, english)`, or a constant `RuleText` turned `.into()` an error)
+  is answered translated too, its JSON as `{"error", "key", "arguments"}`;
+  a plain `Error::Rule(text)` stays as written. The currency box's label is `field.currency`. `sofie
   check` reports a file that does not load, a `t(…)` call that cannot render
   and every gap. An app without language files compiles none of it.
 

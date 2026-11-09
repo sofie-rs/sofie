@@ -1,6 +1,6 @@
-<Section title="Tokens">
+<Section title={t("identity.tokens.title")}>
   <Table id="tokens" of={data} columns="id area scopes expires_at last_used_at" />
   <Form id="revoke" post="tokens" target="tokens">
-    <Submit label="Revoke" />
+    <Submit label={t("identity.tokens.revoke")} />
   </Form>
 </Section>

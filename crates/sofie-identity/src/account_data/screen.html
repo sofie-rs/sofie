@@ -1,8 +1,8 @@
-<Section title="Your data">
-  <p>Everything this app holds about your account, as one JSON document.</p>
-  <form method="post" action="account-data/export"><button type="submit">Export my data</button></form>
-  <p>Closing your account signs you out everywhere and removes your address, password and second factors. It cannot be undone; type your address to confirm.</p>
+<Section title={t("identity.account_data.title")}>
+  <p>{t("identity.account_data.intro")}</p>
+  <form method="post" action="account-data/export"><button type="submit">{t("identity.account_data.export")}</button></form>
+  <p>{t("identity.account_data.closing")}</p>
   <Form id="close-account" post="account-data/close">
-    <Submit label="Close my account" />
+    <Submit label={t("identity.account_data.close")} />
   </Form>
 </Section>

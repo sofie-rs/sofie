@@ -1,6 +1,6 @@
-<Section title="Signed-in sessions">
+<Section title={t("identity.sessions.title")}>
   <Table id="sessions" of={data} columns="area device created_at last_seen_at" as="session">
-    <Action post="sessions/{session.id}/end" label="Sign out" target="sessions" />
+    <Action post="sessions/{session.id}/end" label={t("identity.sessions.end")} target="sessions" />
   </Table>
-  <Action post="sessions/others" label="Sign out everywhere else" target="sessions" />
+  <Action post="sessions/others" label={t("identity.sessions.end_others")} target="sessions" />
 </Section>

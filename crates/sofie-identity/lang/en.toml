@@ -82,7 +82,61 @@ choose = "Choose a new password"
 ignore = "The link works once, within an hour. If it was not you, ignore this mail: nothing changed."
 
 [identity.tokens]
+title = "Tokens"
+revoke = "Revoke"
 issue_title = "Issue a token"
 issue = "Issue"
 shown_until_done = "Copy this token now: once you are done, it is never shown again."
 done = "Done"
+
+[identity.sessions]
+title = "Signed-in sessions"
+end = "Sign out"
+end_others = "Sign out everywhere else"
+
+[identity.passkeys]
+title = "Passkeys"
+intro = "A passkey signs you in with your device's lock instead of a password."
+remove = "Remove"
+add = "Add a passkey"
+
+[identity.two_factor]
+title = "Two-step sign-in"
+enabled = "Signing in asks for a code from your authenticator app after the password. Give a code to turn it off."
+turn_off = "Turn off"
+scan = "Scan this code with your authenticator app:"
+qr = "QR code of the key"
+by_hand = "Or add this key to it by hand:"
+recovery = "Keep these recovery codes somewhere safe; each signs in once without the app. They are not shown again."
+turn_on = "Turn on"
+off = "Signing in asks only for the password."
+set_up = "Set up an authenticator app"
+
+[identity.connections]
+title = "Connected accounts"
+disconnect = "Disconnect"
+connect = "Connect {provider}"
+
+[identity.impersonation]
+title = "Impersonation"
+intro = "Sign in as a member to see what they see. The member sees it among their sessions, it ends by itself after half an hour, and each one is kept here with its reason."
+submit = "Sign in as this member"
+
+[identity.account_data]
+title = "Your data"
+intro = "Everything this app holds about your account, as one JSON document."
+export = "Export my data"
+closing = "Closing your account signs you out everywhere and removes your address, password and second factors. It cannot be undone; type your address to confirm."
+close = "Close my account"
+
+[identity.flags]
+title = "Flags"
+save = "Save"
+
+[identity.shield]
+title = "Shield"
+lift = "Lift"
+
+[identity.settings]
+title = "Settings"
+change = "Change"

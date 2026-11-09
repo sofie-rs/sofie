@@ -1,6 +1,6 @@
-<Section title="Settings">
+<Section title={t("identity.settings.title")}>
   <Table id="settings" of={data} columns="name value default" />
   <Form id="change" post="settings" target="settings">
-    <Submit label="Change" />
+    <Submit label={t("identity.settings.change")} />
   </Form>
 </Section>

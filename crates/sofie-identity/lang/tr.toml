@@ -85,7 +85,61 @@ choose = "Yeni bir parola seçin"
 ignore = "Bağlantı bir saat içinde, yalnızca bir kez çalışır. Siz değilseniz bu e-postayı yok sayın: hiçbir şey değişmedi."
 
 [identity.tokens]
+title = "Tokenlar"
+revoke = "İptal et"
 issue_title = "Token oluştur"
 issue = "Oluştur"
 shown_until_done = "Bu tokenı şimdi kopyalayın: işiniz bittiğinde bir daha gösterilmez."
 done = "Tamam"
+
+[identity.sessions]
+title = "Açık oturumlar"
+end = "Oturumu kapat"
+end_others = "Diğer her yerde oturumu kapat"
+
+[identity.passkeys]
+title = "Geçiş anahtarları"
+intro = "Geçiş anahtarı, parola yerine cihazınızın kilidiyle giriş yapmanızı sağlar."
+remove = "Kaldır"
+add = "Geçiş anahtarı ekle"
+
+[identity.two_factor]
+title = "İki adımlı giriş"
+enabled = "Giriş, paroladan sonra doğrulama uygulamanızdan bir kod ister. Kapatmak için bir kod girin."
+turn_off = "Kapat"
+scan = "Bu kodu doğrulama uygulamanızla tarayın:"
+qr = "Anahtarın QR kodu"
+by_hand = "Ya da bu anahtarı uygulamaya elle ekleyin:"
+recovery = "Bu kurtarma kodlarını güvenli bir yerde saklayın; her biri uygulama olmadan bir kez giriş yapar. Bir daha gösterilmezler."
+turn_on = "Aç"
+off = "Giriş yalnızca parolayı ister."
+set_up = "Doğrulama uygulaması kur"
+
+[identity.connections]
+title = "Bağlı hesaplar"
+disconnect = "Bağlantıyı kes"
+connect = "{provider} ile bağlan"
+
+[identity.impersonation]
+title = "Kimliğe bürünme"
+intro = "Bir üyenin gördüğünü görmek için onun olarak giriş yapın. Üye bunu oturumları arasında görür, yarım saat sonra kendiliğinden sona erer ve her biri gerekçesiyle burada tutulur."
+submit = "Bu üye olarak giriş yap"
+
+[identity.account_data]
+title = "Verileriniz"
+intro = "Bu uygulamanın hesabınız hakkında tuttuğu her şey, tek bir JSON belgesi olarak."
+export = "Verilerimi dışa aktar"
+closing = "Hesabınızı kapatmak her yerde oturumunuzu kapatır ve adresinizi, parolanızı ve ikinci faktörlerinizi siler. Geri alınamaz; onaylamak için adresinizi yazın."
+close = "Hesabımı kapat"
+
+[identity.flags]
+title = "Bayraklar"
+save = "Kaydet"
+
+[identity.shield]
+title = "Kalkan"
+lift = "Kaldır"
+
+[identity.settings]
+title = "Ayarlar"
+change = "Değiştir"

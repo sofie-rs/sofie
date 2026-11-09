@@ -85,7 +85,61 @@ choose = "Neues Passwort wählen"
 ignore = "Der Link funktioniert einmal, innerhalb einer Stunde. Waren Sie es nicht, ignorieren Sie diese E-Mail: Es hat sich nichts geändert."
 
 [identity.tokens]
+title = "Tokens"
+revoke = "Widerrufen"
 issue_title = "Token ausstellen"
 issue = "Ausstellen"
 shown_until_done = "Kopieren Sie diesen Token jetzt: Sobald Sie fertig sind, wird er nie wieder angezeigt."
 done = "Fertig"
+
+[identity.sessions]
+title = "Angemeldete Sitzungen"
+end = "Abmelden"
+end_others = "Überall sonst abmelden"
+
+[identity.passkeys]
+title = "Passkeys"
+intro = "Ein Passkey meldet Sie mit der Sperre Ihres Geräts statt mit einem Passwort an."
+remove = "Entfernen"
+add = "Passkey hinzufügen"
+
+[identity.two_factor]
+title = "Zweistufige Anmeldung"
+enabled = "Die Anmeldung fragt nach dem Passwort einen Code aus Ihrer Authenticator-App ab. Geben Sie einen Code ein, um sie auszuschalten."
+turn_off = "Ausschalten"
+scan = "Scannen Sie diesen Code mit Ihrer Authenticator-App:"
+qr = "QR-Code des Schlüssels"
+by_hand = "Oder fügen Sie ihr diesen Schlüssel von Hand hinzu:"
+recovery = "Bewahren Sie diese Wiederherstellungscodes sicher auf; jeder meldet Sie einmal ohne die App an. Sie werden nicht noch einmal angezeigt."
+turn_on = "Einschalten"
+off = "Die Anmeldung fragt nur nach dem Passwort."
+set_up = "Authenticator-App einrichten"
+
+[identity.connections]
+title = "Verbundene Konten"
+disconnect = "Trennen"
+connect = "Mit {provider} verbinden"
+
+[identity.impersonation]
+title = "Identitätswechsel"
+intro = "Melden Sie sich als Mitglied an, um zu sehen, was es sieht. Das Mitglied sieht dies unter seinen Sitzungen, es endet nach einer halben Stunde von selbst, und jeder Wechsel wird hier mit seinem Grund festgehalten."
+submit = "Als dieses Mitglied anmelden"
+
+[identity.account_data]
+title = "Ihre Daten"
+intro = "Alles, was diese App über Ihr Konto speichert, als ein JSON-Dokument."
+export = "Meine Daten exportieren"
+closing = "Wenn Sie Ihr Konto schließen, werden Sie überall abgemeldet und Ihre Adresse, Ihr Passwort und Ihre zweiten Faktoren entfernt. Das lässt sich nicht rückgängig machen; geben Sie zur Bestätigung Ihre Adresse ein."
+close = "Mein Konto schließen"
+
+[identity.flags]
+title = "Flags"
+save = "Speichern"
+
+[identity.shield]
+title = "Schutz"
+lift = "Aufheben"
+
+[identity.settings]
+title = "Einstellungen"
+change = "Ändern"

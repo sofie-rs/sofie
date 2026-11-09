@@ -1,8 +1,8 @@
-<Section id="connections" title="Connected accounts">
+<Section id="connections" title={t("identity.connections.title")}>
   <Table id="identities" of={data.connected} columns="provider email created_at" as="identity">
-    <Action post="connections/{identity.id}/remove" label="Disconnect" target="connections" />
+    <Action post="connections/{identity.id}/remove" label={t("identity.connections.disconnect")} target="connections" />
   </Table>
   {#each data.providers as provider}
-    <form method="post" action="connections"><input type="hidden" name="provider" value={provider.name}><button type="submit">Connect {provider.label}</button></form>
+    <form method="post" action="connections"><input type="hidden" name="provider" value={provider.name}><button type="submit">{t("identity.connections.connect", provider = provider.label)}</button></form>
   {/each}
 </Section>

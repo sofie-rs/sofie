@@ -1576,6 +1576,7 @@ name = "sofie-tenancy"
 version = "0.3.0"
 dependencies = [
  "serde_json",
+ "sofie-db",
  "sofie-engine",
  "sofie-framework",
  "sofie-identity",

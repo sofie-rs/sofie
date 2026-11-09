@@ -636,6 +636,44 @@ async fn closing_an_account_withdraws_the_invitations_it_sent() {
 }
 
 #[tokio::test]
+async fn closing_an_account_refreshes_the_invitation_screens_of_its_organizations() {
+    let app = started().await;
+    let (_, grace_in_acme) = two_owners(&app).await;
+    invite(&app, &grace_in_acme, "bob@example.com")
+        .await
+        .assert_ok();
+    let grace = signed_in_again(&app, "grace@example.com").await;
+    let acme = match &app
+        .query("SELECT id FROM sofie_tenancy.organization", &[])
+        .await[0][0]
+    {
+        sofie::core::SqlValue::Uuid(id) => *id,
+        other => panic!("an organization id is a uuid, not {other:?}"),
+    };
+    let mut changes = sofie_db::committed_changes(app.db());
+
+    post(
+        &app,
+        "/account/account-data/close",
+        &grace,
+        &json!({ "email": "grace@example.com" }),
+    )
+    .await
+    .assert_ok();
+
+    let topic = sofie_db::Topic::of::<sofie_tenancy::Invitation>();
+    let mut readers = Vec::new();
+    while let Ok(sofie_db::Announced::Changed(announced)) = changes.try_recv() {
+        let touched = announced.iter().filter(|change| change.topic == topic);
+        readers.extend(touched.map(|change| change.readers));
+    }
+    assert!(
+        readers.contains(&sofie_db::Readers::Owner(acme)),
+        "{readers:?}"
+    );
+}
+
+#[tokio::test]
 async fn removing_a_member_withdraws_the_invitations_it_sent() {
     let app = started().await;
     let (ada, grace) = two_owners(&app).await;

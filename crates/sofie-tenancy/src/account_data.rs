@@ -56,6 +56,7 @@ impl PersonalData for OrganizationMemberships {
             // In one order, so two accounts closing at once never take each other's rows.
             let mut held = held;
             held.sort_by_key(|member| member.organization().uuid());
+            let organizations = held.iter().map(OrganizationMember::organization).collect();
             let mut closing = held
                 .into_iter()
                 .map(|mut member| {
@@ -66,7 +67,10 @@ impl PersonalData for OrganizationMemberships {
                     Ok(left)
                 })
                 .collect::<Result<Vec<_>>>()?;
-            closing.push(Box::new(Withdrawn(AccountId::from_uuid(account))));
+            closing.push(Box::new(Withdrawn {
+                account: AccountId::from_uuid(account),
+                organizations,
+            }));
             Ok(closing)
         })
     }
@@ -144,8 +148,12 @@ impl Outcome for Left {
 }
 
 /// The open invitations the account sent, withdrawn, so none it no longer stands behind joins
-/// anybody or holds a seat.
-struct Withdrawn(AccountId);
+/// anybody or holds a seat. Its invitations lie in the organizations it belongs to, since leaving
+/// or losing a role withdraws the rest; each is told, as the closing's reach owns none of them.
+struct Withdrawn {
+    account: AccountId,
+    organizations: Vec<OrganizationId>,
+}
 
 impl Outcome for Withdrawn {
     fn plan(&self, plan: &mut Plan<'_>) -> Result<()> {
@@ -161,10 +169,12 @@ impl Outcome for Withdrawn {
             dialect.quote("accepted_at"),
             now = dialect.placeholder(2),
         );
-        let mut params = vec![SqlValue::Uuid(self.0.uuid())];
+        let mut params = vec![SqlValue::Uuid(self.account.uuid())];
         plan.stamp().now.encode(&mut params);
         plan.push_as::<crate::Invitation>(Step::statement(sql, params, None));
-        plan.touched::<crate::Invitation>(None);
+        for organization in &self.organizations {
+            plan.touched::<crate::Invitation>(Some(organization.uuid()));
+        }
         Ok(())
     }
 }

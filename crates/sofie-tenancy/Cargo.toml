@@ -27,6 +27,8 @@ sofie-engine = { workspace = true, features = ["compile"] }
 sofie-tenancy = { path = ".", features = ["account-data", "billing"] }
 # Spans give route names; its SQLite tables checked against its records.
 sofie = { package = "sofie-framework", path = "../sofie", features = ["capture", "sqlite"] }
+# Committed changes read to see which screens a closing refreshes.
+sofie-db = { path = "../sofie-db", features = ["live"] }
 serde_json.workspace = true
 sofie-testing = { path = "../sofie-testing", features = ["mail"] }
 tokio = { workspace = true, features = ["macros"] }

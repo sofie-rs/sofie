@@ -119,7 +119,7 @@ async fn a_route_behind_an_off_flag_is_not_found_until_it_is_switched_on() {
 
 #[cfg(feature = "cors")]
 #[tokio::test]
-async fn a_preflight_to_a_flagged_route_is_answered_only_once_the_flag_is_on() {
+async fn a_preflight_to_a_flagged_route_is_answered_once_the_flag_is_on_for_someone() {
     let _telemetry = sofie_telemetry::capture();
     let app = sofie_testing::start(
         |db: Db| async move {
@@ -135,19 +135,51 @@ async fn a_preflight_to_a_flagged_route_is_answered_only_once_the_flag_is_on() {
     )
     .await;
     let pay = sofie_http::RoutePath::new(sofie_http::Method::OPTIONS, "/pay".to_owned());
-    let preflight = || {
-        app.request(&pay)
+    let answered = || async {
+        let preflight = app
+            .request(&pay)
             .header("origin", "https://app.example")
             .header("access-control-request-method", "POST")
+            .await;
+        preflight.status == 204
+            && preflight
+                .headers
+                .get("access-control-allow-origin")
+                .is_some()
+    };
+    let rolled_out = |percentage| Rule {
+        percentage,
+        ..Rule::everyone()
     };
 
-    let hidden = preflight().await;
-    switch_on(&app, "shop.split_payments", "/pay", true).await;
-    let shown = preflight().await;
+    let hidden = answered().await;
+    let partly_on = flag_reached(&app, rolled_out(10), &answered, true).await;
+    let on_for_nobody = flag_reached(&app, rolled_out(0), &answered, false).await;
 
-    assert_ne!(hidden.status, 204);
-    assert!(hidden.headers.get("access-control-allow-origin").is_none());
-    assert_eq!(shown.status, 204);
+    assert!(!hidden);
+    assert!(
+        partly_on,
+        "a preflight to a route on for some principals is answered"
+    );
+    assert!(on_for_nobody, "a preflight to a route on for nobody is not");
+}
+
+#[cfg(feature = "cors")]
+async fn flag_reached<F, Answered>(app: &TestApp, rule: Rule, answered: &F, wanted: bool) -> bool
+where
+    F: Fn() -> Answered,
+    Answered: std::future::Future<Output = bool>,
+{
+    let elsewhere = Flags::start(app.db(), "test").await.unwrap();
+    elsewhere.set("shop.split_payments", rule).await.unwrap();
+    drop(elsewhere);
+    for _ in 0..50 {
+        if answered().await == wanted {
+            return true;
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+    false
 }
 
 #[tokio::test]

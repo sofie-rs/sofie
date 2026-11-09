@@ -50,6 +50,8 @@ pub struct SplitPlan {
     /// The app's test files naming the module's crate, which it no longer depends on.
     pub orphaned_tests: Vec<PathBuf>,
     pub last_module: bool,
+    /// The areas its contract defines, which the apps' wirings name through it.
+    pub defines_areas: bool,
 }
 
 #[derive(Debug)]
@@ -163,6 +165,7 @@ fn plan(
         shared_prefixes,
         orphaned_tests,
         last_module: app.modules.len() == 1,
+        defines_areas: !module.defined_areas.is_empty(),
         app: app.app.package.clone(),
         new_app: format!("{package}-app"),
         from: module.krate.path.clone(),
@@ -262,6 +265,12 @@ impl SplitPlan {
 
     fn contract_package(&self) -> String {
         contract_package(&self.package)
+    }
+
+    /// An app depending on the contract otherwise names nothing of it, which `sofie check`
+    /// refuses as an unused dependency.
+    fn wires_contract(&self) -> bool {
+        !self.contracts.is_empty() || !self.lookups.is_empty() || self.defines_areas
     }
 
     /// What stops compiling in the app the module leaves.
@@ -478,7 +487,7 @@ fn leave_app(journal: &mut Journal, plan: &SplitPlan) -> Result<(), GenError> {
     let depends = toml_section(&text, DEPENDENCIES).is_some_and(|(start, end)| {
         dependency_line_start(&text[start..end], &plan.contract_package()).is_some()
     });
-    if !depends {
+    if !depends && plan.wires_contract() {
         let path = relative_path(&plan.root.join("app"), &new_contract).unwrap_or_default();
         text = with_dependency_line(&text, &path_dependency(&plan.contract_package(), &path));
     }
@@ -532,10 +541,12 @@ fn write_new_app(journal: &mut Journal, plan: &SplitPlan) -> Result<(), GenError
         line.starts_with("sofie ") || line.starts_with("sofie.")
     });
     dependencies.push_str(&path_dependency(&plan.package, &path(&module)));
-    dependencies.push_str(&path_dependency(
-        &plan.contract_package(),
-        &path(&module.join("contract")),
-    ));
+    if plan.wires_contract() {
+        dependencies.push_str(&path_dependency(
+            &plan.contract_package(),
+            &path(&module.join("contract")),
+        ));
+    }
     let remote: Vec<String> = plan
         .calls_back
         .iter()
@@ -875,6 +886,7 @@ mod tests {
             shared_prefixes: Vec::new(),
             orphaned_tests: Vec::new(),
             last_module: false,
+            defines_areas: false,
         };
 
         assert!(write_proxy_table(&mut Journal::default(), &plan).is_err());

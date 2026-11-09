@@ -10,12 +10,13 @@ pub(crate) enum Refusal {
 }
 
 impl Refusal {
-    pub(crate) fn message(self) -> &'static str {
+    /// Its translation key and English text.
+    pub(crate) fn reason(self) -> (&'static str, &'static str) {
         match self {
             Self::NotANumber => NOT_A_NUMBER,
-            Self::TooManyDecimals => "has too many decimals",
-            Self::Character(character) => unexpected_character_message(character),
-            Self::OutOfRange => "is out of range",
+            Self::TooManyDecimals => ("validation.number.decimals", "has too many decimals"),
+            Self::Character(character) => unexpected_character(character),
+            Self::OutOfRange => OUT_OF_RANGE,
         }
     }
 }
@@ -82,14 +83,29 @@ pub(crate) fn divide_rounded(numerator: i128, denominator: i128) -> Option<i64> 
     i64::try_from(rounded).ok()
 }
 
-const NOT_A_NUMBER: &str = "must be a number such as 149.90";
+const NOT_A_NUMBER: (&str, &str) = (
+    "validation.number.invalid",
+    "must be a number such as 149.90",
+);
+pub(crate) const OUT_OF_RANGE: (&str, &str) = ("validation.number.out_of_range", "is out of range");
 
-fn unexpected_character_message(character: char) -> &'static str {
+fn unexpected_character(character: char) -> (&'static str, &'static str) {
     match character {
-        character if character.is_whitespace() => "must not contain spaces",
-        'e' | 'E' => "must be written out, without an exponent",
-        '+' | '-' => "may only have a leading `-` as its sign",
-        '.' | ',' | '_' | '\'' => "must use one `.` before the decimals and no other separator",
+        character if character.is_whitespace() => {
+            ("validation.number.spaces", "must not contain spaces")
+        }
+        'e' | 'E' => (
+            "validation.number.exponent",
+            "must be written out, without an exponent",
+        ),
+        '+' | '-' => (
+            "validation.number.sign",
+            "may only have a leading `-` as its sign",
+        ),
+        '.' | ',' | '_' | '\'' => (
+            "validation.number.separator",
+            "must use one `.` before the decimals and no other separator",
+        ),
         _ => NOT_A_NUMBER,
     }
 }
@@ -118,7 +134,7 @@ mod tests {
 
     fn refusal(text: &str) -> &'static str {
         match parse_scaled(text, 2) {
-            Err(refusal) => refusal.message(),
+            Err(refusal) => refusal.reason().1,
             Ok(read) => panic!("{text:?} was read as {read}"),
         }
     }
@@ -203,7 +219,7 @@ mod tests {
         for text in [
             "", " ", "-", ".5", "5.", "-.5", "abc", "€5", "0x10", "NaN", "١٢",
         ] {
-            assert_eq!(refusal(text), NOT_A_NUMBER, "{text:?}");
+            assert_eq!(refusal(text), NOT_A_NUMBER.1, "{text:?}");
         }
     }
 

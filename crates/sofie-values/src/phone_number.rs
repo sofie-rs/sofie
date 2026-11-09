@@ -3,6 +3,7 @@ use std::fmt;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use sofie_core::{Cast, ColumnReader, ColumnSpec, Error, Result, Show, Shown, SqlType, SqlValue};
 
+use crate::refusal::refusal;
 use crate::{Input, Present};
 use sofie_core::deserialize_parsed;
 
@@ -36,17 +37,27 @@ impl PhoneNumber {
         };
         let code = country_code.to_string();
         if code_length(&code) != Some(code.len()) {
-            return Err(invalid_phone("must start with a country calling code"));
+            return Err(refusal(
+                "phone",
+                "validation.phone.country_code",
+                "must start with a country calling code",
+            ));
         }
         if national.len() < MINIMUM_NATIONAL_DIGITS
             || !national.bytes().all(|byte| byte.is_ascii_digit())
         {
-            return Err(invalid_phone(
+            return Err(refusal(
+                "phone",
+                "validation.phone.too_short",
                 "must have a number of at least 4 digits after the country code",
             ));
         }
         if code.len() + national.len() > MAXIMUM_DIGITS {
-            return Err(invalid_phone("must have at most 15 digits"));
+            return Err(refusal(
+                "phone",
+                "validation.phone.too_long",
+                "must have at most 15 digits",
+            ));
         }
         Ok(Self {
             country_code,
@@ -56,17 +67,29 @@ impl PhoneNumber {
 
     pub fn parse(text: &str) -> Result<Self> {
         let digits: String = text.trim().replace(SEPARATORS, "");
-        let digits = digits
-            .strip_prefix('+')
-            .ok_or_else(|| invalid_phone("must start with + and the country code"))?;
+        let digits = digits.strip_prefix('+').ok_or_else(|| {
+            refusal(
+                "phone",
+                "validation.phone.plus",
+                "must start with + and the country code",
+            )
+        })?;
         if !digits.bytes().all(|byte| byte.is_ascii_digit()) {
-            return Err(invalid_phone(
+            return Err(refusal(
+                "phone",
+                "validation.phone.characters",
                 "must have only digits after the +, apart from spaces, dots, hyphens and brackets",
             ));
         }
         let length = code_length(digits)
             .filter(|&length| digits.len() > length)
-            .ok_or_else(|| invalid_phone("must start with a country calling code"))?;
+            .ok_or_else(|| {
+                refusal(
+                    "phone",
+                    "validation.phone.country_code",
+                    "must start with a country calling code",
+                )
+            })?;
         let (code, national) = digits.split_at(length);
         let country_code = code.parse().expect("at most three digits fit a u16");
         Self::try_new(country_code, national)
@@ -92,7 +115,9 @@ impl PhoneNumber {
 fn without_trunk_zero(national: &str) -> Result<&str> {
     let national = national.strip_prefix('0').unwrap_or(national);
     if national.starts_with('0') {
-        return Err(invalid_phone(
+        return Err(refusal(
+            "phone",
+            "validation.phone.trunk_zero",
             "must not start with 0 after the country code, apart from one trunk zero",
         ));
     }
@@ -110,10 +135,6 @@ fn code_length(digits: &str) -> Option<usize> {
         return Some(2);
     }
     Some(3)
-}
-
-fn invalid_phone(message: &str) -> Error {
-    Error::invalid("phone", message)
 }
 
 impl fmt::Debug for PhoneNumber {

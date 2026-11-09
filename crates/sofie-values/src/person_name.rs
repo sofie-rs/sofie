@@ -1,6 +1,8 @@
 use std::fmt;
 
-use sofie_core::{Error, Result};
+use sofie_core::{FieldError, Result};
+
+use crate::refusal::{refusal, refusal_of};
 
 const MAXIMUM_LENGTH: usize = 200;
 
@@ -15,7 +17,11 @@ impl PersonName {
         let text = text.trim();
         // A char is at most 4 bytes; refused before any copy.
         if text.len() > MAXIMUM_LENGTH * 4 {
-            return Err(invalid_name("must have at most 200 characters"));
+            return Err(refusal(
+                "name",
+                "validation.person_name.too_long",
+                "must have at most 200 characters",
+            ));
         }
         let mut name = String::with_capacity(text.len());
         for word in text.split_whitespace() {
@@ -36,13 +42,19 @@ impl PersonName {
 
     fn from_collapsed(name: String) -> Result<Self> {
         if name.is_empty() {
-            return Err(invalid_name("is required"));
+            return Err(refusal_of(FieldError::required("name")));
         }
         if name.chars().count() > MAXIMUM_LENGTH {
-            return Err(invalid_name("must have at most 200 characters"));
+            return Err(refusal(
+                "name",
+                "validation.person_name.too_long",
+                "must have at most 200 characters",
+            ));
         }
         if name.chars().any(sofie_core::misleads_display) {
-            return Err(invalid_name(
+            return Err(refusal(
+                "name",
+                "validation.person_name.invisible",
                 "must not contain control or invisible formatting characters",
             ));
         }
@@ -68,10 +80,6 @@ fn is_collapsed(text: &str) -> bool {
         }
     }
     !after_space || text.is_empty()
-}
-
-fn invalid_name(message: &str) -> Error {
-    Error::invalid("name", message)
 }
 
 impl fmt::Debug for PersonName {

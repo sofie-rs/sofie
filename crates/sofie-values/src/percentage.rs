@@ -84,7 +84,7 @@ impl Visitor<'_> for PercentageVisitor {
     fn visit_str<E: de::Error>(self, percent: &str) -> Result<Percentage, E> {
         crate::decimal::parse_scaled(percent, 2)
             .map(Percentage::from_basis_points)
-            .map_err(|refusal| E::custom(refusal.message()))
+            .map_err(|refusal| E::custom(refusal.reason().1))
     }
 }
 

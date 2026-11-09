@@ -2,7 +2,9 @@ use std::fmt;
 
 use http::Uri;
 use http::uri::PathAndQuery;
-use sofie_core::{Error, Result};
+use sofie_core::Result;
+
+use crate::refusal::refusal;
 
 const MAXIMUM_LENGTH: usize = 2048;
 
@@ -14,7 +16,11 @@ pub struct Url {
 impl Url {
     pub fn parse(text: &str) -> Result<Self> {
         if text.len() > MAXIMUM_LENGTH {
-            return Err(invalid_url("must have at most 2048 characters"));
+            return Err(refusal(
+                "url",
+                "validation.url.too_long",
+                "must have at most 2048 characters",
+            ));
         }
         // `Uri` drops a fragment silently, so it is checked apart.
         let (address, fragment) = match text.split_once('#') {
@@ -22,25 +28,41 @@ impl Url {
             None => (text, None),
         };
         if fragment.is_some_and(|fragment| !is_fragment(fragment)) {
-            return Err(invalid_url(
+            return Err(refusal(
+                "url",
+                "validation.url.fragment",
                 "must not have spaces or a second # in its fragment",
             ));
         }
-        let uri: Uri = address
-            .parse()
-            .map_err(|_| invalid_url("must be an address such as https://example.com"))?;
+        let uri: Uri = address.parse().map_err(|_| {
+            refusal(
+                "url",
+                "validation.url.address",
+                "must be an address such as https://example.com",
+            )
+        })?;
         let scheme = uri
             .scheme_str()
             .map(str::to_ascii_lowercase)
             .filter(|scheme| matches!(scheme.as_str(), "http" | "https"))
-            .ok_or_else(|| invalid_url("must start with http:// or https://"))?;
+            .ok_or_else(|| {
+                refusal(
+                    "url",
+                    "validation.url.scheme",
+                    "must start with http:// or https://",
+                )
+            })?;
         let authority = uri
             .authority()
             .filter(|authority| !authority.host().is_empty())
-            .ok_or_else(|| invalid_url("must name a host"))?
+            .ok_or_else(|| refusal("url", "validation.url.host", "must name a host"))?
             .as_str();
         if authority.contains('@') {
-            return Err(invalid_url("must not carry a user name or password"));
+            return Err(refusal(
+                "url",
+                "validation.url.credentials",
+                "must not carry a user name or password",
+            ));
         }
         let path = uri.path_and_query().map_or("/", PathAndQuery::as_str);
         let mut text = format!("{scheme}://{}{path}", authority.to_ascii_lowercase());
@@ -61,10 +83,6 @@ fn is_fragment(fragment: &str) -> bool {
     fragment
         .bytes()
         .all(|byte| byte.is_ascii_graphic() && byte != b'#')
-}
-
-fn invalid_url(message: &str) -> Error {
-    Error::invalid("url", message)
 }
 
 impl fmt::Display for Url {

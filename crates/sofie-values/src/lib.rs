@@ -5,6 +5,7 @@ mod decimal;
 mod email;
 mod money;
 mod present;
+mod refusal;
 mod secret;
 mod slug_character;
 #[cfg(test)]

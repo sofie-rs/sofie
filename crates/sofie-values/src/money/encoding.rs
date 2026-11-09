@@ -4,8 +4,11 @@ use std::fmt;
 use serde::de::{self, MapAccess, Visitor};
 use serde::ser::SerializeStruct;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use sofie_core::{Cast, ColumnReader, ColumnSpec, Error, Result, Show, Shown, SqlType, SqlValue};
+use sofie_core::{
+    Cast, ColumnReader, ColumnSpec, Error, FieldError, Result, Show, Shown, SqlType, SqlValue,
+};
 
+use crate::refusal::{refusal, refusal_of};
 use crate::{Currency, Money};
 
 impl Cast for Money {
@@ -69,13 +72,14 @@ impl MoneyInput {
     fn into_money(self) -> Result<Money> {
         let currency = self
             .currency
-            .ok_or_else(|| Error::invalid("currency", "is required"))?;
+            .ok_or_else(|| refusal_of(FieldError::required("currency")))?;
         match (self.minor, self.amount) {
             (Some(minor), None) => Ok(Money::new(minor, currency)),
             (None, Some(amount)) => Money::parse_major(&amount, currency),
-            (None, None) => Err(Error::invalid("amount", "is required")),
-            (Some(_), Some(_)) => Err(Error::invalid(
+            (None, None) => Err(refusal_of(FieldError::required("amount"))),
+            (Some(_), Some(_)) => Err(refusal(
                 "amount",
+                "validation.money.both",
                 "needs either `minor` or `amount`, not both",
             )),
         }

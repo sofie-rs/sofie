@@ -1,9 +1,10 @@
 mod encoding;
 
-use sofie_core::{Error, Result};
+use sofie_core::{Error, FieldError, Result};
 
 use crate::Currency;
 use crate::decimal::{Refusal, divide_rounded, parse_scaled, scaled_text, write_scaled};
+use crate::refusal::refusal_of;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct Money {
@@ -25,16 +26,26 @@ impl Money {
     pub fn parse_major(text: &str, currency: Currency) -> Result<Money> {
         let digits = currency.minor_digits();
         let minor = parse_scaled(text, digits).map_err(|refusal| {
-            let message = match refusal {
-                Refusal::TooManyDecimals if digits == 0 => {
-                    format!("{currency} amounts have no decimals")
+            let refused = match refusal {
+                Refusal::TooManyDecimals if digits == 0 => FieldError::new(
+                    "amount",
+                    "validation.money.no_decimals",
+                    format!("{currency} amounts have no decimals"),
+                )
+                .with("currency", currency.as_str()),
+                Refusal::TooManyDecimals => FieldError::new(
+                    "amount",
+                    "validation.money.decimals",
+                    format!("{currency} amounts have at most {digits} decimals"),
+                )
+                .with("currency", currency.as_str())
+                .with("digits", digits.to_string()),
+                other => {
+                    let (key, english) = other.reason();
+                    FieldError::new("amount", key, english)
                 }
-                Refusal::TooManyDecimals => {
-                    format!("{currency} amounts have at most {digits} decimals")
-                }
-                other => other.message().to_owned(),
             };
-            Error::invalid("amount", message)
+            refusal_of(refused)
         })?;
         Ok(Self::new(minor, currency))
     }

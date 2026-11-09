@@ -6,6 +6,7 @@ use sofie_core::{Cast, ColumnReader, ColumnSpec, Error, Ordered, Result, Show, S
 
 #[cfg(feature = "web")]
 use crate::Conventions;
+use crate::refusal::refusal;
 use crate::{Input, Present};
 use sofie_core::deserialize_parsed;
 
@@ -90,7 +91,11 @@ const fn two_digits(tens: u8, ones: u8) -> Option<i8> {
 }
 
 fn invalid_time() -> Error {
-    Error::invalid("time_of_day", "must be a time such as 09:30")
+    refusal(
+        "time_of_day",
+        "validation.time_of_day.invalid",
+        "must be a time such as 09:30",
+    )
 }
 
 impl fmt::Display for TimeOfDay {

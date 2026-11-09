@@ -8,6 +8,7 @@ use sofie_core::{Error, Ordered, Result};
 
 #[cfg(feature = "web")]
 use crate::Conventions;
+use crate::refusal::refusal;
 use crate::{Input, Instant, Present, TimeZone, Weekday};
 use sofie_core::deserialize_parsed;
 
@@ -55,7 +56,11 @@ impl Date {
 }
 
 fn invalid_date() -> Error {
-    Error::invalid("date", "must be a calendar day such as 2026-10-11")
+    refusal(
+        "date",
+        "validation.date.invalid",
+        "must be a calendar day such as 2026-10-11",
+    )
 }
 
 impl From<civil::Date> for Date {

@@ -384,4 +384,56 @@ mod tests {
         assert_eq!(turkish.label("status"), "Durum");
         assert_eq!(turkish.label("placed_at"), "Placed at");
     }
+
+    fn refusal(refused: sofie_core::Result<impl std::fmt::Debug>) -> sofie_core::FieldError {
+        match refused {
+            Err(sofie_core::Error::Invalid(mut fields)) => fields.remove(0),
+            other => panic!("not refused as invalid: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn each_value_refusal_reads_in_its_own_key_in_every_shipped_language() {
+        use sofie_values::{Currency, Date, Email, Locale, Money, Slug, TimeOfDay, TimeZone, Url};
+
+        let euro = Currency::parse("EUR").unwrap();
+        let refusals = [
+            refusal(Email::parse("ada lovelace@example.com")),
+            refusal(Email::parse("ada(at)example.com")),
+            refusal(Email::parse("a\"b@example.com")),
+            refusal(Money::parse_major("1.234", euro)),
+            refusal(Money::parse_major("1,5", euro)),
+            refusal(Money::parse_major("1.5", Currency::parse("JPY").unwrap())),
+            refusal(Currency::parse("eur")),
+            refusal(Slug::parse("Not A Slug")),
+            refusal(Url::parse("ftp://example.com")),
+            refusal(Locale::parse("en-u")),
+            refusal(Date::parse("2026-02-30")),
+            refusal(TimeOfDay::parse("25:00")),
+            refusal(TimeZone::parse("Mars/Olympus")),
+        ];
+        let translations = Translations::new(&["en", "de", "tr"]).unwrap();
+        let english = translations.negotiate(None, Some("en"));
+        for refused in &refusals {
+            let arguments: Vec<(&str, String)> = refused
+                .arguments
+                .iter()
+                .map(|(name, value)| (name.as_ref(), value.clone()))
+                .collect();
+            assert_ne!(refused.key, "validation.invalid", "{refused:?}");
+            assert_eq!(
+                english.translated(&refused.key, &arguments).as_ref(),
+                Some(&refused.message),
+                "{refused:?}"
+            );
+            for language in ["de", "tr"] {
+                let translated = translations.negotiate(None, Some(language)).field_error(
+                    &refused.key,
+                    &arguments,
+                    &refused.message,
+                );
+                assert_ne!(translated, refused.message, "{language}: {refused:?}");
+            }
+        }
+    }
 }

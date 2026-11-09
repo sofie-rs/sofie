@@ -5,6 +5,7 @@ use jiff::civil;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use sofie_core::{Cast, ColumnReader, ColumnSpec, Error, Result, Show, Shown, SqlValue};
 
+use crate::refusal::refusal;
 use crate::{Date, Instant, TimeOfDay};
 use sofie_core::deserialize_parsed;
 
@@ -18,8 +19,9 @@ pub struct TimeZone {
 impl TimeZone {
     pub fn parse(name: &str) -> Result<Self> {
         let refused = || {
-            Error::invalid(
+            refusal(
                 "time_zone",
+                "validation.time_zone.invalid",
                 "must be an IANA time zone such as Europe/Istanbul",
             )
         };

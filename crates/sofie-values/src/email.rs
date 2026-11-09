@@ -1,8 +1,9 @@
 use std::fmt;
 
-use sofie_core::{Error, Result};
+use sofie_core::{FieldError, Result};
 use unicode_normalization::{UnicodeNormalization, is_nfc};
 
+use crate::refusal::{refusal, refusal_of};
 use crate::slug_character::{draws_nothing, is_word_mark, without_marks_that_draw_nothing};
 
 const MAXIMUM_LENGTH: usize = 254;
@@ -20,7 +21,11 @@ impl Email {
         let trimmed = input.trim();
         // RFC 5321 counts octets; refused before the lowercase copy.
         if trimmed.len() > MAXIMUM_LENGTH {
-            return Err(invalid_email("must be at most 254 bytes"));
+            return Err(refusal(
+                "email",
+                "validation.email.too_long",
+                "must be at most 254 bytes",
+            ));
         }
         // NFC, so `josé` typed composed or decomposed is one address and one account; `İ` folds
         // to `i` rather than `i` plus a dot above, so `İlker` and `ilker` are one account too. It
@@ -47,19 +52,29 @@ impl Email {
 
     fn from_normalized(address: String) -> Result<Self> {
         if address.len() > MAXIMUM_LENGTH {
-            return Err(invalid_email("must be at most 254 bytes"));
+            return Err(refusal(
+                "email",
+                "validation.email.too_long",
+                "must be at most 254 bytes",
+            ));
         }
         if address.chars().any(char::is_whitespace) {
-            return Err(invalid_email("must not contain whitespace"));
+            return Err(refusal(
+                "email",
+                "validation.email.whitespace",
+                "must not contain whitespace",
+            ));
         }
         if address.chars().any(is_invisible) {
-            return Err(invalid_email(
+            return Err(refusal(
+                "email",
+                "validation.email.invisible",
                 "must not contain control or invisible formatting characters",
             ));
         }
         let (local, domain) = address
             .split_once('@')
-            .ok_or_else(|| invalid_email("must contain an @"))?;
+            .ok_or_else(|| refusal("email", "validation.email.no_at", "must contain an @"))?;
         validate_parts(local, domain)?;
         Ok(Self { address })
     }
@@ -78,34 +93,61 @@ fn is_invisible(character: char) -> bool {
 
 fn validate_parts(local: &str, domain: &str) -> Result<()> {
     if domain.contains('@') {
-        return Err(invalid_email("must contain a single @"));
+        return Err(refusal(
+            "email",
+            "validation.email.one_at",
+            "must contain a single @",
+        ));
     }
     if local.is_empty() {
-        return Err(invalid_email("must have a part before the @"));
+        return Err(refusal(
+            "email",
+            "validation.email.no_local_part",
+            "must have a part before the @",
+        ));
     }
     if local.len() > MAXIMUM_LOCAL_LENGTH {
-        return Err(invalid_email("must have at most 64 bytes before the @"));
+        return Err(refusal(
+            "email",
+            "validation.email.local_part_too_long",
+            "must have at most 64 bytes before the @",
+        ));
     }
     if !local.chars().all(is_local_character) {
-        return Err(invalid_email(
-            "must use only letters, digits and !#$%&'*+-/=?^_`{|}~ before the @",
+        return Err(refusal_of(
+            FieldError::new(
+                "email",
+                "validation.email.local_part_characters",
+                format!("must use only letters, digits and {LOCAL_SYMBOLS} before the @"),
+            )
+            .with("symbols", LOCAL_SYMBOLS),
         ));
     }
     if !marks_follow_letters(local) {
-        return Err(invalid_email(
+        return Err(refusal(
+            "email",
+            "validation.email.local_part_marks",
             "must put combining marks only after a letter before the @",
         ));
     }
     if local.split('.').any(str::is_empty) {
-        return Err(invalid_email(
+        return Err(refusal(
+            "email",
+            "validation.email.local_part_dots",
             "must not start or end the part before the @ with a dot, or repeat a dot in it",
         ));
     }
     if !domain.contains('.') {
-        return Err(invalid_email("must have a domain with a dot after the @"));
+        return Err(refusal(
+            "email",
+            "validation.email.no_domain",
+            "must have a domain with a dot after the @",
+        ));
     }
     if domain.split('.').any(str::is_empty) {
-        return Err(invalid_email(
+        return Err(refusal(
+            "email",
+            "validation.email.domain_dots",
             "must not start or end the domain with a dot, or repeat a dot in it",
         ));
     }
@@ -113,17 +155,23 @@ fn validate_parts(local: &str, domain: &str) -> Result<()> {
         .split('.')
         .any(|label| label.len() > MAXIMUM_LABEL_LENGTH)
     {
-        return Err(invalid_email(
+        return Err(refusal(
+            "email",
+            "validation.email.label_too_long",
             "must have at most 63 bytes between the dots of the domain",
         ));
     }
     if !marks_follow_letters(domain) {
-        return Err(invalid_email(
+        return Err(refusal(
+            "email",
+            "validation.email.domain_marks",
             "must put combining marks only after a letter in the domain",
         ));
     }
     if !domain.split('.').all(is_domain_label) {
-        return Err(invalid_email(
+        return Err(refusal(
+            "email",
+            "validation.email.domain_characters",
             "must use only letters, digits and inner hyphens between the dots of the domain",
         ));
     }
@@ -133,7 +181,7 @@ fn validate_parts(local: &str, domain: &str) -> Result<()> {
 /// RFC 5322 `atext` and dots; non-ASCII letters as RFC 6531 allows. Quoted local parts are
 /// refused: no mail provider hands them out.
 fn is_local_character(character: char) -> bool {
-    is_word_character(character) || "!#$%&'*+-/=?^_`{|}~.".contains(character)
+    is_word_character(character) || character == '.' || LOCAL_SYMBOLS.contains(character)
 }
 
 /// Marks such as the dot lowercasing leaves on `i`, a Hindi virama or a Thai tone mark.
@@ -159,9 +207,8 @@ fn is_domain_label(label: &str) -> bool {
             .all(|character| is_word_character(character) || character == '-')
 }
 
-fn invalid_email(message: &str) -> Error {
-    Error::invalid("email", message)
-}
+/// Beside letters and digits, what RFC 5322 lets the part before the @ hold.
+const LOCAL_SYMBOLS: &str = "!#$%&'*+-/=?^_`{|}~";
 
 impl fmt::Display for Email {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -184,7 +231,7 @@ sofie_core::text_value!(Email, address, Email::from_stored);
 
 #[cfg(test)]
 mod tests {
-    use sofie_core::{Cast, RowReader, SqlValue};
+    use sofie_core::{Cast, Error, RowReader, SqlValue};
 
     use super::*;
     use crate::testing::{assert_refused, round_trip};

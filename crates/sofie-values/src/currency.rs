@@ -5,6 +5,8 @@ use sofie_core::{Cast, ColumnReader, ColumnSpec, Error, Result, Show, Shown, Sql
 
 use sofie_core::deserialize_parsed;
 
+use crate::refusal::refusal;
+
 /// ISO 4217 list one as published on 2026-09-17: the codes in use and the digits of each
 /// one's minor unit, sorted for a binary search. Codes without a minor unit (metals, SDR,
 /// testing) are left out: no amount of money is written in them.
@@ -74,8 +76,9 @@ impl Currency {
 }
 
 fn invalid_currency() -> Error {
-    Error::invalid(
+    refusal(
         "currency",
+        "validation.currency.invalid",
         "must be an ISO 4217 code in use, in uppercase, such as EUR",
     )
 }

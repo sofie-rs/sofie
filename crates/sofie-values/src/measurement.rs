@@ -3,11 +3,14 @@ use std::hash::Hash;
 
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use sofie_core::show::Fields;
-use sofie_core::{Cast, ColumnReader, ColumnSpec, Error, Result, Show, Shown, SqlType, SqlValue};
+use sofie_core::{
+    Cast, ColumnReader, ColumnSpec, Error, FieldError, Result, Show, Shown, SqlType, SqlValue,
+};
 
 #[cfg(feature = "web")]
 use crate::Conventions;
-use crate::decimal::{Refusal, divide_rounded, parse_scaled, scaled_text};
+use crate::decimal::{OUT_OF_RANGE, Refusal, divide_rounded, parse_scaled, scaled_text};
+use crate::refusal::{refusal, refusal_of};
 use crate::{Control, Input, Part, Present};
 
 const DECIMALS: u8 = 3;
@@ -45,7 +48,8 @@ impl fmt::Display for Thousandths {
 impl<U: Unit> Measurement<U> {
     pub fn try_new(thousandths: i64, unit: U) -> Result<Self> {
         if !(-MAXIMUM_THOUSANDTHS..=MAXIMUM_THOUSANDTHS).contains(&thousandths) {
-            return Err(Error::invalid("quantity", "is out of range"));
+            let (key, english) = OUT_OF_RANGE;
+            return Err(refusal("quantity", key, english));
         }
         Ok(Self {
             quantity: Thousandths(thousandths),
@@ -54,12 +58,14 @@ impl<U: Unit> Measurement<U> {
     }
 
     pub fn parse(quantity: &str, unit: U) -> Result<Self> {
-        let thousandths = parse_scaled(quantity, DECIMALS).map_err(|refusal| {
-            let message = match refusal {
-                Refusal::TooManyDecimals => "has at most 3 decimals",
-                other => other.message(),
+        let thousandths = parse_scaled(quantity, DECIMALS).map_err(|refused| {
+            let (key, english) = match refused {
+                Refusal::TooManyDecimals => {
+                    ("validation.quantity.decimals", "has at most 3 decimals")
+                }
+                other => other.reason(),
             };
-            Error::invalid("quantity", message)
+            refusal("quantity", key, english)
         })?;
         Self::try_new(thousandths, unit)
     }
@@ -99,7 +105,17 @@ fn unit_named<U: Unit>(name: &str) -> Result<U> {
         .iter()
         .copied()
         .find(|unit| unit.name() == name)
-        .ok_or_else(|| Error::invalid("unit", format!("must be one of {}", U::NAMES.join(", "))))
+        .ok_or_else(|| {
+            let units = U::NAMES.join(", ");
+            refusal_of(
+                FieldError::new(
+                    "unit",
+                    "validation.unit.one_of",
+                    format!("must be one of {units}"),
+                )
+                .with("units", units),
+            )
+        })
 }
 
 impl<U: Unit> Show for Measurement<U> {

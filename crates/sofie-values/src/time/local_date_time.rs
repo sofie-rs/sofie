@@ -3,6 +3,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use sofie_core::show::Fields;
 use sofie_core::{Cast, ColumnReader, ColumnSpec, Error, Result, Show, Shown, SqlType, SqlValue};
 
+use crate::refusal::refusal;
 use crate::{Control, Input, Instant, Part, Present, TimeZone};
 
 /// The instant is worked out when needed, so the time survives a change to the zone's rules.
@@ -39,8 +40,9 @@ impl LocalDateTime {
 
 fn parse_local(local: &str) -> Result<civil::DateTime> {
     let refusal = || {
-        Error::invalid(
+        refusal(
             "local",
+            "validation.local_date_time.invalid",
             "must be a date and time without an offset, such as 2026-11-01T09:30",
         )
     };

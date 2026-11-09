@@ -1,7 +1,10 @@
+use crate::refusal::refusal_of;
 use crate::{Control, Input, Part, Present};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use sofie_core::show::Fields;
-use sofie_core::{Cast, ColumnReader, ColumnSpec, Error, Result, Show, Shown, SqlType, SqlValue};
+use sofie_core::{
+    Cast, ColumnReader, ColumnSpec, Error, FieldError, Result, Show, Shown, SqlType, SqlValue,
+};
 
 /// About a centimetre: far below what a float column or JSON number loses, so it round-trips.
 const STEPS_PER_DEGREE: f64 = 1e7;
@@ -37,9 +40,13 @@ impl Coordinate {
 
 fn steps(field: &str, degrees: f64, maximum: f64) -> Result<i32> {
     if !degrees.is_finite() || degrees.abs() > maximum {
-        return Err(Error::invalid(
-            field,
-            format!("must be a number of degrees from -{maximum} to {maximum}"),
+        return Err(refusal_of(
+            FieldError::new(
+                field,
+                "validation.coordinate.degrees",
+                format!("must be a number of degrees from -{maximum} to {maximum}"),
+            )
+            .with("maximum", maximum.to_string()),
         ));
     }
     #[expect(

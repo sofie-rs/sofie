@@ -1,5 +1,6 @@
-use sofie_core::{Error, Result};
+use sofie_core::Result;
 
+use crate::refusal::refusal;
 use crate::slug_character::{draws_nothing, without_marks_that_draw_nothing};
 
 const MAXIMUM_LENGTH: usize = 100;
@@ -25,13 +26,19 @@ impl Slug {
 
     fn checked(text: String) -> Result<Self> {
         if text.is_empty() || text.len() > MAXIMUM_LENGTH {
-            return Err(invalid_slug("must have 1 to 100 characters"));
+            return Err(refusal(
+                "slug",
+                "validation.slug.length",
+                "must have 1 to 100 characters",
+            ));
         }
         let well_formed = text
             .split('-')
             .all(|group| !group.is_empty() && group.chars().all(crate::is_slug_character));
         if !well_formed {
-            return Err(invalid_slug(
+            return Err(refusal(
+                "slug",
+                "validation.slug.characters",
                 "must be lowercase letters and digits joined by single hyphens",
             ));
         }
@@ -42,10 +49,6 @@ impl Slug {
     pub fn as_str(&self) -> &str {
         &self.text
     }
-}
-
-fn invalid_slug(message: &str) -> Error {
-    Error::invalid("slug", message)
 }
 
 sofie_core::text_value!(Slug, text, Slug::from_stored);

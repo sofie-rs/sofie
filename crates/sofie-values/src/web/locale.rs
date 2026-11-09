@@ -1,4 +1,6 @@
-use sofie_core::{Error, Result};
+use sofie_core::Result;
+
+use crate::refusal::refusal;
 
 /// Each part is checked for its shape, not against a registry.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -12,7 +14,13 @@ impl Locale {
         let language = parts
             .next()
             .filter(|language| is_letters(language, 2..=3))
-            .ok_or_else(|| invalid_locale("must start with a language such as en"))?;
+            .ok_or_else(|| {
+                refusal(
+                    "locale",
+                    "validation.locale.language",
+                    "must start with a language such as en",
+                )
+            })?;
         let mut tag = language.to_ascii_lowercase();
         let mut rest = parts.peekable();
         if let Some(script) = rest.next_if(|script| is_letters(script, 4..=4)) {
@@ -22,13 +30,19 @@ impl Locale {
         }
         if let Some(region) = rest.next() {
             if !is_letters(region, 2..=2) && !is_digits(region, 3) {
-                return Err(invalid_locale("must have a region such as US or 419"));
+                return Err(refusal(
+                    "locale",
+                    "validation.locale.region",
+                    "must have a region such as US or 419",
+                ));
             }
             tag.push('-');
             tag.push_str(&region.to_ascii_uppercase());
         }
         if rest.next().is_some() {
-            return Err(invalid_locale(
+            return Err(refusal(
+                "locale",
+                "validation.locale.parts",
                 "must be a language, script and region at most",
             ));
         }
@@ -52,10 +66,6 @@ fn is_letters(part: &str, lengths: std::ops::RangeInclusive<usize>) -> bool {
 
 fn is_digits(part: &str, length: usize) -> bool {
     part.len() == length && part.bytes().all(|byte| byte.is_ascii_digit())
-}
-
-fn invalid_locale(message: &str) -> Error {
-    Error::invalid("locale", message)
 }
 
 sofie_core::text_value!(Locale, tag);

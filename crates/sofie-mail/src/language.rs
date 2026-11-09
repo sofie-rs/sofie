@@ -24,7 +24,6 @@ mod spoken {
 
     pub(crate) struct Spoken(pub(crate) Arc<Translations>);
 
-    /// The app's translations, which a mail is written in once its handler names the language.
     pub fn translations(db: &Db, translations: Arc<Translations>) {
         sofie_db::extend(db, Arc::new(Spoken(translations)));
     }
@@ -45,7 +44,6 @@ mod plain {
     use sofie_core::Show;
     use sofie_engine::{Template, TemplateError};
 
-    /// Without `i18n` a mail is written in the texts its template was compiled with.
     #[derive(Clone, Copy)]
     pub(crate) struct Language<'a>(PhantomData<&'a ()>);
 
@@ -65,8 +63,7 @@ mod plain {
 }
 
 impl Mailer {
-    /// The recipient's language for the bodies and texts that follow; `None`, or a language the
-    /// app does not declare, writes its source language.
+    /// `None`, or a language the app does not declare, writes its source language.
     #[cfg(feature = "i18n")]
     #[must_use]
     pub fn in_language(mut self, locale: Option<sofie_values::Locale>) -> Self {
@@ -74,17 +71,16 @@ impl Mailer {
         self
     }
 
-    /// A subject or another text outside a template; `fallback`, in the source language, where
-    /// the app has no translations or none of its languages has the key.
+    /// `fallback`, in the source language, where no language of the app has the key.
     #[must_use]
     pub fn text(&self, key: &str, arguments: &[(&str, String)], fallback: &str) -> String {
         #[cfg(feature = "i18n")]
-        if let Some(text) = self.language().translated(key, arguments) {
-            return text;
-        }
+        return self.language().field_error(key, arguments, fallback);
         #[cfg(not(feature = "i18n"))]
-        let _ = (key, arguments);
-        fallback.to_owned()
+        {
+            let _ = (key, arguments);
+            fallback.to_owned()
+        }
     }
 
     #[cfg(feature = "i18n")]

@@ -813,8 +813,7 @@ describes is a text input; there is no `kind="…"`.
 refuses under its own key (`validation.email.no_at`, `validation.money.decimals`
 with `currency` and `digits`), and a refusal under `validation.invalid` keeps
 its own words; sofie-http writes every field error, notice and re-rendered form
-this way. `Language::translated(key, arguments)` and `Language::label(field)`
-give a text outside a template, such as a mail's subject. `Filter` (`OPERATORS`) and `LogFields` (members as
+this way. `Filter` (`OPERATORS`) and `LogFields` (members as
 `LogValue`s, sensitive values as their mask) sit behind sofie-values' `filter`
 and `log-fields` features.
 

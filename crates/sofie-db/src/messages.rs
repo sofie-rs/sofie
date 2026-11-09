@@ -278,18 +278,11 @@ impl Messages {
         self.db.transaction(steps).await
     }
 
-    pub async fn add_schedule(
-        &self,
-        name: &str,
-        first_at: Timestamp,
-        cadence: &str,
-        previous_cadence: &str,
-    ) -> Result<()> {
+    pub async fn add_schedule(&self, name: &str, first_at: Timestamp, cadence: &str) -> Result<()> {
         let params = [
             SqlValue::Text(name.to_owned()),
             SqlValue::Timestamp(first_at),
             SqlValue::Text(cadence.to_owned()),
-            SqlValue::Text(previous_cadence.to_owned()),
         ];
         let sql = self.sql().add_schedule;
         query_values(self.db.driver(), sql, &params).await.map(drop)

@@ -112,10 +112,8 @@ impl Schedules {
     pub(super) async fn store(&self, messages: &Messages, now: Timestamp) -> Result<()> {
         for (name, cadence, _) in &self.every {
             let first_at = cadence.first_at(now)?;
-            // Keys were the Debug text before; a schedule still holding it keeps its time.
-            let previous_key = format!("{cadence:?}");
             messages
-                .add_schedule(name, first_at, &cadence.key(), &previous_key)
+                .add_schedule(name, first_at, &cadence.key())
                 .await?;
         }
         Ok(())

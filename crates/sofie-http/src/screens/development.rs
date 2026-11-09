@@ -67,6 +67,23 @@ impl TemplateFile {
     }
 }
 
+/// `sofie check` checks a screen as the app is built; an edit made while it runs is checked here,
+/// and logged, as the page still renders.
+pub(super) fn check_reread(screens: &Screens, template: &Template) {
+    #[cfg(feature = "i18n")]
+    if let Some(translations) = &screens.translations
+        && let Err(error) = sofie_engine::check_translations(template, translations)
+    {
+        tracing::warn!(
+            screen = template.name(),
+            error = %error,
+            "a reread screen does not match the translations"
+        );
+    }
+    #[cfg(not(feature = "i18n"))]
+    let _ = (screens, template);
+}
+
 /// The time is taken before reading, so a write during the read is picked up next time.
 fn load(
     key: &str,

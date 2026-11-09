@@ -56,7 +56,11 @@ pub fn routes<A: MemberArea>(routes: &mut Routes<A>) {
         .shipped(
             "/account-data",
             "account_data",
-            (include_str!("screen.html"), Some(describe)),
+            (
+                include_str!("screen.html"),
+                include_bytes!(concat!(env!("OUT_DIR"), "/shipped/account_data/screen.sft")),
+                Some(describe),
+            ),
             page,
         )
         .name("account_data_page");

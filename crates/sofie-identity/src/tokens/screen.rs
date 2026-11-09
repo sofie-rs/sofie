@@ -21,7 +21,11 @@ pub fn routes<A: AccountArea>(routes: &mut Routes<A>) {
         .shipped(
             "/tokens",
             "tokens",
-            (include_str!("screen.html"), Some(describe)),
+            (
+                include_str!("screen.html"),
+                include_bytes!(concat!(env!("OUT_DIR"), "/shipped/tokens/screen.sft")),
+                Some(describe),
+            ),
             own::<A>,
         )
         .name("list_tokens")
@@ -37,7 +41,11 @@ pub fn routes<A: AccountArea>(routes: &mut Routes<A>) {
         .shipped(
             "/tokens/new",
             "issue_token",
-            (include_str!("issue.html"), Some(describe)),
+            (
+                include_str!("issue.html"),
+                include_bytes!(concat!(env!("OUT_DIR"), "/shipped/tokens/issue.sft")),
+                Some(describe),
+            ),
             revealed::<A>,
         )
         .name("issue_token_page")

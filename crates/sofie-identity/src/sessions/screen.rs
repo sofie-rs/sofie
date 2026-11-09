@@ -12,7 +12,11 @@ pub fn routes<A: AccountArea>(routes: &mut Routes<A>) {
         .shipped(
             "/sessions",
             "sessions",
-            (include_str!("screen.html"), None),
+            (
+                include_str!("screen.html"),
+                include_bytes!(concat!(env!("OUT_DIR"), "/shipped/sessions/screen.sft")),
+                None,
+            ),
             own::<A>,
         )
         .name("list_sessions");

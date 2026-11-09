@@ -16,7 +16,8 @@ pub use listing::{Listed, Listing};
 pub use menu::{Menu, MenuEntry, Navigation};
 #[cfg(feature = "resources")]
 pub use resource::{
-    Describe, OwnerOf, Resource, ResourceRoutes, Resources, Shipped, built_in_screen_source,
+    Describe, OwnerOf, Resource, ResourceRoutes, Resources, Shipped, ShippedTemplate,
+    built_in_screen_source,
 };
 
 /// Once every route's gates are known.

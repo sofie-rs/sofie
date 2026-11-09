@@ -16,7 +16,14 @@ pub(super) fn routes<A: Area>(routes: &mut Routes<A>) {
         .shipped(
             "/flags",
             "flags",
-            (include_str!("flags.html"), Some(describe)),
+            (
+                include_str!("flags.html"),
+                include_bytes!(concat!(
+                    env!("OUT_DIR"),
+                    "/shipped/permitted/screens/flags.sft"
+                )),
+                Some(describe),
+            ),
             list,
         )
         .name("list_flags")

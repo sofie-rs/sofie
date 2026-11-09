@@ -15,7 +15,14 @@ pub(super) fn routes<A: Area>(routes: &mut Routes<A>) {
         .shipped(
             "/settings",
             "settings",
-            (include_str!("settings.html"), Some(describe)),
+            (
+                include_str!("settings.html"),
+                include_bytes!(concat!(
+                    env!("OUT_DIR"),
+                    "/shipped/permitted/screens/settings.sft"
+                )),
+                Some(describe),
+            ),
             list,
         )
         .name("list_settings")

@@ -16,7 +16,11 @@ pub fn routes<A: MemberArea>(routes: &mut Routes<A>) {
         .shipped(
             PATH,
             "connections",
-            (include_str!("connections.html"), None),
+            (
+                include_str!("connections.html"),
+                include_bytes!(concat!(env!("OUT_DIR"), "/shipped/oauth/connections.sft")),
+                None,
+            ),
             list::<A>,
         )
         .name("list_connections");

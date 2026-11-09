@@ -13,7 +13,11 @@ pub fn inbox_routes<A: Area>(routes: &mut Routes<A>) {
         .shipped(
             "/notifications",
             "inbox",
-            (include_str!("screens/inbox.html"), None),
+            (
+                include_str!("screens/inbox.html"),
+                include_bytes!(concat!(env!("OUT_DIR"), "/screens/inbox.sft")),
+                None,
+            ),
             listed,
         )
         .name("inbox")

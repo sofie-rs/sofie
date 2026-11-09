@@ -124,6 +124,18 @@ async fn a_principal_issues_a_token_whose_secret_shows_until_it_says_done() {
     assert!(!hidden.body.contains(&secret), "{}", hidden.body);
 }
 
+#[tokio::test]
+async fn the_issue_screen_writes_its_texts_in_an_app_without_i18n() {
+    let app = started().await;
+    let (_, session) = member(&app, "ada@example.com").await;
+
+    let page = app.get("/console/tokens/new").session(&session).await;
+
+    assert_eq!(page.status, 200, "{}", page.body);
+    assert!(page.body.contains("Issue a token"), "{}", page.body);
+    assert!(!page.body.contains("identity.tokens."), "{}", page.body);
+}
+
 #[cfg(feature = "impersonation")]
 struct Partner;
 

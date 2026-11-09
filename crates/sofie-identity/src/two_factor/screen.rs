@@ -30,7 +30,11 @@ pub fn routes<A: AccountArea>(routes: &mut Routes<A>) {
         .shipped(
             "/two-factor",
             "two_factor",
-            (include_str!("screen.html"), Some(describe)),
+            (
+                include_str!("screen.html"),
+                include_bytes!(concat!(env!("OUT_DIR"), "/shipped/two_factor/screen.sft")),
+                Some(describe),
+            ),
             status::<A>,
         )
         .name("two_factor_page");

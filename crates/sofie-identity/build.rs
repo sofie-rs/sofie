@@ -21,6 +21,12 @@ const FOLDERS: [Folder; 2] = [
     },
 ];
 
+/// Templates elsewhere in `src` are shipped screens, each compiled beside its path under `shipped`.
+const SHIPPED_TARGET: &str = "shipped";
+
+/// Copies of the generated resource screens, with `{prefix}` where an area's path goes.
+const ROLE_SCREENS: &str = "role_";
+
 struct Folder {
     source: &'static str,
     target: &'static str,
@@ -28,9 +34,7 @@ struct Folder {
 }
 
 fn main() -> ExitCode {
-    for folder in FOLDERS {
-        println!("cargo::rerun-if-changed={}", folder.source);
-    }
+    println!("cargo::rerun-if-changed=src");
     println!("cargo::rerun-if-changed={SOURCE_TEXTS}");
     match compile_templates() {
         Ok(()) => ExitCode::SUCCESS,
@@ -60,6 +64,37 @@ fn compile_templates() -> Result<(), Box<dyn Error>> {
             {
                 compile(&path, folder.keys, &texts, &directory)?;
             }
+        }
+    }
+    compile_shipped(Path::new("src"), &texts, &out.join(SHIPPED_TARGET))
+}
+
+fn compile_shipped(
+    directory: &Path,
+    texts: &Translations,
+    target: &Path,
+) -> Result<(), Box<dyn Error>> {
+    if FOLDERS
+        .iter()
+        .any(|folder| directory == Path::new(folder.source))
+    {
+        return Ok(());
+    }
+    for file in std::fs::read_dir(directory)? {
+        let path = file?.path();
+        let name = path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or_default();
+        if path.is_dir() {
+            compile_shipped(&path, texts, &target.join(name))?;
+        } else if path
+            .extension()
+            .is_some_and(|extension| extension == "html")
+            && !name.starts_with(ROLE_SCREENS)
+        {
+            std::fs::create_dir_all(target)?;
+            compile(&path, "sofie_identity/shipped", texts, target)?;
         }
     }
     Ok(())

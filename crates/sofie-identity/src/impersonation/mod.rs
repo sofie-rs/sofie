@@ -109,7 +109,14 @@ where
         .shipped(
             "/impersonation",
             "impersonation",
-            (include_str!("screen.html"), Some(describe)),
+            (
+                include_str!("screen.html"),
+                include_bytes!(concat!(
+                    env!("OUT_DIR"),
+                    "/shipped/impersonation/screen.sft"
+                )),
+                Some(describe),
+            ),
             record,
         )
         .name("list_impersonations")

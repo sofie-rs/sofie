@@ -56,6 +56,8 @@ async fn the_inbox_screen_hears_a_notification_arrive_and_shows_it_once_refetche
     assert!(page.body.contains("id=\"sofie-live\""), "{}", page.body);
     assert!(page.body.contains(&topic), "{}", page.body);
     assert!(!page.body.contains("Your order shipped"), "{}", page.body);
+    assert!(page.body.contains("Nothing here yet."), "{}", page.body);
+    assert!(!page.body.contains("notify.inbox."), "{}", page.body);
     let mut changes = sofie_db::committed_changes(app.db());
 
     me.post("/members/ship")

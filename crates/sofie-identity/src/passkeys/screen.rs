@@ -19,7 +19,11 @@ pub fn routes<A: AccountArea>(routes: &mut Routes<A>) {
         .shipped(
             "/passkeys",
             "passkeys",
-            (include_str!("screen.html"), None),
+            (
+                include_str!("screen.html"),
+                include_bytes!(concat!(env!("OUT_DIR"), "/shipped/passkeys/screen.sft")),
+                None,
+            ),
             list::<A>,
         )
         .name("list_passkeys");

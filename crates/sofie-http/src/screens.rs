@@ -112,7 +112,7 @@ pub fn screens_from_sources(sources: &[(&str, &str)]) -> Result<Screens> {
 }
 
 impl Screens {
-    fn add(&mut self, key: &str, file: &File) -> Result<()> {
+    pub(crate) fn add(&mut self, key: &str, file: &File) -> Result<()> {
         self.add_with(key, || {
             load_template(key, file.bytes).map_err(|error| {
                 Error::internal(format!("loading screen {key} from {}", file.path), error)

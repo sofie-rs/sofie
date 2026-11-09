@@ -25,10 +25,38 @@ pub(crate) enum Builtin {
         screen: Resource,
         permission: Option<String>,
     },
-    Shipped {
-        source: &'static str,
-        describe: Option<Describe>,
-    },
+    Shipped(ShippedTemplate),
+}
+
+/// A shipped screen's source, and the program its crate's build script compiled from it with the
+/// source-language text of each `t(…)`, which an app built without `i18n` writes.
+#[derive(Clone, Copy)]
+pub struct ShippedTemplate {
+    source: &'static str,
+    compiled: Option<&'static [u8]>,
+    describe: Option<Describe>,
+}
+
+impl From<(&'static str, Option<Describe>)> for ShippedTemplate {
+    fn from((source, describe): (&'static str, Option<Describe>)) -> Self {
+        Self {
+            source,
+            compiled: None,
+            describe,
+        }
+    }
+}
+
+impl<const N: usize> From<(&'static str, &'static [u8; N], Option<Describe>)> for ShippedTemplate {
+    fn from(
+        (source, compiled, describe): (&'static str, &'static [u8; N], Option<Describe>),
+    ) -> Self {
+        Self {
+            source,
+            compiled: Some(compiled),
+            describe,
+        }
+    }
 }
 
 pub type Describe = fn(&mut crate::Screens, &str) -> sofie_core::Result<()>;
@@ -43,7 +71,7 @@ pub(crate) fn install(
             continue;
         };
         if !screens.contains(key) {
-            screens.add_source(key, &builtin.source(&route.path))?;
+            builtin.add(screens, key, &route.path)?;
         }
         if let Some(describe) = builtin.describe() {
             describe(screens, key)?;
@@ -74,9 +102,20 @@ fn built_in(route: &crate::routes::Route) -> Option<(&str, &Builtin)> {
 }
 
 impl Builtin {
+    fn add(&self, screens: &mut crate::Screens, key: &str, path: &str) -> sofie_core::Result<()> {
+        if let Self::Shipped(ShippedTemplate {
+            compiled: Some(program),
+            ..
+        }) = self
+        {
+            return screens.add(key, &sofie_db::File::new("its shipped program", program));
+        }
+        screens.add_source(key, &self.source(path))
+    }
+
     fn source(&self, path: &str) -> String {
         match self {
-            Self::Shipped { source, .. } => (*source).to_owned(),
+            Self::Shipped(shipped) => shipped.source.to_owned(),
             Self::Resource {
                 description,
                 kept,
@@ -94,7 +133,7 @@ impl Builtin {
 
     fn describe(&self) -> Option<Describe> {
         match self {
-            Self::Shipped { describe, .. } => *describe,
+            Self::Shipped(shipped) => shipped.describe,
             Self::Resource {
                 description,
                 screen,
@@ -109,12 +148,12 @@ impl Builtin {
 }
 
 pub trait Shipped<A: Area> {
-    /// Rendered from `source` unless the module writes `screens/<name>.html`.
+    /// Rendered from its template unless the module writes `screens/<name>.html`.
     fn shipped<Args: 'static, H>(
         &mut self,
         path: &str,
         name: &str,
-        template: (&'static str, Option<Describe>),
+        template: impl Into<ShippedTemplate>,
         loader: H,
     ) -> crate::PageRoute<'_, A>
     where
@@ -126,7 +165,7 @@ impl<A: Area> Shipped<A> for Routes<A> {
         &mut self,
         path: &str,
         name: &str,
-        (source, describe): (&'static str, Option<Describe>),
+        template: impl Into<ShippedTemplate>,
         loader: H,
     ) -> crate::PageRoute<'_, A>
     where
@@ -135,7 +174,7 @@ impl<A: Area> Shipped<A> for Routes<A> {
         let view = View::Screen(ScreenView {
             key: screen_key(self.module, A::NAME, name),
             title: sofie_engine::humanize(name),
-            builtin: Some(Arc::new(Builtin::Shipped { source, describe })),
+            builtin: Some(Arc::new(Builtin::Shipped(template.into()))),
         });
         crate::PageRoute::new(self.push(
             Method::GET,

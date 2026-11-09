@@ -1,7 +1,8 @@
 use serde_json::{Map, Value};
-use sofie_core::{Error, Result, SqlValue, Uuid};
+use sofie_core::{Error, Result, SqlValue};
 
 use crate::aggregate::Table;
+use crate::event::change_payload;
 use crate::{Aggregate, Plan, Write};
 
 /// A soft-deleting record's change event carries when it was deleted, so its mirrors hide it too.
@@ -62,16 +63,6 @@ fn queue_change<A: Aggregate>(payload: Map<String, Value>, plan: &mut Plan<'_>) 
         payload: Value::Object(payload),
     });
     Ok(())
-}
-
-pub(crate) fn change_payload(
-    mut fields: Map<String, Value>,
-    id: Uuid,
-    version: i64,
-) -> Map<String, Value> {
-    fields.insert("id".to_owned(), Value::String(id.to_string()));
-    fields.insert("version".to_owned(), Value::from(version));
-    fields
 }
 
 fn broadcasts(table: &Table) -> bool {

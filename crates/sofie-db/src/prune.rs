@@ -139,10 +139,14 @@ impl<A: Aggregate> Outcome for Pruned<A> {
                 });
             }
             if let Some(name) = self.events.pruned {
-                let pruned = serde_json::json!({"id": meta.id(), "version": meta.version() + 1});
+                let pruned = crate::event::change_payload(
+                    serde_json::Map::new(),
+                    meta.id(),
+                    meta.version() + 1,
+                );
                 plan.events.push(crate::RaisedEvent {
                     name,
-                    payload: pruned,
+                    payload: serde_json::Value::Object(pruned),
                 });
             }
             #[cfg(feature = "cache")]

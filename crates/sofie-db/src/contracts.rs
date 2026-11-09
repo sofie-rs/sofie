@@ -149,7 +149,7 @@ fn change_of<A: Aggregate>(aggregate: &A) -> Result<Map<String, Value>> {
         Error::internal_message(format!("`{}` exposes no fields to change events", A::NAME))
     })??;
     let meta = aggregate.meta();
-    Ok(crate::change_event::change_payload(
+    Ok(crate::event::change_payload(
         change,
         meta.id(),
         meta.version(),

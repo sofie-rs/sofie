@@ -1,5 +1,3 @@
-//! Each record's `search_text`, recomputed from the fields `Searched` names now.
-
 use std::sync::Arc;
 
 use sofie_core::{Cast, ColumnReader, Result, SqlType, SqlValue, Uuid};
@@ -27,7 +25,6 @@ pub struct Document {
     pub owner: Option<Uuid>,
 }
 
-/// The searched aggregates of an app's migrations, for `<app> task sofie.search.reindex`.
 #[derive(Clone)]
 pub struct SearchTexts(Arc<[SearchIndex]>);
 
@@ -50,7 +47,6 @@ impl SearchTexts {
         self.rewrite(&read.db).await
     }
 
-    /// With a search engine the worker's page jobs rewrite the text as they index.
     #[cfg(feature = "search-engine")]
     pub async fn reindex(&self, read: Read) -> Result<super::Reindexing> {
         if let Some(installed) = read.db.search.get() {

@@ -13,7 +13,6 @@ pub fn lookup_name<D>() -> &'static str {
     std::any::type_name::<D>()
 }
 
-/// A live screen calling `app` refetches when the app's events are next received.
 #[cfg_attr(not(feature = "live"), expect(unused_variables))]
 pub fn read_through(app: &str) {
     #[cfg(feature = "live")]

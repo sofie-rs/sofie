@@ -117,7 +117,6 @@ impl<A: Aggregate> Sort<A> {
 }
 
 impl<A: Aggregate> Condition<A> {
-    /// A listing's search box: `None` unless `A` is `Searched`.
     #[cfg_attr(not(feature = "search"), expect(unused_variables))]
     #[must_use]
     pub fn searching(words: &str) -> Option<Self> {

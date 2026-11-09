@@ -45,7 +45,6 @@ fn as_sent(ty: &Type) -> Type {
     ty.clone()
 }
 
-/// Higher-ranked, so a field without a fixture leaves the struct without one.
 pub(crate) fn derive_fixture(input: &syn::DeriveInput) -> syn::Result<TokenStream> {
     let fields = crate::shape::named_fields(input, "Fixture")?;
     let ident = &input.ident;

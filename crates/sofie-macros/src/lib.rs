@@ -185,8 +185,7 @@ pub fn feature(_arguments: TokenStream, item: TokenStream) -> TokenStream {
     item
 }
 
-/// For a type tests draw, such as a DTO `sofie gen` writes into a contract; it expands to
-/// nothing unless sofie's `fixtures` feature is on.
+/// Expands to nothing unless sofie's `fixtures` feature is on.
 #[proc_macro_derive(Fixture)]
 pub fn derive_fixture(item: TokenStream) -> TokenStream {
     #[cfg(feature = "fixtures")]

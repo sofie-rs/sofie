@@ -232,6 +232,7 @@ mod tests {
             [
                 "account_data_page",
                 "issue_token_page",
+                "language_page",
                 "list_blocks",
                 "list_connections",
                 "list_flags",

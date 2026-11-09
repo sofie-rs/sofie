@@ -258,6 +258,7 @@ fn read_module(directory: &Path, packages: &Packages) -> Result<Module, ModelErr
         migrations,
         sqlite_migrations: files_with_extension(&directory.join("migrations/sqlite"), "sql")?,
         areas,
+        unrouted_areas: unrouted_areas(directory)?,
         listeners: tree.found.listeners,
         schedules: tree.found.schedules,
         events: contract
@@ -438,6 +439,25 @@ fn read_package_events(
         events.extend(crate::package_events::read_events(&found.directory)?);
     }
     Ok(events)
+}
+
+/// A module may add only islands to an area whose routes another module serves.
+fn unrouted_areas(directory: &Path) -> Result<Vec<PathBuf>, ModelError> {
+    let mut unrouted = Vec::new();
+    for area_dir in subdirectories(&directory.join("src").join("areas"))? {
+        if area_dir.join("routes.rs").is_file() {
+            continue;
+        }
+        let holds_more = entries(&area_dir, |path| {
+            path.file_name()
+                .and_then(|name| name.to_str())
+                .is_some_and(|name| name != "islands" && !name.starts_with('.'))
+        })?;
+        if !holds_more.is_empty() {
+            unrouted.push(area_dir);
+        }
+    }
+    Ok(unrouted)
 }
 
 fn area_contributions(

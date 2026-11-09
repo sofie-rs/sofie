@@ -126,6 +126,7 @@ pub fn module(package: &str, path: impl Into<PathBuf>) -> Module {
         mails: Vec::new(),
         plans: None,
         private_items: Vec::new(),
+        unrouted_areas: Vec::new(),
         code: crate::Code::default(),
     }
 }

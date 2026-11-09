@@ -340,6 +340,24 @@ fn an_undeclared_routes_file_is_still_read() {
 }
 
 #[test]
+fn an_area_folder_without_routes_holding_more_than_islands_is_recorded() {
+    let fixture = Fixture::order("");
+    fixture.write("modules/order/src/areas/web/routes.rs", &routes_file(""));
+    fixture.write(
+        "modules/order/src/areas/admin/screens/orders.html",
+        "<p></p>",
+    );
+    fixture.write("modules/order/src/areas/shared/islands/chart.svelte", "");
+
+    let module = fixture.module("order");
+
+    assert_eq!(
+        module.unrouted_areas,
+        [fixture.path("modules/order/src/areas/admin")]
+    );
+}
+
+#[test]
 fn a_non_literal_path_is_an_error_at_its_line() {
     let error = route_error("    let path = \"/orders\";\n");
     assert_eq!(error.line, 4);

@@ -8,6 +8,7 @@ use super::{Finding, Rule};
 pub(super) fn check_routes(app: &App) -> Vec<Finding> {
     let sites = app.route_sites();
     let mut findings = undeclared_route_files(&app.modules);
+    findings.extend(unrouted_areas(&app.modules));
     for &site in &sites {
         findings.extend(misrouted_handler(site));
         findings.extend(missing_screen(site));
@@ -38,6 +39,32 @@ fn undeclared_route_files(modules: &[Module]) -> Vec<Finding> {
         }
     }
     findings
+}
+
+fn unrouted_areas(modules: &[Module]) -> Vec<Finding> {
+    modules
+        .iter()
+        .flat_map(|module| &module.unrouted_areas)
+        .map(|folder| {
+            let area = folder
+                .file_name()
+                .map(|name| name.to_string_lossy().into_owned())
+                .unwrap_or_default();
+            Finding {
+                rule: Rule::UndeclaredRoutes,
+                file: folder.join("routes.rs"),
+                line: 1,
+                message: format!(
+                    "the `{area}` area folder has no routes.rs, so the build would silently \
+                     leave its screens and menu out"
+                ),
+                fix: format!(
+                    "add routes.rs with `pub fn routes(routes: &mut Routes<Area>)` for the \
+                     `{area}` area, or move what the folder holds"
+                ),
+            }
+        })
+        .collect()
 }
 
 fn undeclared(file: &Path, area: &str, module: &str, what: &str) -> Finding {

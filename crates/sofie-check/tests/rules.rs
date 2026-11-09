@@ -1857,6 +1857,25 @@ fn a_prefix_without_its_leading_slash_or_ending_in_one_is_a_finding() {
 }
 
 #[test]
+fn an_area_folder_without_routes_is_reported() {
+    let mut order = module_with_routes("order", "web", Vec::new());
+    order.unrouted_areas = vec![PathBuf::from("modules/order/src/areas/admin")];
+
+    let findings = check(&app_with(vec![order]));
+
+    let unrouted: Vec<&Finding> = findings
+        .iter()
+        .filter(|finding| finding.file.ends_with("areas/admin/routes.rs"))
+        .collect();
+    assert_eq!(unrouted.len(), 1, "{findings:?}");
+    assert_eq!(unrouted[0].rule.name(), "undeclared-routes");
+    assert_contains(
+        &unrouted[0].message,
+        "the `admin` area folder has no routes.rs",
+    );
+}
+
+#[test]
 fn an_area_at_the_root_collides_with_the_web_area() {
     let mut order = module("order", "modules/order");
     define_area(&mut order, "member");

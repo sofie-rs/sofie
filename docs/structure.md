@@ -2585,7 +2585,10 @@ acts as its account there. Logs name a token only by its id. With
 sofie-identity's `token-screens`, `tokens::screen::routes::<A>` mounts `/tokens`
 in a token area: each principal lists the tokens its own account issued and
 revokes one (`sofie_identity.access_token.*.read` and `.delete`); another
-account's token is not found. Issuing has no screen yet. Like every account
+account's token is not found. `/tokens/new` (`.create`) issues one for the area, with
+optional scopes and a life of 1 to 365 days; its text stays on that screen, sealed in the
+row, until the principal says done or the token is first used, and never to an
+impersonation. Like every account
 screen (`sessions`, `two_factor`, `passkeys`), it mounts only in an
 `AccountArea`, one whose principal is the account itself.
 
@@ -2871,7 +2874,9 @@ so an app compiles only the modifiers it uses.
 `routes.rs` is plain Rust, so the compiler checks every handler against its
 area: `Routes<Customer>` accepts only handlers whose principal is a customer.
 `sofie gen` reads the same file without compiling it, so the body is restricted
-to route calls with literal paths; anything else is a generation error.
+to route calls with literal paths; anything else is a generation error. An
+area folder holding more than `islands/` but no `routes.rs` is a `sofie check`
+finding, as the build would leave its screens and menu out.
 
 ## Rules and how they are enforced
 

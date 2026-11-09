@@ -174,6 +174,8 @@ pub struct Module {
     /// `migrations/sqlite/*.sql`, run on SQLite instead of the files of the same name.
     pub sqlite_migrations: Vec<PathBuf>,
     pub areas: Vec<AreaContribution>,
+    /// An `src/areas/<area>/` holding more than islands, yet no `routes.rs`.
+    pub unrouted_areas: Vec<PathBuf>,
     pub listeners: Vec<Listener>,
     pub schedules: Vec<Schedule>,
     pub events: Vec<String>,

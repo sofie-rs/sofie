@@ -172,6 +172,16 @@ async fn a_founder_invites_a_member_who_joins_by_the_mailed_link() {
         link.starts_with("/account/invitations?invitation="),
         "{link}"
     );
+    let mails = sent_mails(&app);
+    let mail = mails.last().unwrap();
+    assert_eq!(mail.subject(), "Join Acme");
+    assert!(
+        mail.body()
+            .text()
+            .starts_with("ada@example.com invites you to Acme.\n\nSee the invitation ("),
+        "{}",
+        mail.body().text()
+    );
     let twice = invite(&app, &ada_in_acme, "grace@example.com").await;
     assert_eq!(twice.status, 422, "{}", twice.body);
 
@@ -504,6 +514,11 @@ async fn a_member_is_not_invited_again() {
 
     assert_eq!(again.status, 422, "{}", again.body);
     assert!(again.body.contains("is a member already"), "{}", again.body);
+    assert!(
+        again.body.contains("tenancy.invitation.member_already"),
+        "{}",
+        again.body
+    );
 }
 
 #[tokio::test]

@@ -1,0 +1,9 @@
+[tenancy.invitation_mail]
+subject = "{organization} beitreten"
+intro = "{inviter} lädt Sie zu {organization} ein."
+see = "Einladung ansehen"
+ignore = "Der Link funktioniert sieben Tage lang. Kennen Sie die Person nicht, ignorieren Sie diese E-Mail."
+
+[tenancy.invitation]
+invited_already = "ist bereits eingeladen"
+member_already = "ist bereits Mitglied"

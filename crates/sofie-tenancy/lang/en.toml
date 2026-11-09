@@ -1,0 +1,11 @@
+# The source language.
+
+[tenancy.invitation_mail]
+subject = "Join {organization}"
+intro = "{inviter} invites you to {organization}."
+see = "See the invitation"
+ignore = "The link works for seven days. If you do not know them, ignore this mail."
+
+[tenancy.invitation]
+invited_already = "is invited already"
+member_already = "is a member already"

@@ -1,0 +1,9 @@
+[tenancy.invitation_mail]
+subject = "{organization} ekibine katılın"
+intro = "{inviter} sizi {organization} ekibine davet ediyor."
+see = "Daveti görün"
+ignore = "Bağlantı yedi gün boyunca çalışır. Bu kişiyi tanımıyorsanız bu e-postayı yok sayın."
+
+[tenancy.invitation]
+invited_already = "zaten davet edildi"
+member_already = "zaten üye"

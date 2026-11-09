@@ -1,3 +1,3 @@
-<p>{data.inviter} invites you to {data.organization}.</p>
-<p><a href={data.link}>See the invitation</a></p>
-<p>The link works for seven days. If you do not know them, ignore this mail.</p>
+<p>{t("tenancy.invitation_mail.intro", inviter = data.inviter, organization = data.organization)}</p>
+<p><a href={data.link}>{t("tenancy.invitation_mail.see")}</a></p>
+<p>{t("tenancy.invitation_mail.ignore")}</p>

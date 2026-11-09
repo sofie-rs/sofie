@@ -3,7 +3,7 @@
 
 use std::collections::HashMap;
 
-use sofie::core::Instant;
+use sofie::core::{FieldError, Instant};
 use sofie::db::{Queued, in_select};
 use sofie::http::{ListedRoute, Rate, Routes, Shipped, SignedUrls};
 use sofie::mail::{Address, Mail, Mailer, Template};
@@ -228,7 +228,10 @@ async fn invite<O: OrganizationArea, M: MemberArea>(
         .exists(&read)
         .await?
     {
-        return Err(Error::invalid("email", "is invited already"));
+        return Err(refused_address(
+            "tenancy.invitation.invited_already",
+            "is invited already",
+        ));
     }
     let addressed = AccountEmail::query()
         .where_(Account::EMAIL.eq(inviting.email.clone()))
@@ -239,7 +242,10 @@ async fn invite<O: OrganizationArea, M: MemberArea>(
             .await?
             .is_some()
     {
-        return Err(Error::invalid("email", "is a member already"));
+        return Err(refused_address(
+            "tenancy.invitation.member_already",
+            "is a member already",
+        ));
     }
     #[cfg(feature = "billing")]
     let kept = crate::organization::seats_kept(&read, &billing, organization, now, 1).await?;
@@ -267,10 +273,18 @@ async fn invite<O: OrganizationArea, M: MemberArea>(
             "link": mailer.link(&link)?,
         }),
     )?;
-    let subject = format!("Join {}", name.name());
+    let subject = mailer.text(
+        "tenancy.invitation_mail.subject",
+        &[("organization", name.name().to_owned())],
+        &format!("Join {}", name.name()),
+    );
     let mail = Mail::new(Address::new(&inviting.email)?, &subject, body)?;
     let once = Invited::of(&invitation, now);
     Ok(Held::new(organization, kept, (invitation, mailer.send(mail)?)).inviting(once))
+}
+
+fn refused_address(key: &'static str, english: &str) -> Error {
+    Error::Invalid(vec![FieldError::new("email", key, english)])
 }
 
 async fn withdraw(acting: Acting, mut invitation: Invitation, clock: Clock) -> Result<Invitation> {

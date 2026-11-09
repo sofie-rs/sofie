@@ -23,6 +23,7 @@ mod compiled;
 mod components;
 #[cfg(feature = "development")]
 pub mod development;
+mod english;
 mod error;
 mod escape;
 #[cfg(feature = "islands")]
@@ -76,6 +77,7 @@ pub use crate::compiled::load_template;
 pub use crate::compiled::{compile_template, compile_template_with, parse_template_with_recorded};
 #[cfg(feature = "parse")]
 pub use crate::components::Components;
+pub use crate::english::english;
 pub use crate::error::{RenderError, TemplateError};
 pub use crate::escape::push_escaped;
 pub use crate::label::humanize;

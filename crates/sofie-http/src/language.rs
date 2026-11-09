@@ -44,8 +44,9 @@ impl Language<'_> {
 
     pub(crate) fn fields_notice(self, count: usize) -> String {
         let summary = match count {
-            1 => "Please correct the highlighted field.".to_owned(),
-            count => format!("Please correct the {count} highlighted fields."),
+            1 => sofie_engine::english("notice.correct_field").to_owned(),
+            count => sofie_engine::english("notice.correct_fields")
+                .replace("{count}", &count.to_string()),
         };
         sofie_engine::notice(&[summary])
     }

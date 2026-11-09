@@ -1450,7 +1450,10 @@ compiled by the app's build script, loaded at boot and rendered by the engine.
   language from the principal's choice, then `Accept-Language`; its
   conventions (en, de, tr; others neutral) format numbers, amounts and days.
   Until an app declares languages, compiling the feature in changes nothing:
-  pages render in English with the neutral formats (`1234.50 EUR`).
+  pages render in English with the neutral formats (`1234.50 EUR`). Without
+  the feature, the engine's own English (notices, engine.js's messages) is read
+  from `sofie_engine::english`, a table its build script writes from
+  `lang/en.toml`.
   `check_translations` refuses a `t(…)` key the source language lacks or
   whose arguments are not its placeholders, and a call without `count` on a
   key that has only plural forms; `sofie check` runs it on every

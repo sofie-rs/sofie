@@ -28,33 +28,13 @@ pub(crate) const HEAD_END: &str = "<!--/sofie-head-->";
 pub(crate) const CLEARED_NOTICE: &str =
     concat!(notice_region_open!("hx-swap-oob=\"true\""), "></div>");
 
-/// engine.js's own notices: the attribute it reads, the key, and its English fallback.
-const SCRIPT_NOTICES: [(&str, &str, &str); 5] = [
-    (
-        "data-unreachable",
-        "notice.unreachable",
-        "The server could not be reached. Try again.",
-    ),
-    (
-        "data-failed",
-        "notice.failed",
-        "Something went wrong. Try again.",
-    ),
-    (
-        "data-passkey-refused",
-        "notice.passkey_refused",
-        "The passkey was not accepted. Try again.",
-    ),
-    (
-        "data-passkey-unsupported",
-        "notice.passkey_unsupported",
-        "This browser cannot use passkeys.",
-    ),
-    (
-        "data-passkey-unused",
-        "notice.passkey_unused",
-        "The passkey was not used. Try again.",
-    ),
+/// engine.js's own notices: the attribute it reads and the key of its text.
+const SCRIPT_NOTICES: [(&str, &str); 5] = [
+    ("data-unreachable", "notice.unreachable"),
+    ("data-failed", "notice.failed"),
+    ("data-passkey-refused", "notice.passkey_refused"),
+    ("data-passkey-unsupported", "notice.passkey_unsupported"),
+    ("data-passkey-unused", "notice.passkey_unused"),
 ];
 
 #[derive(Debug)]
@@ -91,7 +71,8 @@ impl<'a> ScriptNotices<'a> {
 impl ScriptNotices<'_> {
     /// English is the script's own, so a page in English carries none.
     fn push_attributes(self, html: &mut String) {
-        for (attribute, key, english) in SCRIPT_NOTICES {
+        for (attribute, key) in SCRIPT_NOTICES {
+            let english = crate::english(key);
             let text = self.0.text(key, english);
             if text != english {
                 html.push(' ');

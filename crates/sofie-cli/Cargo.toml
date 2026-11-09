@@ -30,6 +30,7 @@ mcp = ["docs"]
 slow-tests = []
 
 [dependencies]
+sofie-auth.workspace = true
 sofie-check.workspace = true
 sofie-core.workspace = true
 sofie-engine = { workspace = true, features = ["analysis", "client-compile", "compile"] }

@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 
+use sofie_auth::SIGNING_KEYS;
 use sofie_model::{App, ConfigKey, DATABASE_URL, KeyKind, Module};
 
 use crate::gen_command::{GenError, read_existing};
@@ -399,7 +400,6 @@ const OAUTH_HANDLER: &str = "begin_oauth";
 const CONTENT_BASE_URL: &str = "SOFIE_CONTENT_BASE_URL";
 
 const ENVIRONMENT: &str = "SOFIE_ENVIRONMENT";
-const SIGNING_KEYS: &str = "SOFIE_SIGNING_KEYS";
 const BASE_URL: &str = sofie_core::BASE_URL;
 /// Each package's own base URL, read before the shared `SOFIE_BASE_URL`.
 const BASE_URL_OVERRIDES: [&str; 4] = [
@@ -654,9 +654,6 @@ mod tests {
         "SOFIE_SCAFFOLD_",
     ];
 
-    /// Still read, with a warning, but never offered to an app.
-    const RENAMED_SIGNING_KEYS: &str = "SOFIE_SESSION_KEYS";
-
     /// A key a framework crate starts reading must reach every app's `.env.example`;
     /// one built with `format!` leaves its prefix, which must lead to a listed key.
     #[test]
@@ -674,7 +671,7 @@ mod tests {
             .map(|(name, ..)| *name)
             .chain(MAIL_KEYS.iter().map(|(name, ..)| *name))
             .chain(OAUTH_KEYS.iter().map(|(name, _)| *name))
-            .chain([CONTENT_BASE_URL, RENAMED_SIGNING_KEYS])
+            .chain([CONTENT_BASE_URL, sofie_auth::OLD_SIGNING_KEYS])
             .collect();
 
         assert!(named.len() > 40, "{named:?}");

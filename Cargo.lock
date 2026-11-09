@@ -1245,6 +1245,7 @@ dependencies = [
  "proc-macro2",
  "quote",
  "serde_json",
+ "sofie-auth",
  "sofie-check",
  "sofie-core",
  "sofie-engine",

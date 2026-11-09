@@ -764,34 +764,62 @@ fn a_build_error_is_answered_in_short_form() {
     assert!(text.contains("src/lib.rs:2:5: error[E0425]"), "{text}");
 }
 
+/// Through the binary, so the shop gets a database of its own: its `.env` names the developer's.
+#[cfg(feature = "slow-tests")]
 #[test]
-#[ignore = "builds and runs the shop: needs DATABASE_URL and SOFIE_SIGNING_KEYS of a real Postgres"]
 fn app_tools_run_the_shop_and_answer_a_request_with_its_span_tree() {
+    use std::io::Write;
+    use std::process::Stdio;
+
     let tool = |id: u64, name: &str, arguments: Value| {
         json!({"jsonrpc": "2.0", "id": id, "method": "tools/call",
                "params": {"name": name, "arguments": arguments}})
     };
-
-    let answers = exchange(
-        &shop(),
-        &[
-            tool(
-                1,
-                "request",
-                json!({"path": "/account/orders", "session": "visitor"}),
-            ),
-            tool(
-                2,
-                "request",
-                json!({"method": "post", "path": "/account/orders",
-                                      "body": "product=1", "target": "orders"}),
-            ),
-            tool(3, "traces", json!({})),
-            tool(4, "logs", json!({"filter": "request finished"})),
-            tool(5, "dev", json!({"action": "status"})),
-            tool(6, "dev", json!({"action": "stop"})),
-        ],
-    );
+    let messages = [
+        tool(
+            1,
+            "request",
+            json!({"path": "/account/orders", "session": "visitor"}),
+        ),
+        tool(
+            2,
+            "request",
+            json!({"method": "post", "path": "/account/orders",
+                                  "body": "product=1", "target": "orders"}),
+        ),
+        tool(3, "traces", json!({})),
+        tool(4, "logs", json!({"filter": "request finished"})),
+        tool(5, "dev", json!({"action": "status"})),
+        tool(6, "db_status", json!({})),
+        tool(7, "dev", json!({"action": "stop"})),
+    ];
+    let input: Vec<String> = messages.iter().map(Value::to_string).collect();
+    let database = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap()
+        .block_on(sofie_testing::TestDatabase::create());
+    let mut mcp = Command::new(env!("CARGO_BIN_EXE_sofie"))
+        .arg("mcp")
+        .arg(shop())
+        .env("DATABASE_URL", database.url())
+        .env(
+            sofie_auth::SIGNING_KEYS,
+            sofie_auth::SigningKeys::generate_text().unwrap(),
+        )
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
+    writeln!(mcp.stdin.take().unwrap(), "{}", input.join("\n")).unwrap();
+    let output = mcp.wait_with_output().unwrap();
+    drop(database);
+    sofie_testing::finish_teardown();
+    let answers: Vec<Value> = String::from_utf8(output.stdout)
+        .unwrap()
+        .lines()
+        .map(|line| serde_json::from_str(line).unwrap())
+        .collect();
 
     let text = |index: usize| {
         answers[index]["result"]["content"][0]["text"]
@@ -813,7 +841,9 @@ fn app_tools_run_the_shop_and_answer_a_request_with_its_span_tree() {
     assert!(text(3).contains("request finished"), "{}", text(3));
     assert!(text(3).contains("next cursor: "), "{}", text(3));
     assert!(text(4).starts_with("running: pid "), "{}", text(4));
-    assert_eq!(text(5), "stopped the app");
+    assert_eq!(answers[5]["result"]["isError"], false, "{}", text(5));
+    assert!(text(5).contains("  applied  "), "{}", text(5));
+    assert_eq!(text(6), "stopped the app");
 }
 
 #[test]

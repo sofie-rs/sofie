@@ -222,6 +222,12 @@ impl SigningKeys {
         Self::new(&[crate::random_bytes("a key")?])
     }
 
+    /// One new key as `SOFIE_SIGNING_KEYS` takes it: what `openssl rand -base64 32` prints.
+    pub fn generate_text() -> Result<String> {
+        let key: [u8; KEY_LENGTH] = crate::random_bytes("a key")?;
+        Ok(base64::encode_padded(&STANDARD, &key))
+    }
+
     pub fn seal_value(&self, purpose: &str, plain: &[u8]) -> Result<String> {
         self.sealed(&value_purpose(purpose), plain.to_vec())
     }
@@ -336,6 +342,20 @@ pub(crate) mod tests {
             Uuid::now_v7().unwrap(),
             at(0),
         )
+    }
+
+    #[test]
+    fn a_generated_key_text_is_read_back_and_differs_each_time() {
+        let first = SigningKeys::generate_text().unwrap();
+        let second = SigningKeys::generate_text().unwrap();
+
+        assert_ne!(first, second);
+        let keys = SigningKeys::parse(&format!("{first},{second}")).unwrap();
+        let sealed = keys.seal_value("test", b"plain").unwrap();
+        let opened = SigningKeys::parse(&first)
+            .unwrap()
+            .open_value("test", &sealed);
+        assert_eq!(opened.as_deref(), Some(&b"plain"[..]));
     }
 
     #[test]

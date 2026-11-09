@@ -347,11 +347,13 @@ seed_orders() {
         psql -q -v ON_ERROR_STOP=1 -v orders="$ORDERS_PER_USER" "$(database_url "$1")" >/dev/null
 }
 
+# Without Accept-Encoding: the Loco twin compresses nothing, so a compressed answer would
+# compare unlike work.
 load() { # <app> <scenario> <expected status> <path> <oha arguments>...
     local app=$1 scenario=$2 expected=$3 path=$4 result
     shift 4
     result="$OUT/$app-$scenario.json"
-    oha -z "$DURATION" -c "$CONCURRENCY" --no-tui --output-format json \
+    oha -z "$DURATION" -c "$CONCURRENCY" --no-tui --output-format json --disable-compression \
         --worker-threads "$OHA_THREADS" -H "cookie: $COOKIE" "$@" \
         "$(base_url "$app")$path" >"$result"
     jq -r --arg expected "$expected" '

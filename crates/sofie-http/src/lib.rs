@@ -31,6 +31,8 @@ mod csv;
 mod deadline;
 #[cfg(all(feature = "development", debug_assertions))]
 mod development;
+#[cfg(any(feature = "engine", feature = "uploads"))]
+mod dotted_name;
 #[cfg(feature = "etag")]
 mod etag;
 #[cfg(any(

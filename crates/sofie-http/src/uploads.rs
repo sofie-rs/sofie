@@ -172,6 +172,7 @@ impl sofie_values::Present for Upload {
     }
 }
 
+#[cfg(feature = "engine")]
 pub(crate) fn is_upload(value: &Value) -> bool {
     value.get(SEAL).is_some()
 }
@@ -485,7 +486,7 @@ where
         let value = String::from_utf8(value)
             .map_err(|_| Error::BadRequest("the form is not UTF-8".to_owned()))?;
         if !value.is_empty() {
-            crate::form::insert(&mut self.fields, name, value)?;
+            crate::dotted_name::insert(&mut self.fields, name, value)?;
         }
         Ok(length)
     }

@@ -44,7 +44,7 @@ jobs:
       - run: cargo clippy --workspace --all-targets -- -D warnings
       # A workspace build unifies features, so a feature set no member uses is checked alone.
       - run: |
-          for features in "" shield cors,flags signed-links remote-contracts; do
+          for features in "" shield cors,flags signed-links remote-contracts uploads; do
             cargo clippy -p sofie-http --no-default-features --features "$features" -- -D warnings
           done
       - run: cargo check -p sofie-framework --no-default-features --features sqlite

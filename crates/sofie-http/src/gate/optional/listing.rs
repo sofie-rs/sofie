@@ -246,7 +246,7 @@ fn read_parameters<Q: Input>(asked: &Map<String, Value>) -> Result<(Option<Q>, V
     let mut nested = Map::new();
     for (key, value) in asked {
         let text = value.as_str().unwrap_or_default().to_owned();
-        crate::form::insert(&mut nested, key, text)?;
+        crate::dotted_name::insert(&mut nested, key, text)?;
     }
     match Q::from_json(Value::Object(nested)) {
         Ok(parameters) => Ok((Some(parameters), Vec::new())),

@@ -123,7 +123,7 @@ remote-contracts = ["dep:serde", "sofie-db/remote-contracts"]
 storage = ["dep:sofie-storage", "tokio/sync"]
 # `multipart/form-data` forms, each file streamed into the storage as an
 # `Upload` input field, within `.body_limit(…)` and `.file_limit(…)`.
-uploads = ["engine", "storage", "dep:serde", "serde/derive"]
+uploads = ["storage", "dep:serde", "serde/derive"]
 # Product events a request raises name its principal, for reports kept in the database.
 product-events = ["sofie-telemetry/product-events"]
 # `.document(Media::Csv)` answering a list of records as CSV, and `CsvRows` reading one into inputs.

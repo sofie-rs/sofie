@@ -165,7 +165,7 @@ local-time = ["jobs", "time", "sofie-db/local-time"]
 # In `SOFIE_STORAGE_ROOT`, or an S3 bucket with `storage-s3` and `SOFIE_STORAGE=s3`.
 storage = ["serving-settings", "dep:sofie-storage", "sofie-storage/local", "sofie-http/storage", "sofie-db/contracts"]
 storage-s3 = ["storage", "dep:sofie-client", "sofie-storage/s3"]
-uploads = ["engine", "storage", "sofie-http/uploads"]
+uploads = ["storage", "sofie-http/uploads"]
 mail = ["jobs", "dep:sofie-mail"]
 # `sofie::mail::web`: one-click unsubscribe from bulk mail, and a provider's bounces and
 # complaints over webhooks, both suppressing addresses.

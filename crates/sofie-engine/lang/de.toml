@@ -1,6 +1,7 @@
 [table]
 empty = "Keine Einträge"
 filter = "Filtern"
+search = "Suchen"
 previous = "Zurück"
 next = "Weiter"
 

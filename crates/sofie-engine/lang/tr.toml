@@ -1,6 +1,7 @@
 [table]
 empty = "Kayıt yok"
 filter = "Filtrele"
+search = "Ara"
 previous = "Önceki"
 next = "Sonraki"
 

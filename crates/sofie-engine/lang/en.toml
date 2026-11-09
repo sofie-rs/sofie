@@ -4,6 +4,7 @@
 [table]
 empty = "No entries"
 filter = "Filter"
+search = "Search"
 previous = "Previous"
 next = "Next"
 

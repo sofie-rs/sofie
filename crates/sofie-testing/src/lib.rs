@@ -18,8 +18,8 @@ pub use caller::{TestCaller, TestPrincipal};
 #[cfg(feature = "contracts")]
 pub use checks::assert_lookup;
 pub use checks::{
-    assert_boundary, assert_moves, assert_schema, assert_store, assert_unique, assert_value,
-    describe,
+    assert_boundary, assert_moves, assert_round_trips, assert_schema, assert_store, assert_unique,
+    assert_value, describe,
 };
 pub use database::{TestDatabase, finish_teardown};
 pub use display_zone::set_display_zone;

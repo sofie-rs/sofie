@@ -174,6 +174,8 @@ pub struct Code {
     pub enums: Vec<EnumDeclaration>,
     /// The `#[derive(Value)]` types, which unlike enums get no derived `Fixture`.
     pub values: Vec<String>,
+    /// Each of `values` from the crate's root, through a root re-export where there is one.
+    pub value_paths: Vec<Vec<String>>,
     pub raw_sql: Vec<RawSql>,
     pub translation_keys: Vec<KeyLiteral>,
     pub features: FeatureCode,
@@ -290,7 +292,10 @@ impl Code {
                 self.enums.push(enum_of(enumeration, module_path));
             }
             Item::Struct(structure) if derives(&structure.attrs, "Value") => {
-                self.values.push(structure.ident.to_string());
+                let name = structure.ident.to_string();
+                self.value_paths
+                    .push([module_path, std::slice::from_ref(&name)].concat());
+                self.values.push(name);
             }
             _ => {}
         }

@@ -149,7 +149,7 @@ fn boundary(constraint: Constraint, fixture: &Json) -> (&'static str, Option<Jso
 
 pub async fn assert_value<V>(app: &TestApp)
 where
-    V: Fixture + Samples + Cast + Send + Serialize + DeserializeOwned + PartialEq + Debug,
+    V: Fixture + Samples + Cast + Send + Serialize + DeserializeOwned + Debug,
 {
     for accepted in V::ACCEPTED {
         let parsed = serde_json::from_str::<V>(accepted);
@@ -159,18 +159,34 @@ where
         let parsed = serde_json::from_str::<V>(refused);
         assert!(parsed.is_err(), "{refused} is accepted: {parsed:?}");
     }
+    assert_round_trips::<V>(app).await;
+}
+
+/// Compared by what each writes, so an app's value needs neither `PartialEq` nor `Debug`.
+pub async fn assert_round_trips<V>(app: &TestApp)
+where
+    V: Fixture + Cast + Send + Serialize + DeserializeOwned,
+{
     for _ in 0..ROUND_TRIPS {
         let value: V = fixture_value(app);
         let json = serde_json::to_value(&value).expect("a value serializes to JSON");
         let read: V = serde_json::from_value(json.clone())
             .unwrap_or_else(|error| panic!("{json} does not read back: {error}"));
-        assert_eq!(read, value, "through JSON as {json}");
+        let again = serde_json::to_value(&read).expect("a value serializes to JSON");
+        assert_eq!(again, json, "through JSON");
+        let stored = through_database(app, &value).await;
         assert_eq!(
-            through_database(app, &value).await,
-            value,
-            "through the database"
+            encoded(&stored),
+            encoded(&value),
+            "through the database as {json}"
         );
     }
+}
+
+fn encoded<V: Cast>(value: &V) -> Vec<SqlValue> {
+    let mut params = Vec::new();
+    value.encode(&mut params);
+    params
 }
 
 async fn through_database<V: Cast + Send>(app: &TestApp, value: &V) -> V {

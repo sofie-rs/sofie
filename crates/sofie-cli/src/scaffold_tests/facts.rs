@@ -77,6 +77,7 @@ pub(crate) fn module_facts(app: &App, module: &Module, screens: &Screens) -> Mod
     };
     let mut facts = ModuleFacts::default();
     values(&requests, &mut facts);
+    own_values(&requests, &mut facts);
     status_enums(&requests, &mut facts);
     for aggregate in &module.code.aggregates {
         aggregate_facts(&requests, aggregate, &mut facts);
@@ -116,6 +117,34 @@ fn values(requests: &Requests, facts: &mut ModuleFacts) {
             text: format!("value {name}"),
             test: format!("{}_parses_its_samples_and_round_trips", snake_case(name)),
             body: format!("sofie_testing::assert_value::<{path}>(&app).await;"),
+            on_app: true,
+        });
+    }
+}
+
+/// An app's own value has no samples to parse, and a fixture only where its author wrote one;
+/// one its crate keeps private is left out, as no test of the app can name it.
+fn own_values(requests: &Requests, facts: &mut ModuleFacts) {
+    let code = &requests.module.code;
+    for path in &code.value_paths {
+        let (Some(name), [_]) = (path.last(), path.as_slice()) else {
+            continue;
+        };
+        let fixtured = code
+            .methods
+            .iter()
+            .any(|method| method.owner == *name && method.implements.as_deref() == Some("Fixture"));
+        if !fixtured {
+            continue;
+        }
+        facts.facts.push(Fact {
+            subject: name.clone(),
+            text: format!("value {name}"),
+            test: format!("{}_round_trips", snake_case(name)),
+            body: format!(
+                "sofie_testing::assert_round_trips::<{}::{name}>(&app).await;",
+                requests.crate_name()
+            ),
             on_app: true,
         });
     }

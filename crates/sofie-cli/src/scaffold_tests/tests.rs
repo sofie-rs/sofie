@@ -679,3 +679,31 @@ fn a_value_without_a_fixture_is_named_instead_of_scaffolded_into_tests_that_do_n
         "{written:?}"
     );
 }
+
+#[test]
+fn an_exported_value_with_a_fixture_is_tested_to_round_trip_and_a_private_one_is_not() {
+    let app = app();
+    app.write(
+        "modules/catalog/src/lib.rs",
+        "mod habit;\nmod product;\n\npub use habit::{Habit, HabitName};\npub use product::{Product, ProductStatus};\n",
+    );
+    app.write(
+        "modules/catalog/src/habit.rs",
+        "use sofie::prelude::*;\n\n#[derive(Value)]\npub struct HabitName(String);\n\n\
+         #[derive(Value)]\npub struct Hidden(String);\n\n\
+         #[derive(Aggregate)]\npub struct Habit {\n    meta: Meta,\n    name: HabitName,\n}\n\n\
+         #[cfg(feature = \"fixtures\")]\nimpl sofie::values::Fixture for HabitName {\n    fn fixture(_seed: &mut \
+         sofie::values::Seed) -> Self {\n        Self(\"Read\".to_owned())\n    }\n}\n\n\
+         #[cfg(feature = \"fixtures\")]\nimpl sofie::values::Fixture for Hidden {\n    fn fixture(_seed: &mut \
+         sofie::values::Seed) -> Self {\n        Self(\"x\".to_owned())\n    }\n}\n",
+    );
+
+    let written = scaffold_tests_at(app.root(), at(1_791_720_000)).unwrap();
+
+    let text = written_text(&written, 0);
+    assert!(
+        text.contains("sofie_testing::assert_round_trips::<catalog::HabitName>(&app).await;"),
+        "{text}"
+    );
+    assert!(!text.contains("Hidden"), "{text}");
+}

@@ -245,6 +245,9 @@ fn read_module(directory: &Path, packages: &Packages) -> Result<Module, ModelErr
     for enumeration in &mut code.enums {
         enumeration.path = exports.public(&enumeration.path);
     }
+    for path in &mut code.value_paths {
+        *path = exports.public(path);
+    }
     let islands = crate::islands::read_islands(directory, &areas)?;
     Ok(Module {
         krate: tree.krate,

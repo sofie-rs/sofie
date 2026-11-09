@@ -11,8 +11,8 @@ use sofie::values::Fixture;
 use sofie::worker::Worker;
 use sofie_core::unpoisoned;
 use sofie_testing::{
-    TestApp, TestPrincipal, assert_boundary, assert_moves, assert_raised, assert_store,
-    assert_unique, assert_value, drain_failing, fixture_input,
+    TestApp, TestPrincipal, assert_boundary, assert_moves, assert_raised, assert_round_trips,
+    assert_store, assert_unique, assert_value, drain_failing, fixture_input,
 };
 
 const TABLES: &str = "
@@ -189,6 +189,33 @@ async fn values_round_trip_through_json_and_the_database() {
     assert_value::<Money>(&app).await;
     assert_value::<Email>(&app).await;
     assert_value::<Instant>(&app).await;
+}
+
+/// An app's own value, with neither `PartialEq` nor `Debug`.
+#[derive(Value)]
+struct Shelf(String);
+
+impl Shelf {
+    #[expect(
+        clippy::unnecessary_wraps,
+        reason = "derive(Value) builds a value through a fallible try_new"
+    )]
+    fn try_new(text: String) -> Result<Self, &'static str> {
+        Ok(Self(text))
+    }
+}
+
+impl Fixture for Shelf {
+    fn fixture(seed: &mut sofie::values::Seed) -> Self {
+        Self(format!("shelf {}", seed.draw()))
+    }
+}
+
+#[tokio::test]
+async fn an_app_s_own_value_round_trips_through_json_and_the_database() {
+    let app = started().await;
+
+    assert_round_trips::<Shelf>(&app).await;
 }
 
 #[test]

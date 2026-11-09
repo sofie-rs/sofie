@@ -96,9 +96,9 @@ async fn finds_records_by_the_words_and_whole_values_of_their_searched_fields() 
 #[cfg(feature = "tasks")]
 #[tokio::test]
 async fn the_reindex_task_rewrites_every_page_of_text_written_before_its_fields_were_searched() {
+    const TABLES: &[sofie::db::AggregateTable] = &[sofie::db::AggregateTable::of::<Product>()];
     let database = TestDatabase::create().await;
     let db = Db::new(Postgres::connect(database.url()).unwrap());
-    const TABLES: &[sofie::db::AggregateTable] = &[sofie::db::AggregateTable::of::<Product>()];
     let migrations = [Migrations::new("search", MIGRATIONS).aggregates(TABLES)];
     db.schema().migrate(&migrations).await.unwrap();
     sofie::db::query_values(
@@ -110,7 +110,7 @@ async fn the_reindex_task_rewrites_every_page_of_text_written_before_its_fields_
     )
     .await
     .unwrap();
-    assert!(found(&db, "wool").await.is_empty());
+    assert_eq!(found(&db, "wool").await, Vec::<String>::new());
 
     let texts = sofie::db::SearchTexts::of(&migrations);
     sofie::Tasks::new()

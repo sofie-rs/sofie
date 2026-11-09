@@ -1,8 +1,8 @@
 use serde_json::{Map, Value};
 use sofie_core::{Error, Result};
 use sofie_db::{
-    Aggregate, Context, Create, Id, Input, Outcome, Plan, Read, ReadOnly, Reply, ReplyData,
-    Resolve, Stamp, delete_softly,
+    Aggregate, Context, Create, Id, Input, Outcome, Plan, Read, Reply, ReplyData, Resolve, Stamp,
+    delete_softly,
 };
 use std::marker::PhantomData;
 
@@ -11,17 +11,6 @@ use sofie_values::{Control, FormField, FormFields};
 use super::{Look, ShownField};
 use crate::gate::optional::listing::Listing;
 use crate::{Area, RequestContext};
-
-/// Holds the path parameters, so its links name the same parents.
-pub(super) struct Shown(Map<String, Value>);
-
-impl Outcome for Shown {
-    fn reply(self) -> Result<Reply> {
-        Ok(Reply::Json(Value::Object(self.0)))
-    }
-}
-
-impl ReadOnly for Shown {}
 
 /// Shown, never returned, so a GET may load the aggregate itself.
 pub(crate) struct Record<R>(R);
@@ -141,10 +130,10 @@ pub(super) async fn list<R: Aggregate + ReplyData>(
     read: Read,
     listing: Listing<R>,
     parameters: Parameters,
-) -> Result<Shown> {
+) -> Result<Value> {
     let mut shown = parameters.0;
     shown.insert("list".to_owned(), listing.page(&read).await?.to_json()?);
-    Ok(Shown(shown))
+    Ok(Value::Object(shown))
 }
 
 pub(super) async fn show<R: Aggregate + ReplyData>(
@@ -152,7 +141,7 @@ pub(super) async fn show<R: Aggregate + ReplyData>(
     read: Read,
     parameters: Parameters,
     fields: &'static [ShownField],
-) -> Result<Shown> {
+) -> Result<Value> {
     let mut shown = parameters.0;
     let value = record
         .to_json()
@@ -168,7 +157,7 @@ pub(super) async fn show<R: Aggregate + ReplyData>(
         super::history::changes(&read, &record).await?,
     );
     let _ = read;
-    Ok(Shown(shown))
+    Ok(Value::Object(shown))
 }
 
 /// What a template cannot work out itself: a percentage from its basis points, and a value of
@@ -204,8 +193,8 @@ fn joined_text(value: &Value) -> String {
     }
 }
 
-pub(super) async fn blank(parameters: Parameters) -> Result<Shown> {
-    Ok(Shown(parameters.0))
+pub(super) async fn blank(parameters: Parameters) -> Result<Value> {
+    Ok(Value::Object(parameters.0))
 }
 
 pub(super) async fn create<R: Aggregate + Create>(

@@ -3,8 +3,6 @@ use sofie::http::{Area, NeedsPermission, Permission, Routes, Shipped};
 use sofie::prelude::*;
 use sofie::serde_json::{Value, json};
 
-use super::Listed;
-
 const READ: Permission = Permission::new("sofie_identity.setting.*.read");
 const UPDATE: Permission = Permission::new("sofie_identity.setting.*.update");
 
@@ -34,7 +32,7 @@ pub(super) fn routes<A: Area>(routes: &mut Routes<A>) {
         .then_screen("settings", "settings");
 }
 
-async fn list(features: Features) -> Result<Listed> {
+async fn list(features: Features) -> Result<Value> {
     let rows = features
         .settings()
         .into_iter()
@@ -46,7 +44,7 @@ async fn list(features: Features) -> Result<Listed> {
             })
         })
         .collect();
-    Ok(Listed(Value::Array(rows)))
+    Ok(Value::Array(rows))
 }
 
 #[derive(Input)]

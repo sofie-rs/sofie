@@ -299,6 +299,15 @@ impl ReadOnly for () {}
 
 impl<T: ReadOnly> ReadOnly for Vec<T> {}
 
+/// Answered as written: for a reply no type describes, such as a page assembled from parts.
+impl Outcome for serde_json::Value {
+    fn reply(self) -> Result<Reply> {
+        Ok(Reply::Json(self))
+    }
+}
+
+impl ReadOnly for serde_json::Value {}
+
 impl<T: Outcome> Outcome for Vec<T> {
     fn plan(&self, plan: &mut Plan<'_>) -> Result<()> {
         self.iter().try_for_each(|outcome| outcome.plan(plan))

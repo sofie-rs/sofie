@@ -2,8 +2,6 @@ use sofie::http::{ActiveBlocks, Area, NeedsPermission, Permission, Routes, Shiel
 use sofie::prelude::*;
 use sofie::serde_json::{Value, json};
 
-use super::Listed;
-
 const READ: Permission = Permission::new("sofie_identity.shield.*.read");
 const LIFT: Permission = Permission::new("sofie_identity.shield.*.delete");
 
@@ -32,7 +30,7 @@ pub(super) fn routes<A: Area>(routes: &mut Routes<A>) {
         .then_screen("shield", "blocks");
 }
 
-async fn list(blocks: ActiveBlocks) -> Result<Listed> {
+async fn list(blocks: ActiveBlocks) -> Result<Value> {
     let rows = blocks
         .list()
         .into_iter()
@@ -46,7 +44,7 @@ async fn list(blocks: ActiveBlocks) -> Result<Listed> {
             })
         })
         .collect();
-    Ok(Listed(Value::Array(rows)))
+    Ok(Value::Array(rows))
 }
 
 #[derive(Input)]

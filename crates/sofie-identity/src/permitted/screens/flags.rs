@@ -4,8 +4,6 @@ use sofie::http::{Area, FlagRules, NeedsPermission, Permission, Routes, Shipped}
 use sofie::prelude::*;
 use sofie::serde_json::{Value, json};
 
-use super::Listed;
-
 const READ: Permission = Permission::new("sofie_identity.flag.*.read");
 const UPDATE: Permission = Permission::new("sofie_identity.flag.*.update");
 
@@ -35,13 +33,13 @@ pub(super) fn routes<A: Area>(routes: &mut Routes<A>) {
         .then_screen("flags", "flags");
 }
 
-async fn list(flags: FlagRules) -> Result<Listed> {
+async fn list(flags: FlagRules) -> Result<Value> {
     let rows = flags
         .rules()
         .into_iter()
         .map(|(name, rule)| row(&name, &rule))
         .collect();
-    Ok(Listed(Value::Array(rows)))
+    Ok(Value::Array(rows))
 }
 
 fn row(name: &str, rule: &Rule) -> Value {

@@ -4,7 +4,7 @@
 
 use std::sync::Arc;
 
-use sofie::db::{BoxFuture, Db, Extensions, Outcome, Plan, Reply, Stamp, Uuid};
+use sofie::db::{BoxFuture, Db, Extensions, Outcome, Plan, Stamp, Uuid};
 use sofie::http::{Routes, Shipped};
 use sofie::prelude::*;
 use sofie::serde_json::{Map, Value, json};
@@ -80,20 +80,12 @@ async fn page() -> Result<Page> {
     Ok(Page {})
 }
 
-pub struct Exported(Value);
-
-impl Outcome for Exported {
-    fn reply(self) -> Result<Reply> {
-        Ok(Reply::Json(self.0))
-    }
-}
-
 async fn export<A: MemberArea>(
     principal: Principal<A>,
     _own: OwnSession,
     read: Read,
     others: Extensions<dyn PersonalData>,
-) -> Result<Exported> {
+) -> Result<Value> {
     let account = account_of(&principal);
     let mut exported = Map::new();
     exported.insert("sofie_identity".to_owned(), own(&read, account).await?);
@@ -103,7 +95,7 @@ async fn export<A: MemberArea>(
             data.export(&read, account.uuid()).await?,
         );
     }
-    Ok(Exported(Value::Object(exported)))
+    Ok(Value::Object(exported))
 }
 
 async fn own(read: &Read, account: AccountId) -> Result<Value> {

@@ -1,5 +1,5 @@
 use sofie_core::Result;
-use sofie_db::{Outcome, Read, ReadOnly, Reply};
+use sofie_db::Read;
 use sofie_http::{Query, Routes, Sealing, Shipped, Web};
 
 use super::Suppressed;
@@ -37,20 +37,10 @@ fn read_token(query: &Query, sealing: &Sealing) -> Option<(String, String)> {
     opened(&sealing.open(PURPOSE, &token)?)
 }
 
-pub struct Page(serde_json::Value);
-
-impl Outcome for Page {
-    fn reply(self) -> Result<Reply> {
-        Ok(Reply::Json(self.0))
-    }
-}
-
-impl ReadOnly for Page {}
-
 /// Unsubscribes only when posted to, so a link scanner opening the mail changes nothing.
-async fn page(query: Query, sealing: Sealing, read: Read) -> Result<Page> {
+async fn page(query: Query, sealing: Sealing, read: Read) -> Result<serde_json::Value> {
     let Some((address, list)) = read_token(&query, &sealing) else {
-        return Ok(Page(serde_json::json!({ "invalid": true })));
+        return Ok(serde_json::json!({ "invalid": true }));
     };
     let scopes = suppression::scopes(&read, &address).await?;
     let done = scopes.iter().any(|scope| scope.blocks(Some(&list)));
@@ -59,13 +49,13 @@ async fn page(query: Query, sealing: Sealing, read: Read) -> Result<Page> {
         confirm_path(),
         query.get("token").unwrap_or_default()
     );
-    Ok(Page(serde_json::json!({
+    Ok(serde_json::json!({
         "address": address,
         "list": list,
         "done": done,
         "asking": !done,
         "action": action,
-    })))
+    }))
 }
 
 async fn unsubscribe(query: Query, sealing: Sealing, read: Read) -> Result<Suppressed> {

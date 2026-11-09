@@ -1234,7 +1234,8 @@ migrations, so nothing is wired per app.
   generated wiring registers as a `PersonalData`.
 - **Web push.** `subscribe_push::<Area>`, `unsubscribe_push::<Area>` (a
   browser signing out stops its principal's pushes) and `vapid_key` are
-  handlers an app routes; `SERVICE_WORKER` is the script it serves. VAPID (RFC 8292) from
+  handlers an app routes; `push_worker_route` mounts the service worker as a public
+  `GET /push-worker.js` (`Media::JavaScript`) on the root area. VAPID (RFC 8292) from
   `SOFIE_NOTIFY_VAPID_PUBLIC_KEY`, `_PRIVATE_KEY`, `_SUBJECT`; the message is
   encrypted `aes128gcm` (RFC 8291) with `ring`, and sent through
   `Outgoing::untrusted`, since the browser chose the push service. An

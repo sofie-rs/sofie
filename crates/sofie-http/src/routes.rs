@@ -31,6 +31,7 @@ pub(crate) enum View {
 pub enum Media {
     Xml,
     Text,
+    JavaScript,
     /// From a list of records the loader answers, not from `Text`.
     #[cfg(feature = "csv")]
     Csv,
@@ -53,6 +54,7 @@ impl Media {
         match self {
             Self::Xml => "application/xml; charset=utf-8",
             Self::Text => "text/plain; charset=utf-8",
+            Self::JavaScript => "text/javascript; charset=utf-8",
             #[cfg(feature = "csv")]
             Self::Csv => "text/csv; charset=utf-8",
         }

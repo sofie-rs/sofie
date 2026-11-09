@@ -27,8 +27,8 @@ pub use jiff::civil::Weekday;
 pub use notice::{Notice, Recipient};
 pub use preferences::{Changed, ChannelChoice, Chosen, Digest, Preferences};
 pub use push::{
-    PushEndpoint, PushRegistration, SERVICE_WORKER, Subscribed, Unsubscribed, VapidKey, VapidKeys,
-    subscribe_push, unsubscribe_push, vapid_key,
+    PushEndpoint, PushRegistration, Subscribed, Unsubscribed, VapidKey, VapidKeys,
+    push_worker_route, subscribe_push, unsubscribe_push, vapid_key,
 };
 #[cfg(feature = "screens")]
 pub use screens::inbox_routes;

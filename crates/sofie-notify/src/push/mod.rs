@@ -13,7 +13,7 @@ use sofie_db::{
     Aggregate, Dep, Dialect, Id, Input, Outcome, Plan, Reach, Read, Reply, Resolve, Select, Step,
     Writes,
 };
-use sofie_http::{Area, Principal};
+use sofie_http::{Area, Media, Principal, Routes, Text, Web};
 
 pub use vapid::VapidKeys;
 
@@ -412,9 +412,21 @@ fn message(notice: &Notice) -> String {
     }
 }
 
-/// Shows each pushed notification and opens its link when clicked. Serve it from the
-/// app's origin and register it with `navigator.serviceWorker.register`.
-pub const SERVICE_WORKER: &str = r#"self.addEventListener("push", (event) => {
+/// Mounts `GET /push-worker.js`, the service worker that shows each pushed notification and
+/// opens its link when clicked; pages register it with `navigator.serviceWorker.register`.
+/// At the origin's root and public, its scope covers every area's pages.
+pub fn push_worker_route(routes: &mut Routes<Web>) {
+    routes
+        .get("/push-worker.js", service_worker)
+        .name("push_worker")
+        .document(Media::JavaScript);
+}
+
+async fn service_worker() -> Result<Text> {
+    Ok(Text(SERVICE_WORKER.to_owned()))
+}
+
+const SERVICE_WORKER: &str = r#"self.addEventListener("push", (event) => {
   const message = event.data ? event.data.json() : {};
   event.waitUntil(self.registration.showNotification(message.title || "", {
     body: message.body || "",

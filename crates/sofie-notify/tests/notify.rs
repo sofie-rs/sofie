@@ -187,7 +187,11 @@ fn routes(routes: &mut Routes<Members>) {
 
 async fn start() -> TestApp {
     sofie_testing::start(
-        |db: Db| async move { Ok(App::new(db).area::<Members>("shop", routes)) },
+        |db: Db| async move {
+            Ok(App::new(db)
+                .area::<Members>("shop", routes)
+                .area("notify", sofie_notify::push_worker_route))
+        },
         |db| sofie_notify::housekeeping(Worker::new(db)),
     )
     .await
@@ -412,7 +416,21 @@ async fn a_browser_subscribes_once_and_follows_whoever_subscribed_last() {
         .query("SELECT principal FROM sofie.push_subscriptions", &[])
         .await;
     assert_eq!(rows, [vec![SqlValue::Uuid(Uuid::from_u128(7))]]);
-    assert!(sofie_notify::SERVICE_WORKER.contains("showNotification"));
+}
+
+#[tokio::test]
+async fn the_push_worker_is_served_publicly_as_javascript_from_the_root() {
+    let app = start().await;
+
+    let worker = app.get("/push-worker.js").await;
+
+    assert_eq!(worker.status, 200, "{}", worker.body);
+    assert_eq!(
+        worker.header("content-type"),
+        "text/javascript; charset=utf-8"
+    );
+    assert!(worker.body.starts_with("self.addEventListener(\"push\""));
+    assert!(worker.body.contains("showNotification"));
 }
 
 const BROWSER_KEY: &str =

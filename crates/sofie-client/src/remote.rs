@@ -53,6 +53,7 @@ impl RemoteApp {
 
     /// The principal token carries the principal the current work acts for, valid for `path` only.
     async fn send<R: DeserializeOwned>(&self, request: Request<'_>, path: &str) -> Result<R> {
+        sofie_db::remote::read_through(self.shared.name);
         let acting = sofie_db::remote::acting();
         let token = self
             .shared

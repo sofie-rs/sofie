@@ -315,6 +315,33 @@ async fn a_pulled_event_carries_the_actor_whose_change_raised_it() {
     let _ = members.stop.send(());
 }
 
+#[cfg(feature = "live")]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_screen_reading_through_another_app_hears_when_its_events_arrive() {
+    use sofie::db::{Announced, Topic, Topics};
+
+    let members = MembersApp::start().await;
+    members.join("Ada", "London").await;
+    members.worker().drain().await.unwrap();
+    let (shop, _database) = database(SHOP).await;
+    let directory = Remote::<dyn Directory>::new(members.reached_with(keys(7)));
+    let mut announced = sofie::db::committed_changes(&shop);
+
+    let (city, topics) = sofie::db::track_topics(directory.city_of("Ada")).await;
+    let entries = sofie::db::read_feed(&members.db, 0, 10).await.unwrap();
+    sofie::db::receive_feed(&shop, "members", 0, &entries)
+        .await
+        .unwrap();
+
+    assert_eq!(city.unwrap(), "London");
+    assert_eq!(topics, Topics::Of([Topic::remote("members")].into()));
+    let Announced::Changed(changes) = announced.recv().await.unwrap() else {
+        panic!("the arrival is announced");
+    };
+    assert!(Announced::Changed(changes).concerns(&topics, Reach::OwnedBy(Uuid::now_v7().unwrap())));
+    let _ = members.stop.send(());
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_batch_lookup_crosses_apps_in_one_call() {
     let members = MembersApp::start().await;

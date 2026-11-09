@@ -166,6 +166,11 @@ impl Outcome for Received<'_> {
             SqlValue::Int(self.to),
         ];
         plan.push(Step::statement(feed.advance, cursor, Some(1)));
+        #[cfg(feature = "live")]
+        plan.announcements.live_change(crate::TableChange {
+            topic: crate::Topic::remote(self.producer),
+            readers: crate::Readers::Anyone,
+        });
         Ok(())
     }
 }

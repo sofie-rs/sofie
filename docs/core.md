@@ -694,7 +694,8 @@ named after it (`Dialect::qualified`), `pragma_table_info` as the catalog,
 no `Wakeups`, so the worker polls, and `Dialect::engine` choosing a
 module's `migrations/sqlite/` files where its SQL differs. It keeps no event
 feed and no product events: a worker publishing or pulling a feed is refused
-before any work, and `ProductEvents::keep` at start, each saying it needs Postgres.
+before any work, and `Served::feed().serve` and `ProductEvents::keep` at start,
+each saying it needs Postgres.
 
 - **Rows are read where they arrive.** `Driver::query` takes a `RowSink`,
   which names the type each leading column must hold and receives every row
@@ -1349,7 +1350,9 @@ the answer as JSON. The behaviour is library code:
   and area whose change raised it), keyed by the producer's event id (before any
   worker is published it queues the events themselves), and moves the
   cursor, so each event is delivered once; pulls run every second, at once
-  after a full page.
+  after a full page. With `live`, a screen that called a remote app (a
+  contract or lookup) hears that app's topic, which every arriving page
+  announces, so it refetches on any of the app's events.
 - *Checks* (`sofie check`): an app that lists a module as remote may not also
   depend on that module's implementation crate (`remote-dependency`), and
   no function of its modules may take `dyn Trait` of a remote contract

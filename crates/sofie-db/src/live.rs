@@ -17,6 +17,9 @@ const BACKLOG: usize = 256;
 const PAYLOAD_LIMIT: usize = 7900;
 const LISTEN_RETRY: Duration = Duration::from_secs(5);
 const ALIVE_CHECK: Duration = Duration::from_secs(30);
+/// No table is named so: a schema's name holds no dot.
+#[cfg(feature = "remote-contracts")]
+const REMOTE_APPS: &str = "sofie.remote";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Topic(u64);
@@ -35,6 +38,13 @@ impl Topic {
     #[must_use]
     pub fn of<A: Aggregate>() -> Self {
         Self::named(A::MODULE, A::NAME)
+    }
+
+    /// Coarse: every event pulled from that app refreshes each screen that read through it.
+    #[cfg(feature = "remote-contracts")]
+    #[must_use]
+    pub fn remote(app: &str) -> Self {
+        Self::named(REMOTE_APPS, app)
     }
 
     #[must_use]
@@ -135,6 +145,11 @@ pub(crate) fn read_tables<'t>(tables: impl IntoIterator<Item = (&'t str, &'t str
             );
         }
     });
+}
+
+#[cfg(feature = "remote-contracts")]
+pub(crate) fn read_remote(app: &str) {
+    read_tables([(REMOTE_APPS, app)]);
 }
 
 #[cfg(any(feature = "raw-sql", test))]

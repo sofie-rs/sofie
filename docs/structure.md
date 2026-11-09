@@ -265,10 +265,12 @@ framework owns. No frontend framework's release can break an app.
   JSON text, so `rate.gte=19` is 19 %, a value the type refuses is that
   filter's error, and only a type without a text reader is read by its
   column type; a field and operator twice, or more than 16 filters, is a
-  400) answers `Listed<T>`, `{items, page, size, has_next, sort,
-  filter, query, controls, errors}`; a `Table` over it with `sort="…"` and
+  400; a `Searched` aggregate's list also matches the words of `q`, offered
+  as `controls.q` and kept in `filter.q`) answers `Listed<T>`, `{items, page,
+  size, has_next, sort, filter, query, controls, errors}`; a `Table` over it with `sort="…"` and
   `filter="…"` links each column, a filter form (a select of an enum's variants, a date-time
-  picker for an instant, else a search box) and the neighbouring pages,
+  picker for an instant, else a search box; a searched list's search box
+  first, even with no `filter`) and the neighbouring pages,
   every link fetching the table's own fragment (the `listing` feature; both
   types are `sofie::http::Listing` and `sofie::http::Listed`). A loader
   taking `Listing<T, Q>` also reads the query's own parameters into `Q`, a

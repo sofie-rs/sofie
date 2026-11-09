@@ -277,13 +277,23 @@ fn render_filters<'a>(
     target: &str,
     renderer: &mut Renderer<'a>,
 ) {
-    if table.listing.filters.is_empty() {
+    let searches = search_boxes(table, listed);
+    if table.listing.filters.is_empty() && searches.is_empty() {
         return;
     }
+    let search_label = renderer.language.text("table.search", "Search");
     let out = renderer.output();
     out.push_str("<form class=\"sofie-filter\" method=\"get\" hx-get=\"?");
     push_fetch_attributes(out, target);
     out.push('>');
+    for name in searches {
+        let value = text_of(listed.filter.and_then(|filter| filter.get(name)));
+        out.push_str("<label>");
+        push_escaped(out, search_label);
+        out.push(' ');
+        push_filter_control(out, name, value.as_deref(), None, false);
+        out.push_str("</label>");
+    }
     for (name, label) in &table.listing.filters {
         renderer.push_markup("<label>");
         renderer.write_text(label);
@@ -320,6 +330,27 @@ fn render_filters<'a>(
     out.push_str("<button type=\"submit\">");
     push_escaped(out, text);
     out.push_str("</button></form>");
+}
+
+/// The list's own search box, offered as a control no field of the Table names.
+fn search_boxes<'a>(table: &Table, listed: &Listed<'a>) -> Vec<&'a str> {
+    listed
+        .controls
+        .into_iter()
+        .flat_map(each_field)
+        .filter(|(_, control)| {
+            str_of(fields_of(Some(*control)).and_then(|control| control.get("type")))
+                == Some("search")
+        })
+        .map(|(name, _)| name)
+        .filter(|name| {
+            !table
+                .listing
+                .filters
+                .iter()
+                .any(|(filter, _)| filter == name)
+        })
+        .collect()
 }
 
 fn push_hidden(out: &mut String, name: &str, value: &str) {

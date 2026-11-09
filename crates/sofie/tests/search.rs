@@ -125,3 +125,53 @@ async fn the_reindex_task_rewrites_every_page_of_text_written_before_its_fields_
     assert_eq!(found(&db, "wool").await.len(), 600);
     assert_eq!(found(&db, "old@example.com").await.len(), 600);
 }
+
+#[cfg(feature = "listing")]
+async fn listed(
+    listing: sofie::http::Listing<Product>,
+    read: Read,
+) -> Result<sofie::serde_json::Value> {
+    let listed = listing.page(&read).await?;
+    let mut names: Vec<&str> = listed
+        .items()
+        .iter()
+        .map(|product| product.name.as_str())
+        .collect();
+    names.sort_unstable();
+    Ok(sofie::serde_json::json!(names))
+}
+
+#[cfg(feature = "listing")]
+#[tokio::test]
+async fn a_list_of_a_searched_aggregate_matches_the_words_of_q() {
+    let database = TestDatabase::create().await;
+    let db = Db::new(Postgres::connect(database.url()).unwrap());
+    db.schema()
+        .migrate(&[Migrations::new("search", MIGRATIONS)])
+        .await
+        .unwrap();
+    let mut products = vec![
+        product("Blue wool scarf", "knit@example.com", 4500, None),
+        product("Red linen hat", "hats@example.com", 2000, None),
+    ];
+    db.commit(&mut products).await.unwrap();
+    let app = sofie::http::App::new(db).area(
+        "shop",
+        |routes: &mut sofie::http::Routes<sofie::http::Web>| {
+            routes.get("/products", listed);
+        },
+    );
+    let server = sofie_testing::TestServer::start(app).await;
+
+    let matched = server.get("/products?q=wool").await;
+    let unsearched = server.get("/products?q=").await;
+
+    assert_eq!(
+        matched.json(),
+        sofie::serde_json::json!(["Blue wool scarf"])
+    );
+    assert_eq!(
+        unsearched.json(),
+        sofie::serde_json::json!(["Blue wool scarf", "Red linen hat"])
+    );
+}

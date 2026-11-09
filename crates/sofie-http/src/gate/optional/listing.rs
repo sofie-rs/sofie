@@ -11,7 +11,7 @@ use sofie_core::show::Fields;
 use sofie_core::{Error, FieldError, Result, Show, Shown};
 use sofie_db::{
     Aggregate, Condition, FieldNames, Input, Outcome, Page, Paginated, Query, Read, ReadOnly,
-    Reply, ReplyData, Select, Sort, Source, filterable, selects,
+    Reply, ReplyData, Select, Sort, Source, filterable, searched, selects,
 };
 use sofie_values::Operator;
 
@@ -20,8 +20,10 @@ use crate::urlencoded::decode;
 use crate::{Area, RequestContext};
 use sofie_db::Resolve;
 
+/// A `Searched` aggregate's list matches the words of `?q=`.
+const SEARCH: &str = "q";
 /// Read by the listing itself, so no field of its query `Q` may take one.
-const RESERVED: [&str; 4] = [PAGE, SIZE, SORT, FILTER];
+const RESERVED: [&str; 5] = [PAGE, SIZE, SORT, FILTER, SEARCH];
 /// Each set of filters is its own prepared statement, so a caller cannot make them without end.
 const MAX_FILTERS: usize = 16;
 
@@ -32,6 +34,7 @@ pub struct Listing<T: Source, Q = ()> {
     page: Page,
     sort: Option<String>,
     filters: Vec<Filter>,
+    search: Option<String>,
     parents: Vec<(String, String)>,
     prefers_json: bool,
     parameters: Option<Q>,
@@ -81,6 +84,12 @@ impl<T: Source, Q> Listing<T, Q> {
                 Err(error) => return Err(error),
             }
         }
+        if let Some(words) = &self.search {
+            let matching = Condition::searching(words).ok_or_else(|| {
+                Error::internal_message("searching a list whose aggregate was checked searched")
+            })?;
+            query = query.where_(matching);
+        }
         for (field, id) in &self.parents {
             let parent =
                 Condition::on_field(field, Operator::Equals, id).map_err(|error| match error {
@@ -125,7 +134,9 @@ impl<T: Source, Q> Listing<T, Q> {
             filter: self
                 .filters
                 .into_iter()
-                .map(|filter| (filter.key, Value::String(filter.value)))
+                .map(|filter| (filter.key, filter.value))
+                .chain(self.search.map(|words| (SEARCH.to_owned(), words)))
+                .map(|(key, value)| (key, Value::String(value)))
                 .collect(),
             query: self.asked_parameters,
             errors: Refused(refused.into_iter().map(RefusedFilter::from).collect()),
@@ -133,8 +144,10 @@ impl<T: Source, Q> Listing<T, Q> {
     }
 }
 
-/// What a filter form offers for a field: an enum's variants, or a picker for an instant.
+/// What a filter form offers for a field: an enum's variants, or a picker for an instant; and
+/// a search box for a `Searched` aggregate.
 fn controls<T: Source>() -> Map<String, Value> {
+    let search = searched::<T::Base>().then(|| (SEARCH.to_owned(), json!({ "type": "search" })));
     T::Base::FIELDS
         .iter()
         .filter(|field| selects::<T>(field.name) && !filterable::<T::Base>(field.name).is_empty())
@@ -151,6 +164,7 @@ fn controls<T: Source>() -> Map<String, Value> {
             };
             Some((field.name.to_owned(), control))
         })
+        .chain(search)
         .collect()
 }
 
@@ -187,7 +201,7 @@ fn asked<T: Source, Q: Input + FieldNames>(query: &str) -> Result<Listing<T, Q>>
     const {
         assert!(
             !names_any(Q::FIELD_NAMES, &RESERVED),
-            "a listing's query struct names a field `page`, `size`, `sort` or `filter`, \
+            "a listing's query struct names a field `page`, `size`, `sort`, `filter` or `q`, \
              which the listing reads itself"
         );
         assert!(
@@ -197,6 +211,7 @@ fn asked<T: Source, Q: Input + FieldNames>(query: &str) -> Result<Listing<T, Q>>
         );
     }
     let (mut number, mut size, mut sort, mut filters) = (1, DEFAULT_SIZE, None, Vec::new());
+    let mut search = None;
     let mut asked_parameters = Map::new();
     for pair in query.split('&').filter(|pair| !pair.is_empty()) {
         let (key, value) = pair.split_once('=').unwrap_or((pair, ""));
@@ -213,6 +228,7 @@ fn asked<T: Source, Q: Input + FieldNames>(query: &str) -> Result<Listing<T, Q>>
                 )));
             }
             _ if value.is_empty() && key.strip_suffix(".empty").is_none() => {}
+            SEARCH if searched::<T::Base>() => search = Some(value),
             _ if Q::FIELD_NAMES.contains(&parameter_name(&key)) => {
                 asked_parameters.insert(key, Value::String(value));
             }
@@ -227,6 +243,7 @@ fn asked<T: Source, Q: Input + FieldNames>(query: &str) -> Result<Listing<T, Q>>
         page: Page::new(number, size)?,
         sort,
         filters,
+        search,
         parents: Vec::new(),
         prefers_json: false,
         parameters,

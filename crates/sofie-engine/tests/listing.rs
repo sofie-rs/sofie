@@ -289,3 +289,27 @@ fn a_client_area_s_refused_filters_are_written_in_the_viewer_s_language() {
         })
     );
 }
+
+#[test]
+fn a_searched_list_offers_its_search_box_even_where_no_field_is_filtered() {
+    let template = common::loaded(
+        "products",
+        r#"<Table id="products" of={data} columns="name" />"#,
+    );
+    let page = json!({
+        "items": [{"name": "Blue wool scarf"}],
+        "page": 1,
+        "size": 20,
+        "has_next": true,
+        "filter": {"q": "wool"},
+        "controls": {"q": {"type": "search"}},
+    });
+
+    let html = template.render(&page).unwrap();
+
+    assert!(
+        html.contains("<form class=\"sofie-filter\" method=\"get\" hx-get=\"?\" hx-target=\"#products\" hx-swap=\"outerHTML\" hx-push-url=\"true\"><label>Search <input type=\"search\" name=\"q\" value=\"wool\"></label><button type=\"submit\">Filter</button></form>"),
+        "{html}"
+    );
+    assert!(html.contains("<a href=\"?page=2&amp;q=wool\""), "{html}");
+}

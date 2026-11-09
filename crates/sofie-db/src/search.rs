@@ -103,13 +103,17 @@ pub trait Searches: Aggregate {
     /// `"quoted words"` match as a phrase and `-word` excludes, where the database parses queries.
     #[must_use]
     fn matching(words: &str) -> Condition<Self> {
-        Condition::new(Kind::TextSearch {
-            column: SEARCH_COLUMN.to_owned(),
-            words: words.to_owned(),
-            #[cfg(feature = "search-engine")]
-            index: (Self::MODULE, Self::NAME),
-        })
+        text_search(words)
     }
+}
+
+pub(crate) fn text_search<A: Aggregate>(words: &str) -> Condition<A> {
+    Condition::new(Kind::TextSearch {
+        column: SEARCH_COLUMN.to_owned(),
+        words: words.to_owned(),
+        #[cfg(feature = "search-engine")]
+        index: (A::MODULE, A::NAME),
+    })
 }
 
 impl<A: Uses<Searched>> Searches for A {}

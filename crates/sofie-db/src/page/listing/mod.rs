@@ -24,6 +24,11 @@ pub fn filterable<A: Aggregate>(name: &str) -> Vec<Operator> {
     offered
 }
 
+#[must_use]
+pub fn searched<A: Aggregate>() -> bool {
+    cfg!(feature = "search") && A::BEHAVIORS.iter().any(|behavior| behavior.searched())
+}
+
 /// A list reaches only what its read model shows, so a hidden column cannot be probed by filters.
 #[must_use]
 pub fn selects<S: Source>(name: &str) -> bool {
@@ -112,6 +117,17 @@ impl<A: Aggregate> Sort<A> {
 }
 
 impl<A: Aggregate> Condition<A> {
+    /// A listing's search box: `None` unless `A` is `Searched`.
+    #[cfg_attr(not(feature = "search"), expect(unused_variables))]
+    #[must_use]
+    pub fn searching(words: &str) -> Option<Self> {
+        #[cfg(feature = "search")]
+        if searched::<A>() {
+            return Some(crate::search::text_search(words));
+        }
+        None
+    }
+
     /// `Between` takes `low..high`; a value the field refuses is its own error, shown beside it.
     pub fn on_field(name: &str, operator: Operator, text: &str) -> Result<Self> {
         let refused = |why: String| {

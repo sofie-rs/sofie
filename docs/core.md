@@ -1409,7 +1409,8 @@ compiled by the app's build script, loaded at boot and rendered by the engine.
 - **Resources need no files.** `routes.resource::<Order>()` renders index,
   show and form screens from the aggregate's field metadata through the same
   catalog. `sofie scaffold screen order/console/order_index` writes the template out when a
-  screen needs changing.
+  screen needs changing. Their words are the engine's `resource.*` texts; without `i18n`
+  they come from a program sofie-http's build script compiles with the English ones.
 - **HTML over the wire.** Sorting, filtering, paging, forms and actions post
   to the server, which answers with the HTML fragment to swap in. htmx does
   the swapping, used only inside catalog components; the engine's own client
@@ -1505,8 +1506,9 @@ a Svelte area and an HTML area side by side.
   fails the build naming the file: `Markdown` and `Head` render only in HTML
   areas.
 - **Framework screens join the bundle.** The model reads each screen
-  sofie-identity ships with a route (`.shipped(…, (include_str!(file), …), …)
-  .name(handler)`) and which route functions the app mounts in which area, so
+  sofie-identity ships with a route (`.shipped(…, (include_str!(file),
+  include_bytes!(program), …), …).name(handler)`, the program its build script
+  compiled with each `t(…)`'s English text, which an app without `i18n` writes) and which route functions the app mounts in which area, so
   the screens mounted in a client area (sessions, passkeys, two-step sign-in,
   connected accounts, account data, tokens, flags, settings, shield,
   impersonation) are compiled into its bundle under the key they render as.

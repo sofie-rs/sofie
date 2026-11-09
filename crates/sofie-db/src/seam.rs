@@ -158,7 +158,6 @@ pub trait Driver: Send + Sync + 'static {
         None
     }
 
-    /// Woken by `Dialect::flags_notify`.
     fn flag_wakeups(&self) -> Option<BoxFuture<'_, Result<Box<dyn Wakeups>>>> {
         None
     }

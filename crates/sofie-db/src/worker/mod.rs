@@ -170,8 +170,7 @@ impl Worker {
         self
     }
 
-    /// Refuses jobs of one name, intervals out of range and a feed the database cannot keep
-    /// before any work starts.
+    /// Refuses repeated job names, intervals out of range and an unkept feed before any work.
     pub async fn run(self, shutdown: impl Future<Output = ()> + Send) -> Result<()> {
         self.registry.validate()?;
         #[cfg(feature = "remote-contracts")]

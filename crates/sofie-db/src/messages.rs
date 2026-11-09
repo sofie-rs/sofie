@@ -61,8 +61,6 @@ pub struct Claimed {
     pub actor: Option<Actor>,
 }
 
-/// The principal whose action queued a message, and the area a request named them in, so the
-/// message's job writes and calls other apps as them.
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[cfg_attr(
     feature = "remote-contracts",

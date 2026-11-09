@@ -44,6 +44,12 @@ impl Found {
             + self.jobs.len()
             + self.tasks.len()
     }
+
+    /// Inputs a form may post and flags a gate may name, which the app's wiring names
+    /// only when used.
+    pub(crate) fn named_by_wiring_count(&self) -> usize {
+        self.code.inputs.len() + self.code.features.declarations.len()
+    }
 }
 
 pub(crate) fn collect_item(

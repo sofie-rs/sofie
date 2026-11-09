@@ -243,7 +243,7 @@ pub fn check(app: &App, screens: &Screens) -> Vec<Finding> {
     findings.extend(messages::check_messages(app));
     findings.extend(messages::check_queued_routes(app));
     findings.extend(members::check_member_areas(app));
-    findings.extend(visibility::check_visibility(&app.modules));
+    findings.extend(visibility::check_visibility(app, screens));
     findings.extend(wiring::check_wiring(app));
     findings.extend(flags::check_flags(app));
     findings.extend(entitlements::check_entitlements(app, screens));

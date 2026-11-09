@@ -173,3 +173,33 @@ fn a_menu_entry_naming_no_flag_and_an_unreachable_menu_are_reported() {
         .collect();
     assert_eq!(reported, [("undeclared-routes", 1), ("feature-flag", 3)]);
 }
+
+#[test]
+fn a_gating_flag_the_app_s_wiring_cannot_reach_is_reported() {
+    let mut order = order_with(
+        vec![
+            declaration("SPLIT", Some("order.split"), 3),
+            declaration("UNUSED", Some("order.unused"), 4),
+        ],
+        vec![gate("SPLIT")],
+    );
+    let private = |constant: &str, line| sofie_model::PrivateItem {
+        path: vec!["module".to_owned(), constant.to_owned()],
+        file: PathBuf::from("/shop/modules/order/src/module.rs"),
+        line,
+        crate_visible: false,
+    };
+    order.private_items = vec![private("SPLIT", 3), private("UNUSED", 4)];
+
+    let findings: Vec<Finding> = check(&app("/shop", vec![order]))
+        .into_iter()
+        .filter(|finding| finding.rule == Rule::Visibility)
+        .collect();
+
+    assert_eq!(findings.len(), 1, "{findings:#?}");
+    assert!(
+        findings[0].message.contains("`order::module::SPLIT`"),
+        "{}",
+        findings[0].message
+    );
+}

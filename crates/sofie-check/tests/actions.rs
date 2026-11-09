@@ -77,3 +77,42 @@ fn an_action_posts_the_fields_its_route_s_input_requires_and_no_others() {
         findings[1].message
     );
 }
+
+#[test]
+fn a_form_input_the_app_s_wiring_cannot_reach_is_reported() {
+    let directory = TemporaryDirectory::new("sofie-check-form-input");
+    let mut module = module("order", directory.path("modules/order"));
+    let mut web = area(
+        &module,
+        "web",
+        vec![posting("/orders/pick", "actions::pick")],
+    );
+    web.screens = vec![directory.write(
+        "modules/order/src/areas/web/screens/orders.html",
+        "<Form id=\"pick\" post=\"/orders/pick\"></Form>\n",
+    )];
+    module.areas.push(web);
+    let mut pick = function("actions::pick", "modules/order/src/actions.rs", 5);
+    pick.arguments = vec![type_name("Pick")];
+    module.code.functions = vec![pick];
+    module.code.inputs = vec![pick_input()];
+    module.private_items = vec![sofie_model::PrivateItem {
+        path: vec!["actions".to_owned(), "Pick".to_owned()],
+        file: PathBuf::from("modules/order/src/actions.rs"),
+        line: 2,
+        crate_visible: true,
+    }];
+    let app = app(directory.root(), vec![module]);
+
+    let findings: Vec<Finding> = sofie_check::check(&app, &Screens::read(&app.modules))
+        .into_iter()
+        .filter(|finding| finding.rule == Rule::Visibility)
+        .collect();
+
+    assert_eq!(findings.len(), 1, "{findings:#?}");
+    assert!(
+        findings[0].message.contains("`order::actions::Pick`"),
+        "{}",
+        findings[0].message
+    );
+}

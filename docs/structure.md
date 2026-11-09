@@ -2220,7 +2220,8 @@ pub async fn expire_unpaid(read: Read, config: Config<OrderConfig>) -> Result<Ve
   generated `src/wiring.rs`, which names the module's routes, listeners and
   jobs from inside the crate, so `areas`, `listeners` and `jobs` may be
   private modules (`sofie check`'s `visibility` rule names what a private
-  module below the crate root hides). `sofie check` reads it without compiling and reports a module without
+  module below the crate root hides, and a form input or gating flag the app's
+  wiring names that is not `pub`). `sofie check` reads it without compiling and reports a module without
   one, one no `mod` reaches, and one whose `name` is not the crate name (the
   name is its schema and key prefix). `context` names the part of the
   business a Core module belongs to, or is `None`. Features join the

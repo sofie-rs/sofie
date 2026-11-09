@@ -917,11 +917,13 @@ fn a_dependency_is_named_by_its_lib_target() {
 }
 
 #[test]
-fn records_private_modules_and_private_wired_functions() {
+fn records_private_modules_wired_functions_inputs_and_flags() {
     let fixture = Fixture::new().with_app(&["order"]).with_module(
         "order",
         "pub(crate) mod listeners {\n    #[on]\n    pub async fn audit(event: OrderPlaced) {}\n}\n\
-         pub mod jobs {\n    #[job]\n    async fn export() {}\n    pub fn helper() {}\n}\n",
+         pub mod jobs {\n    #[job]\n    async fn export() {}\n    pub fn helper() {}\n}\n\
+         #[derive(Input)]\nstruct Pick {}\nconst SPLIT: Feature = Feature::new(\"order.split\");\n\
+         struct Plain;\n",
     );
 
     let order = fixture.module("order");
@@ -933,7 +935,12 @@ fn records_private_modules_and_private_wired_functions() {
         .collect();
     assert_eq!(
         private,
-        [("listeners".to_owned(), 1), ("jobs::export".to_owned(), 7)]
+        [
+            ("listeners".to_owned(), 1),
+            ("jobs::export".to_owned(), 7),
+            ("Pick".to_owned(), 11),
+            ("SPLIT".to_owned(), 12),
+        ]
     );
 }
 

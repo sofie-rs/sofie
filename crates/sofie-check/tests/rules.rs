@@ -1051,8 +1051,7 @@ fn an_area_is_defined_once_by_a_contract_an_app_signing_members_in_depends_on() 
         directory: PathBuf::from("crates/sofie-identity"),
         screens: Vec::new(),
         routes: Vec::new(),
-        mounts: Vec::new(),
-        shipped: Vec::new(),
+        ..sofie_model::Identity::default()
     });
     app.app
         .dependencies

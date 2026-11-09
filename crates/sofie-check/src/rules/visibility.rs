@@ -1,18 +1,58 @@
-use sofie_model::{Module, PrivateItem, WiringSide};
+use sofie_model::{App, Module, PrivateItem, WiringSide};
 
 use super::{Finding, Rule};
+use crate::screens::{Screen, Screens};
 
-pub(super) fn check_visibility(modules: &[Module]) -> Vec<Finding> {
-    modules
+pub(super) fn check_visibility(app: &App, screens: &Screens) -> Vec<Finding> {
+    let posted = form_inputs(app, screens);
+    app.modules
         .iter()
         .flat_map(|module| {
-            let wired = wired_paths(module);
+            let mut wired = wired_paths(module);
+            wired.extend(
+                posted
+                    .iter()
+                    .filter(|(owner, _)| owner.krate.crate_name == module.krate.crate_name)
+                    .map(|(_, input)| (input.clone(), WiringSide::App)),
+            );
             module
                 .private_items
                 .iter()
                 .filter_map(move |private| hiding(module, private, &wired))
         })
         .collect()
+}
+
+/// The inputs the app's wiring describes, one per form a screen posts.
+fn form_inputs<'app>(app: &'app App, screens: &Screens) -> Vec<(&'app Module, Vec<String>)> {
+    let files = app
+        .modules
+        .iter()
+        .flat_map(|module| &module.areas)
+        .flat_map(|area| &area.screens);
+    let mut inputs = Vec::new();
+    for file in files {
+        let Ok(Screen {
+            template: Ok(template),
+            ..
+        }) = screens.screen(file)
+        else {
+            continue;
+        };
+        for post in template.form_posts() {
+            let Some(site) = app.posted_route(&post.post) else {
+                continue;
+            };
+            let code = &site.module.code;
+            if let Some(input) = code
+                .function(&site.route.handler)
+                .and_then(|function| code.input_of(function))
+            {
+                inputs.push((site.module, input.path.clone()));
+            }
+        }
+    }
+    inputs
 }
 
 /// What the wirings name in a module, and which of them names it.
@@ -36,6 +76,12 @@ fn wired_paths(module: &Module) -> Vec<(Vec<String>, WiringSide)> {
         .iter()
         .chain(&module.extensions)
         .map(|provision| on_app(&provision.ty));
+    let features = &module.code.features;
+    let flags = features
+        .gates
+        .iter()
+        .filter_map(|gate| features.gate_on(&gate.function))
+        .map(|declaration| (declaration.constant.clone(), WiringSide::App));
     let area_files = module.areas.iter().flat_map(|area| {
         let menu = area.menu.as_ref().map(|_| "menu");
         std::iter::once("routes").chain(menu).map(|file| {
@@ -48,6 +94,7 @@ fn wired_paths(module: &Module) -> Vec<(Vec<String>, WiringSide)> {
         .chain(queued)
         .chain(tasks)
         .chain(provided)
+        .chain(flags)
         .chain(area_files)
         .collect()
 }

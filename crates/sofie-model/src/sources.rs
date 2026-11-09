@@ -182,19 +182,21 @@ impl Walk {
         condition: Option<CfgAt>,
     ) -> Result<(), ModelError> {
         let wired_before = self.found.wired_count();
+        let named_before = self.found.named_by_wiring_count();
         collect_item(item, file, imports, &mut self.found)?;
         let wired = self.found.wired_count() > wired_before;
-        if wired
-            && let Item::Fn(function) = item
-            && !is_public(&function.vis)
+        let named = wired || self.found.named_by_wiring_count() > named_before;
+        if named
+            && let Some((visibility, ident)) = visibility_of(item)
+            && !is_public(visibility)
         {
             let mut path = imports.module_path().to_vec();
-            path.push(function.sig.ident.to_string());
+            path.push(ident.to_string());
             self.found.private_items.push(PrivateItem {
                 path,
                 file: file.to_path_buf(),
-                line: line_of(&function.sig.ident),
-                crate_visible: is_crate_visible(&function.vis),
+                line: line_of(ident),
+                crate_visible: is_crate_visible(visibility),
             });
         }
         match condition {
@@ -331,6 +333,15 @@ pub(crate) fn path_attribute(
 }
 
 /// `pub(crate)` or `pub(in crate)`.
+fn visibility_of(item: &Item) -> Option<(&Visibility, &syn::Ident)> {
+    match item {
+        Item::Fn(function) => Some((&function.vis, &function.sig.ident)),
+        Item::Struct(structure) => Some((&structure.vis, &structure.ident)),
+        Item::Const(constant) => Some((&constant.vis, &constant.ident)),
+        _ => None,
+    }
+}
+
 fn is_crate_visible(visibility: &Visibility) -> bool {
     matches!(visibility, Visibility::Restricted(restricted) if restricted.path.is_ident("crate"))
 }

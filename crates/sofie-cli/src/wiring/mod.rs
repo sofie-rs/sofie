@@ -194,6 +194,7 @@ impl<'app> Wiring<'app> {
         let settings = self.gating.declared_settings();
         let provide = self.provide.is_some().then(|| quote!(provide(&db);));
         let mails = mails::register(self.mails.as_ref());
+        let personal_data = self.personal_data();
         let gateways = self.gateways.is_some().then(|| quote!(gateways()?;));
         let connections = remote::connections(self.app);
         let serving = remote::serving(self.app, &self.modules);
@@ -213,6 +214,7 @@ impl<'app> Wiring<'app> {
                 #(#connections)*
                 #mails
                 #provide
+                #personal_data
                 #serving
                 #(#configs)*
                 #settings
@@ -221,6 +223,18 @@ impl<'app> Wiring<'app> {
                 Ok(App::new(db).serving(|serving| serving.named(env!("CARGO_PKG_NAME"))) #gates #billing .screens(screens()?) .modules(MODULES))
             }
         }
+    }
+
+    /// sofie-identity's `notify` closes an account's notifications only once registered.
+    fn personal_data(&self) -> Option<TokenStream> {
+        let identity = self.identity.as_ref()?;
+        let features = &self.app.identity.as_ref()?.features;
+        features.iter().any(|feature| feature == "notify").then(|| {
+            quote!(#identity::account_data::register(
+                &db,
+                std::sync::Arc::new(#identity::account_data::Notifications::new(&db)),
+            );)
+        })
     }
 
     fn worker(&self) -> TokenStream {

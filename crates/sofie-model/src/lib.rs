@@ -112,6 +112,7 @@ pub struct Identity {
     pub routes: Vec<ListedRoute>,
     pub mounts: Vec<RouteMount>,
     pub shipped: Vec<ShippedScreen>,
+    pub features: Vec<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

@@ -2437,8 +2437,8 @@ browser side is `engine.js`), `oauth::routes` (connected providers) and
 second factor without their secrets, and impersonations, with each
 registered `PersonalData`, and closing the account: anonymized rather than
 deleted, so other modules' records stay whole, all in one commit raising
-`AccountClosed`; with the `notify` feature, a registered
-`account_data::Notifications` exports and erases sofie-notify's rows and stops the digest).
+`AccountClosed`; with the `notify` feature, `account_data::Notifications`,
+which `sofie gen` registers in the app's wiring, exports and erases sofie-notify's rows and stops the digest).
 
 **Impersonation** (`impersonation`, with `permissions` and `sessions`): a
 principal of a `Permitted` area holding `sofie_identity.impersonation.*.create`

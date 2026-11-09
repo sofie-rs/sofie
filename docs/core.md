@@ -1220,8 +1220,8 @@ migrations, so nothing is wired per app.
   (settings, choices, inbox, held digest items and push subscriptions
   deleted, the digest schedule canceled, the principal recorded forgotten so a
   delivery queued before skips it) back sofie-identity's
-  `account_data::Notifications` (its `notify` feature), which an app
-  registers as a `PersonalData`.
+  `account_data::Notifications` (its `notify` feature), which the app's
+  generated wiring registers as a `PersonalData`.
 - **Web push.** `subscribe_push::<Area>`, `unsubscribe_push::<Area>` (a
   browser signing out stops its principal's pushes) and `vapid_key` are
   handlers an app routes; `SERVICE_WORKER` is the script it serves. VAPID (RFC 8292) from

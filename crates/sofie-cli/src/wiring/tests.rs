@@ -370,6 +370,22 @@ fn signs_members_in_to_no_public_area_a_contract_defines() {
 }
 
 #[test]
+fn registers_the_notifications_a_closing_account_erases_once_identity_has_notify() {
+    let registration = "sofie_identity::account_data::register(&db, std::sync::Arc::new(\
+                        sofie_identity::account_data::Notifications::new(&db)));";
+    let mut app = with_identity(app("shop", vec![module("order", "shop/modules/order")]));
+    assert!(!has(&formatted(&app), registration));
+
+    app.identity.as_mut().unwrap().features = vec!["account-data".to_owned(), "notify".to_owned()];
+    let wiring = formatted(&app);
+
+    assert!(
+        has(&wiring, registration),
+        "missing {registration} in {wiring}"
+    );
+}
+
+#[test]
 fn embeds_each_modules_mails_and_registers_them_for_the_app_and_its_worker() {
     let mut order = module("order", "shop/modules/order");
     order.mails = ["receipt", "sofie_identity/password_reset"]

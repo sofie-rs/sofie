@@ -364,6 +364,7 @@ fn read_identity(app: &CrateTree, packages: &Packages) -> Result<Option<Identity
         routes: read_route_tables(&identity.directory, &features)?,
         mounts: read_mounts(&app.syntax, IDENTITY_CRATE),
         shipped: crate::shipped::read_shipped(&identity.directory)?,
+        features,
     }))
 }
 

@@ -103,9 +103,12 @@ impl Account {
 
     /// Its first confirmation link is mailed once it is committed.
     #[cfg(feature = "email-verification")]
-    pub(crate) fn asking_verification<A: crate::MemberArea>(mut self) -> Result<Self> {
+    pub(crate) fn asking_verification<A: crate::MemberArea>(
+        mut self,
+        session: &Session,
+    ) -> Result<Self> {
         let purpose = crate::account_link::LinkPurpose::EmailVerification;
-        let asked = crate::mailed::LinkAsked::of::<A>(self.email.clone(), purpose);
+        let asked = crate::mailed::LinkAsked::of::<A>(self.email.clone(), purpose, session);
         self.meta.raise(asked)?;
         Ok(self)
     }

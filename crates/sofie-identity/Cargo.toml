@@ -59,8 +59,11 @@ notify = ["account-data", "sofie/notify"]
 # Signing in as a member, for a permitted principal holding its permission; each use
 # recorded with its reason (`impersonation::routes`, `impersonation::stop_routes`).
 impersonation = ["permissions", "sessions", "sofie/resources"]
-# Internal: what each mails a signed link with.
-links = ["account-links", "sofie/mail"]
+# Mailed links written in the account's chosen language, else the one the asker's browser
+# named first, among those registered with sofie-mail's `translations`.
+i18n = ["links", "sofie/i18n", "dep:sofie-mail", "sofie-mail/i18n"]
+# Internal: what each mails a signed link with; the asker's language goes with the request.
+links = ["account-links", "sofie/client-headers", "sofie/mail"]
 # Internal: single-use links an account follows, signed.
 account-links = ["sofie/retention", "sofie/signed-links"]
 
@@ -71,6 +74,8 @@ sofie = { workspace = true, default-features = false, features = ["engine", "web
 argon2.workspace = true
 ring.workspace = true
 sofie-client = { workspace = true, optional = true }
+# Only for its `i18n`, which the `sofie` facade does not forward.
+sofie-mail = { workspace = true, optional = true }
 sofie-testing = { workspace = true, optional = true }
 tokio.workspace = true
 unicode-normalization.workspace = true
@@ -83,7 +88,7 @@ sofie-engine = { workspace = true, features = ["compile"] }
 # SQLite tables checked against its records; product events forgotten on closing.
 sofie = { package = "sofie-framework", path = "../sofie", features = ["capture", "contracts", "history", "menu", "product-reports", "sqlite", "tasks"] }
 # Its own optional features, so their tests run in every test run.
-sofie-identity = { path = ".", features = ["email-verification", "password-reset", "account-data", "impersonation", "oauth", "passkeys", "permitted-shield", "session-screens", "sign-in-links", "testing", "token-screens", "tokens", "totp"] }
+sofie-identity = { path = ".", features = ["email-verification", "password-reset", "account-data", "i18n", "impersonation", "oauth", "passkeys", "permitted-shield", "session-screens", "sign-in-links", "testing", "token-screens", "tokens", "totp"] }
 sofie-testing = { path = "../sofie-testing", features = ["mail"] }
 serde_json.workspace = true
 tokio = { workspace = true, features = ["macros", "net"] }

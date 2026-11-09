@@ -117,6 +117,7 @@ pub async fn sign_up<A: MemberArea>(
     credentials: Credentials,
     read: Read,
     unscoped: Unscoped,
+    session: Session,
     #[cfg(feature = "shield")] sign_ins: sofie::http::SignIns,
 ) -> Result<Registration> {
     #[cfg(feature = "shield")]
@@ -124,10 +125,10 @@ pub async fn sign_up<A: MemberArea>(
     let email = credentials.email;
     let Some(account) = factory::register(&read, email.clone(), &credentials.password).await?
     else {
-        return taken::<A>(email);
+        return taken::<A>(email, &session);
     };
     #[cfg(feature = "email-verification")]
-    let account = account.asking_verification::<A>()?;
+    let account = account.asking_verification::<A>(&session)?;
     let membership = membership::factory::grant(account.id(), A::NAME)?;
     match unscoped
         .0
@@ -141,7 +142,7 @@ pub async fn sign_up<A: MemberArea>(
             #[cfg(feature = "links")]
             told: None,
         }),
-        Err(Error::Invalid(errors)) if errors.iter().any(is_taken) => taken::<A>(email),
+        Err(Error::Invalid(errors)) if errors.iter().any(is_taken) => taken::<A>(email, &session),
         Err(error) => Err(error),
     }
 }
@@ -159,13 +160,15 @@ fn is_taken(error: &sofie::core::FieldError) -> bool {
         reason = "only the notice, which may fail, names the area and the address"
     )
 )]
-fn taken<A: MemberArea>(email: Email) -> Result<Registration> {
+fn taken<A: MemberArea>(email: Email, asker: &Session) -> Result<Registration> {
     #[cfg(feature = "links")]
     let told = Some(crate::notice::Notice::of(
-        crate::mailed::LinkAsked::sign_up_repeated::<A>(email),
+        crate::mailed::LinkAsked::sign_up_repeated::<A>(email, asker),
     )?);
     #[cfg(not(feature = "links"))]
     let _ = email;
+    #[cfg(not(feature = "links"))]
+    let _ = asker;
     Ok(Registration {
         #[cfg(feature = "links")]
         told,

@@ -120,6 +120,7 @@ pub struct Session {
 struct Client {
     user_agent: Option<HeaderValue>,
     origin: Option<HeaderValue>,
+    accept_language: Option<HeaderValue>,
 }
 
 #[cfg(feature = "client-headers")]
@@ -132,6 +133,7 @@ impl Client {
         Self {
             user_agent: request.headers.get(http::header::USER_AGENT).cloned(),
             origin: origin.cloned(),
+            accept_language: request.headers.get(http::header::ACCEPT_LANGUAGE).cloned(),
         }
     }
 }
@@ -253,6 +255,16 @@ impl Session {
     #[must_use]
     pub fn origin(&self) -> Option<&str> {
         self.client.origin.as_ref()?.to_str().ok()
+    }
+
+    /// The first language tag of `Accept-Language`, which browsers list most wanted first;
+    /// untrusted, unchecked.
+    #[cfg(feature = "client-headers")]
+    #[must_use]
+    pub fn asked_language(&self) -> Option<&str> {
+        let header = self.client.accept_language.as_ref()?.to_str().ok()?;
+        let first = header.split(',').next()?.split(';').next()?.trim();
+        (!first.is_empty() && first != "*").then_some(first)
     }
 
     pub fn sign_out(&self) {
@@ -505,6 +517,13 @@ impl RequestSession {
     }
 
     #[cfg(feature = "engine")]
+    #[cfg_attr(
+        not(feature = "session-list"),
+        expect(
+            clippy::unused_self,
+            reason = "only a session record carries a language"
+        )
+    )]
     pub(crate) fn language(&self) -> Option<Arc<str>> {
         #[cfg(feature = "session-list")]
         return self.language.clone();

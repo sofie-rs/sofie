@@ -233,11 +233,7 @@ async fn a_member_chooses_its_language_and_clears_it_again() {
     let app = started().await;
     app.post("/sign-up").json(&CREDENTIALS()).await.assert_ok();
     let session = signed_in(&app).await;
-    let chosen = || {
-        app.get("/account/language")
-            .session(&session)
-            .accept_json()
-    };
+    let chosen = || app.get("/account/language").session(&session).accept_json();
 
     app.post("/account/language")
         .session(&session)

@@ -15,6 +15,7 @@ use sofie::http::{Rate, Routes, SignedUrls, Web};
 use sofie::mail::{Address, Mail, Mailer, Template};
 use sofie::prelude::*;
 use sofie::serde_json::json;
+use sofie::values::Locale;
 
 use crate::MemberArea;
 use crate::account::Account;
@@ -61,23 +62,28 @@ pub(crate) struct LinkAsked {
     /// Someone signed up with the address of an account: a member gets a reset link saying
     /// so, an account of another area a link to sign in and join this one.
     sign_up_repeated: bool,
+    /// The asker's, for an account that chose none: whoever asks may not own the address.
+    language: Option<Locale>,
 }
 
 impl LinkAsked {
-    pub(crate) fn of<A: MemberArea>(email: Email, purpose: LinkPurpose) -> Self {
+    pub(crate) fn of<A: MemberArea>(email: Email, purpose: LinkPurpose, asker: &Session) -> Self {
         Self {
             email,
             area: A::NAME.to_owned(),
             prefix: A::PREFIX.to_owned(),
             purpose,
             sign_up_repeated: false,
+            language: asker
+                .asked_language()
+                .and_then(|tag| Locale::parse(tag).ok()),
         }
     }
 
-    pub(crate) fn sign_up_repeated<A: MemberArea>(email: Email) -> Self {
+    pub(crate) fn sign_up_repeated<A: MemberArea>(email: Email, asker: &Session) -> Self {
         Self {
             sign_up_repeated: true,
-            ..Self::of::<A>(email, LinkPurpose::PasswordReset)
+            ..Self::of::<A>(email, LinkPurpose::PasswordReset, asker)
         }
     }
 }
@@ -144,8 +150,8 @@ async fn ask_page<A: MemberArea, M: Mailed>() -> Result<FormPage> {
     ))
 }
 
-async fn ask<A: MemberArea, M: Mailed>(asked: AskedLink) -> Result<Notice> {
-    Notice::of(LinkAsked::of::<A>(asked.email, M::PURPOSE))
+async fn ask<A: MemberArea, M: Mailed>(asked: AskedLink, session: Session) -> Result<Notice> {
+    Notice::of(LinkAsked::of::<A>(asked.email, M::PURPOSE, &session))
 }
 
 async fn link_page<A: MemberArea, M: Mailed>(
@@ -205,6 +211,8 @@ pub(crate) async fn mail_link(
             ));
         }
     };
+    #[cfg(feature = "i18n")]
+    let mailer = mailer.in_language(account.locale().cloned().or(asked.language));
     let body = mailer.body_from(template, &json!({ "link": mailer.link(&signed)? }))?;
     let subject = mailer.text(subject, &[], english);
     let mail = Mail::new(Address::new(account.email())?, &subject, body)?;

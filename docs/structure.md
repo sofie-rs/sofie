@@ -2538,7 +2538,9 @@ tell nobody which addresses have accounts: the request only commits a
 `sofie_identity.LinkAsked` event, and the worker (`sofie_identity::worker`, which
 the wiring wraps every worker in) looks the address up and mails a link to a
 member, at most three an hour per account, the routes five a minute per
-address. A link is an `account_link` row (purpose, expiry an hour away, used
+address. With identity's `i18n` the mail is written in the account's chosen
+locale, else the first language of the asker's `Accept-Language` (the event
+carries it), among those registered with sofie-mail's `translations`. A link is an `account_link` row (purpose, expiry an hour away, used
 once) at `{PREFIX}/reset-password/{account_link}` or
 `{PREFIX}/verify-email/{account_link}`, opened only through `SignedUrls`; its
 page posts back to the same signed address. Setting a new password uses up

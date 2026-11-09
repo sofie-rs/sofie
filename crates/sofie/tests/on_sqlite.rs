@@ -161,3 +161,17 @@ mod search {
         }
     }
 }
+
+#[cfg(feature = "remote-contracts")]
+#[test]
+fn serving_an_event_feed_is_refused_at_start() {
+    let db = Db::new(Sqlite::memory().unwrap());
+
+    let refused = sofie::remote::Served::default()
+        .feed()
+        .serve(&db)
+        .unwrap_err()
+        .to_string();
+
+    assert!(refused.contains("needs Postgres"), "{refused}");
+}

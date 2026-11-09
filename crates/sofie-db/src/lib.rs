@@ -163,7 +163,9 @@ pub use commit_hooks::{ChangedRecord, CommitHook, add_commit_hook, cache_driver,
 #[cfg(feature = "contracts")]
 pub use contracts::*;
 #[cfg(feature = "remote-contracts")]
-pub use feed::{FEED_PAGE, FeedEntry, FeedSource, FeedSql, feed_cursor, read_feed, receive_feed};
+pub use feed::{
+    FEED_PAGE, FeedEntry, FeedSource, FeedSql, feed_cursor, keeps_feed, read_feed, receive_feed,
+};
 #[cfg(feature = "flags")]
 pub use flags::{Activates, Active, Default, Defaults, active};
 #[cfg(feature = "history")]

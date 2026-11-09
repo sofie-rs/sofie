@@ -114,8 +114,13 @@ impl Served {
     }
 
     /// Answered under `/_sofie/`, never through an area; the reverse proxy keeps those paths inside.
-    pub fn serve(self, db: &Db) {
+    /// A feed is refused here on a database that keeps none, not at the first app pulling it.
+    pub fn serve(self, db: &Db) -> Result<()> {
+        if self.feed {
+            sofie_db::keeps_feed(db)?;
+        }
         sofie_db::provide::<Self>(db, Arc::new(self));
+        Ok(())
     }
 
     async fn answer(

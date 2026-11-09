@@ -100,7 +100,7 @@ pub(super) fn serving(app: &App, modules: &[&Module]) -> Option<TokenStream> {
         traits.chain(lookups).collect::<Vec<_>>()
     });
     Some(quote! {
-        sofie::remote::Served::default() #(#parts)* .feed().serve(&db);
+        sofie::remote::Served::default() #(#parts)* .feed().serve(&db)?;
     })
 }
 
@@ -200,7 +200,7 @@ mod tests {
             has(
                 &wiring,
                 "sofie::remote::Served::default()\
-                 .contract::<dyn order_contract::Orders>().feed().serve(&db);"
+                 .contract::<dyn order_contract::Orders>().feed().serve(&db)?;"
             ),
             "{wiring}"
         );

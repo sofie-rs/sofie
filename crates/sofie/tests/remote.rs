@@ -150,7 +150,8 @@ impl MembersApp {
             .contract::<dyn Directory>()
             .lookup::<MemberView>()
             .feed()
-            .serve(&db);
+            .serve(&db)
+            .unwrap();
         let app = App::new(db.clone()).serving(|serving| serving.signing_keys(keys(7)));
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let base = format!("http://{}", listener.local_addr().unwrap());

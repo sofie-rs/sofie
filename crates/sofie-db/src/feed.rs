@@ -67,6 +67,10 @@ pub(crate) fn feed_sql(dialect: &dyn Dialect) -> Result<&'static FeedSql> {
     })
 }
 
+pub fn keeps_feed(db: &Db) -> Result<()> {
+    feed_sql(db.driver().dialect()).map(|_| ())
+}
+
 pub async fn read_feed(db: &Db, after: i64, limit: i64) -> Result<Vec<FeedEntry>> {
     let params = [
         SqlValue::Int(after),

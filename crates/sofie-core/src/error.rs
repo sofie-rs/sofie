@@ -15,7 +15,6 @@ pub enum Error {
     BadRequest(String),
     Invalid(Vec<FieldError>),
     Rule(String),
-    /// A rule's refusal with a translation key, answered in the caller's language.
     KeyedRule(Box<KeyedRule>),
     TooManyRequests(Duration),
     Unavailable(String),
@@ -66,11 +65,9 @@ impl FieldError {
 pub struct KeyedRule {
     pub key: Cow<'static, str>,
     pub arguments: Vec<(Cow<'static, str>, String)>,
-    /// In the source language, with the arguments filled in.
     pub message: String,
 }
 
-/// A rule's refusal without arguments, kept as a constant: `Err(GONE.into())`.
 #[derive(Clone, Copy, Debug)]
 pub struct RuleText {
     key: &'static str,

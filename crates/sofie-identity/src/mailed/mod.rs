@@ -212,7 +212,8 @@ pub(crate) async fn mail_link(
         }
     };
     #[cfg(feature = "i18n")]
-    let mailer = mailer.in_language(account.locale().cloned().or(asked.language));
+    let mailer =
+        sofie_mail::Mailer::in_language(mailer, account.locale().cloned().or(asked.language));
     let body = mailer.body_from(template, &json!({ "link": mailer.link(&signed)? }))?;
     let subject = mailer.text(subject, &[], english);
     let mail = Mail::new(Address::new(account.email())?, &subject, body)?;

@@ -8,14 +8,14 @@ use sofie_telemetry::TraceParent;
 use crate::heard::{Known, Listeners};
 use crate::{BoxFuture, Db, Dialect, Stamp, Step, Wakeups, query_decoded, query_values};
 
-/// Every insert binds the message columns first, as `$1` to `$7`: id, kind,
-/// name, payload, `available_at`, traceparent, actor.
+/// Every insert binds the message columns first, as `$1` to `$8`: id, kind,
+/// name, payload, `available_at`, traceparent, actor, actor's area.
 pub struct MessageSql {
     pub insert: &'static str,
     /// Message columns, then a key; skipped while a job of that name waits for it.
     pub fan_out: &'static str,
-    /// `(events, jobs, available_at, actor)`: events `{id, payload, traceparent}`, jobs
-    /// `{id, name, event}`.
+    /// `(events, jobs, available_at)`: events `{id, payload, traceparent, actor, actor_area}`,
+    /// jobs `{id, name, event}`.
     pub fan_out_events: &'static str,
     /// `(lease_milliseconds, now, limit, mine, held_until)`, counting attempts past the last;
     /// `mine` names by kind, and any other waits until `held_until`.
@@ -58,7 +58,62 @@ pub struct Claimed {
     pub attempt: i64,
     pub traceparent: Option<TraceParent>,
     pub available_at: Timestamp,
-    pub actor: Option<Uuid>,
+    pub actor: Option<Actor>,
+}
+
+/// The principal whose action queued a message, and the area a request named them in, so the
+/// message's job writes and calls other apps as them.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(
+    feature = "remote-contracts",
+    derive(serde::Serialize, serde::Deserialize)
+)]
+pub struct Actor {
+    pub principal: Uuid,
+    pub area: Option<String>,
+}
+
+impl Actor {
+    pub(crate) fn queuing(principal: Option<Uuid>) -> Option<Self> {
+        principal.map(|principal| Self {
+            principal,
+            area: acting_area(principal),
+        })
+    }
+
+    fn decode(row: &mut dyn ColumnReader) -> Result<Option<Self>> {
+        let principal = Option::<Uuid>::decode(row)?;
+        let area = Option::<String>::decode(row)?;
+        Ok(principal.map(|principal| Self { principal, area }))
+    }
+
+    fn columns(actor: Option<&Self>) -> [SqlValue; 2] {
+        let Some(actor) = actor else {
+            return [SqlValue::Null, SqlValue::Null];
+        };
+        let area = actor.area.clone().map_or(SqlValue::Null, SqlValue::Text);
+        [SqlValue::Uuid(actor.principal), area]
+    }
+
+    #[cfg(feature = "remote-contracts")]
+    pub(crate) fn acting(&self) -> Option<sofie_auth::Acting> {
+        self.area.clone().map(|area| sofie_auth::Acting {
+            area,
+            principal: self.principal,
+        })
+    }
+}
+
+#[cfg(feature = "remote-contracts")]
+fn acting_area(principal: Uuid) -> Option<String> {
+    crate::remote::acting()
+        .filter(|acting| acting.principal == principal)
+        .map(|acting| acting.area)
+}
+
+#[cfg(not(feature = "remote-contracts"))]
+fn acting_area(_principal: Uuid) -> Option<String> {
+    None
 }
 
 impl Claimed {
@@ -71,7 +126,7 @@ impl Claimed {
             attempt: row.int()?,
             traceparent: traceparent(row)?,
             available_at: row.timestamp()?,
-            actor: Option::<Uuid>::decode(row)?,
+            actor: Actor::decode(row)?,
         })
     }
 
@@ -110,20 +165,21 @@ struct Message<'a> {
     name: &'a str,
     payload: Value,
     available_at: Timestamp,
-    actor: Option<Uuid>,
+    actor: Option<&'a Actor>,
 }
 
 impl Message<'_> {
     fn columns(self) -> Result<Vec<SqlValue>> {
-        Ok(vec![
+        let mut columns = vec![
             SqlValue::Uuid(Uuid::now_v7()?),
             SqlValue::Text(self.kind.name().to_owned()),
             SqlValue::Text(self.name.to_owned()),
             SqlValue::Json(self.payload),
             SqlValue::Timestamp(self.available_at),
             current_traceparent(),
-            self.actor.map_or(SqlValue::Null, SqlValue::Uuid),
-        ])
+        ];
+        columns.extend(Actor::columns(self.actor));
+        Ok(columns)
     }
 }
 
@@ -133,14 +189,15 @@ pub(crate) fn keyed_job(
     payload: Value,
     key: Uuid,
     available_at: Timestamp,
-    actor: Option<Uuid>,
+    principal: Option<Uuid>,
 ) -> Result<Step> {
+    let actor = Actor::queuing(principal);
     let mut params = Message {
         kind: MessageKind::Job,
         name,
         payload,
         available_at,
-        actor,
+        actor: actor.as_ref(),
     }
     .columns()?;
     params.push(SqlValue::Uuid(key));
@@ -317,7 +374,7 @@ pub async fn ping_queue(db: &Db) -> Result<()> {
 pub(crate) struct Queuing {
     kind: MessageKind,
     at: Timestamp,
-    actor: Option<Uuid>,
+    actor: Option<Actor>,
 }
 
 impl Stamp {
@@ -325,7 +382,7 @@ impl Stamp {
         Queuing {
             kind,
             at,
-            actor: self.actor,
+            actor: Actor::queuing(self.actor),
         }
     }
 }
@@ -347,7 +404,7 @@ pub(crate) fn queue_steps<'a>(
             name,
             payload,
             available_at: queuing.at,
-            actor: queuing.actor,
+            actor: queuing.actor.as_ref(),
         }
         .columns()?;
         steps.push(Step::statement(dialect.messages().insert, params, None));
@@ -371,9 +428,10 @@ fn fan_out_raised<'a>(
             name,
             payload,
             traceparent: traceparent.clone(),
+            actor: queuing.actor.as_ref(),
         });
     }
-    let Some(step) = fan_out_events(dialect, raised, queuing.at, queuing.actor, listeners)? else {
+    let Some(step) = fan_out_events(dialect, raised, queuing.at, listeners)? else {
         return Ok(false);
     };
     steps.push(step);
@@ -385,13 +443,13 @@ pub(crate) struct Fanned<'a> {
     pub(crate) name: &'a str,
     pub(crate) payload: Value,
     pub(crate) traceparent: Option<String>,
+    pub(crate) actor: Option<&'a Actor>,
 }
 
 pub(crate) fn fan_out_events<'a>(
     dialect: &dyn Dialect,
     events: impl IntoIterator<Item = Fanned<'a>>,
     at: Timestamp,
-    actor: Option<Uuid>,
     listeners: &Listeners,
 ) -> Result<Option<Step>> {
     let (mut taken, mut jobs) = (Vec::new(), Vec::new());
@@ -405,7 +463,13 @@ pub(crate) fn fan_out_events<'a>(
             let job = Uuid::now_v7()?.to_string();
             jobs.push(json!({ "id": job, "name": listener, "event": id }));
         }
-        taken.push(json!({ "id": id, "payload": event.payload, "traceparent": event.traceparent }));
+        taken.push(json!({
+            "id": id,
+            "payload": event.payload,
+            "traceparent": event.traceparent,
+            "actor": event.actor.map(|actor| actor.principal.to_string()),
+            "actor_area": event.actor.and_then(|actor| actor.area.as_deref()),
+        }));
     }
     if jobs.is_empty() {
         return Ok(None);
@@ -414,7 +478,6 @@ pub(crate) fn fan_out_events<'a>(
         SqlValue::Json(Value::Array(taken)),
         SqlValue::Json(Value::Array(jobs)),
         SqlValue::Timestamp(at),
-        actor.map_or(SqlValue::Null, SqlValue::Uuid),
     ];
     let sql = dialect.messages().fan_out_events;
     Ok(Some(Step::statement(sql, params, None)))

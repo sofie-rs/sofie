@@ -117,7 +117,7 @@ pub use input::{
 pub use join::join_all;
 pub use listening::{Channel, Listening};
 pub use load::{Load, Select};
-pub use messages::{Claimed, Fired, MessageKind, MessageSql, Messages, ping_queue};
+pub use messages::{Actor, Claimed, Fired, MessageKind, MessageSql, Messages, ping_queue};
 #[cfg(feature = "migration-status")]
 pub use migrate::{MigrationState, MigrationStatus, ModuleStatus};
 pub use migrate::{Migrations, PendingMigration, Schema};

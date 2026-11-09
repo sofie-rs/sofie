@@ -4,13 +4,13 @@ use serde_json::Value;
 use sofie_auth::SigningKeys;
 use sofie_core::{Error, Result, Uuid};
 
-use crate::{Claimed, Context, Db, Outcome, Reach, Step, Writes};
+use crate::{Actor, Claimed, Context, Db, Outcome, Reach, Step, Writes};
 
 pub struct JobContext {
     pub(crate) db: Db,
     pub(crate) payload: Value,
     event: Option<&'static str>,
-    actor: Option<Uuid>,
+    actor: Option<Actor>,
     completion: Step,
     #[cfg(feature = "remote-contracts")]
     pub(crate) message: sofie_core::Uuid,
@@ -32,7 +32,7 @@ impl JobContext {
             db: worker.db.clone(),
             payload: message.payload.clone(),
             event,
-            actor: message.actor,
+            actor: message.actor.clone(),
             completion,
             #[cfg(feature = "remote-contracts")]
             message: message.id,
@@ -68,7 +68,9 @@ impl Context for JobContext {
     }
 
     fn reach(&self) -> Reach {
-        self.actor.map_or(Reach::All, Reach::AllAs)
+        self.actor
+            .as_ref()
+            .map_or(Reach::All, |actor| Reach::AllAs(actor.principal))
     }
 
     /// The framework wrote the payload, so a missing id is its fault, not a lookup's.

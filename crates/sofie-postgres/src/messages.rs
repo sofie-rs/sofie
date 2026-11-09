@@ -40,7 +40,8 @@ pub(crate) const MIGRATIONS: Migrations = Migrations::new(
             "0021_notify_digest_items_sent.sql",
             "0022_forgotten_principals.sql",
             "0023_product_events_principal.sql",
-            "0024_forgotten_principals_at.sql"
+            "0024_forgotten_principals_at.sql",
+            "0025_messages_actor_area.sql"
         ]
     ),
 );
@@ -51,18 +52,20 @@ pub(crate) const LISTEN: &str = "LISTEN sofie_messages";
 // the value this claim set. `ARRAY(…)` runs the locking subquery once, where
 // `IN (…)` may run it again and claim past the limit.
 pub(crate) const MESSAGES: MessageSql = MessageSql {
-    insert: "INSERT INTO sofie.messages (id, kind, name, payload, available_at, traceparent, actor)
-VALUES ($1, $2, $3, $4, $5, $6, $7)",
+    insert: "INSERT INTO sofie.messages
+    (id, kind, name, payload, available_at, traceparent, actor, actor_area)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
     fan_out: "INSERT INTO sofie.messages
-    (id, kind, name, payload, available_at, traceparent, actor, event_id)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+    (id, kind, name, payload, available_at, traceparent, actor, actor_area, event_id)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 ON CONFLICT (event_id, name) DO NOTHING",
     // A recordset reads a JSON null payload as SQL NULL.
     fan_out_events: "INSERT INTO sofie.messages
-    (id, kind, name, payload, available_at, traceparent, actor, event_id)
+    (id, kind, name, payload, available_at, traceparent, actor, actor_area, event_id)
 SELECT job.id, 'job', job.name, COALESCE(event.payload, 'null'), $3::timestamptz, event.traceparent,
-    $4::uuid, event.id
-FROM jsonb_to_recordset($1::jsonb) AS event (id uuid, payload jsonb, traceparent text)
+    event.actor, event.actor_area, event.id
+FROM jsonb_to_recordset($1::jsonb)
+    AS event (id uuid, payload jsonb, traceparent text, actor uuid, actor_area text)
 JOIN jsonb_to_recordset($2::jsonb) AS job (id uuid, name text, event uuid) ON job.event = event.id
 ON CONFLICT (event_id, name) DO NOTHING",
     claim: "UPDATE sofie.messages
@@ -77,7 +80,7 @@ WHERE id = ANY(ARRAY(
     LIMIT $3
     FOR UPDATE SKIP LOCKED
 ))
-RETURNING id, kind, name, payload, attempts, traceparent, available_at, actor",
+RETURNING id, kind, name, payload, attempts, traceparent, available_at, actor, actor_area",
     renew: "UPDATE sofie.messages
 SET claimed_until = now() + $3::bigint * interval '1 millisecond'
 WHERE id = $1 AND attempts = $2 AND dead_at IS NULL",
@@ -100,11 +103,13 @@ WHERE schedules.cadence IS DISTINCT FROM excluded.cadence",
     // schedule that was not due answers its stored time. A run still waiting
     // or retrying holds back the next, so a failing schedule does not pile up.
     fire_schedule: "WITH due AS (
-    UPDATE sofie.schedules SET next_at = $8 WHERE name = $3 AND next_at <= $5
+    UPDATE sofie.schedules SET next_at = $9 WHERE name = $3 AND next_at <= $5
     RETURNING name, next_at
 ), fired AS (
-    INSERT INTO sofie.messages (id, kind, name, payload, available_at, traceparent, actor)
-    SELECT $1::uuid, $2::text, name, $4::jsonb, $5::timestamptz, $6::text, $7::uuid FROM due
+    INSERT INTO sofie.messages
+        (id, kind, name, payload, available_at, traceparent, actor, actor_area)
+    SELECT $1::uuid, $2::text, name, $4::jsonb, $5::timestamptz, $6::text, $7::uuid, $8::text
+    FROM due
     WHERE NOT EXISTS (
         SELECT 1 FROM sofie.messages WHERE name = $3 AND kind = 'job' AND dead_at IS NULL
     )

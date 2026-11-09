@@ -1316,7 +1316,9 @@ the answer as JSON. The behaviour is library code:
   `sofie-principal`, signed with `SOFIE_SIGNING_KEYS` (HMAC under its own purpose
   and bound to the path), valid 60 s, holding the area and principal the
   work acts for, or none for the app itself. sofie-http runs each handler in
-  `sofie::remote::acting_as` its session's principal, the client reads
+  `sofie::remote::acting_as` its session's principal, a message queued
+  meanwhile stores that area beside its actor and its job or listener runs
+  acting for them, the client reads
   `sofie::remote::acting()`, and the server runs the implementation acting for
   the token's principal, so a chain of calls keeps it. A missing, forged,
   expired or replayed-elsewhere token is answered 401.

@@ -114,9 +114,10 @@ impl Received<'_> {
             name: &entry.name,
             payload: entry.payload.clone(),
             traceparent: entry.traceparent.clone(),
+            actor: None,
         });
         let now = plan.stamp().now.timestamp();
-        if let Some(step) = fan_out_events(plan.dialect(), entries, now, None, listeners)? {
+        if let Some(step) = fan_out_events(plan.dialect(), entries, now, listeners)? {
             plan.push_message(step);
         }
         Ok(())

@@ -23,7 +23,8 @@ pub(crate) const MIGRATIONS: Migrations = Migrations::new(
             "0019_schedule_cadence.sql",
             "0020_inbox_read.sql",
             "0021_notify_digest_items_sent.sql",
-            "0022_forgotten_principals.sql"
+            "0022_forgotten_principals.sql",
+            "0025_messages_actor_area.sql"
         ]
     ),
 );
@@ -36,25 +37,28 @@ macro_rules! now {
 
 // One writer at a time claims, so no row is skipped as locked.
 pub(crate) const MESSAGES: MessageSql = MessageSql {
-    insert: "INSERT INTO sofie_messages (id, kind, name, payload, available_at, traceparent, actor)
-VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+    insert: "INSERT INTO sofie_messages
+    (id, kind, name, payload, available_at, traceparent, actor, actor_area)
+VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
     fan_out: "INSERT INTO sofie_messages
-    (id, kind, name, payload, available_at, traceparent, actor, event_id)
-VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+    (id, kind, name, payload, available_at, traceparent, actor, actor_area, event_id)
+VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
 ON CONFLICT (event_id, name) DO NOTHING",
     // Materialized, the join gets an automatic index where two `json_each` would loop per pair.
     // `WHERE true` tells the upsert's `ON CONFLICT` from a join's `ON`.
     fan_out_events: "WITH event AS MATERIALIZED (
     SELECT value ->> '$.id' AS id, value -> '$.payload' AS payload,
-        value ->> '$.traceparent' AS traceparent
+        value ->> '$.traceparent' AS traceparent, value ->> '$.actor' AS actor,
+        value ->> '$.actor_area' AS actor_area
     FROM json_each(?1)
 ), job AS MATERIALIZED (
     SELECT value ->> '$.id' AS id, value ->> '$.name' AS name, value ->> '$.event' AS event
     FROM json_each(?2)
 )
 INSERT INTO sofie_messages
-    (id, kind, name, payload, available_at, traceparent, actor, event_id)
-SELECT job.id, 'job', job.name, event.payload, ?3, event.traceparent, ?4, event.id
+    (id, kind, name, payload, available_at, traceparent, actor, actor_area, event_id)
+SELECT job.id, 'job', job.name, event.payload, ?3, event.traceparent, event.actor,
+    event.actor_area, event.id
 FROM event JOIN job ON job.event = event.id
 WHERE true
 ON CONFLICT (event_id, name) DO NOTHING",
@@ -76,7 +80,7 @@ WHERE id IN (
     ORDER BY available_at
     LIMIT ?3
 )
-RETURNING id, kind, name, payload, attempts, traceparent, available_at, actor"
+RETURNING id, kind, name, payload, attempts, traceparent, available_at, actor, actor_area"
     ),
     renew: concat!(
         "UPDATE sofie_messages SET claimed_until = ",
@@ -105,9 +109,9 @@ WHERE sofie_schedules.cadence IS NOT excluded.cadence",
     // Three statements on one connection, which no other writer interleaves:
     // the message is queued only when the schedule moved and no run of it is still waiting, and
     // its id tells so.
-    fire_schedule: "UPDATE sofie_schedules SET next_at = ?8 WHERE name = ?3 AND next_at <= ?5;
-INSERT INTO sofie_messages (id, kind, name, payload, available_at, traceparent, actor)
-SELECT ?1, ?2, ?3, ?4, ?5, ?6, ?7 WHERE changes() > 0
+    fire_schedule: "UPDATE sofie_schedules SET next_at = ?9 WHERE name = ?3 AND next_at <= ?5;
+INSERT INTO sofie_messages (id, kind, name, payload, available_at, traceparent, actor, actor_area)
+SELECT ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8 WHERE changes() > 0
     AND NOT EXISTS (SELECT 1 FROM sofie_messages WHERE name = ?3 AND kind = 'job' AND dead_at IS NULL);
 SELECT next_at, EXISTS (SELECT 1 FROM sofie_messages WHERE id = ?1)
 FROM sofie_schedules WHERE name = ?3",
@@ -127,10 +131,13 @@ mod tests {
         connection
             .execute_batch(include_str!("../migrations/0017_messages_actor.sql"))
             .unwrap();
+        connection
+            .execute_batch(include_str!("../migrations/0025_messages_actor_area.sql"))
+            .unwrap();
         let explain = format!("EXPLAIN QUERY PLAN {}", MESSAGES.fan_out_events);
         let mut statement = connection.prepare(&explain).unwrap();
         let plan: Vec<String> = statement
-            .query_map(("[]", "[]", 0, rusqlite::types::Null), |row| row.get(3))
+            .query_map(("[]", "[]", 0), |row| row.get(3))
             .unwrap()
             .collect::<Result<_, _>>()
             .unwrap();

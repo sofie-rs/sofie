@@ -6,7 +6,8 @@ use std::sync::{Arc, Mutex};
 use sofie::auth::{Acting, SigningKeys};
 use sofie::core::{Error, Result, SqlValue};
 use sofie::db::{
-    Context, Db, Dep, Event, FeedSource, File, Id, Lookup, Migrations, Reach, Resolve, Uuid, Writes,
+    Context, Db, Dep, Event, FeedSource, File, Id, Jobs, Lookup, Migrations, Reach, Resolve, Uuid,
+    Writes,
 };
 use sofie::http::{Admitter, App, Area, Principal, Routes, Session, SignInRight, Web};
 use sofie::postgres::Postgres;
@@ -379,6 +380,38 @@ async fn a_handler_s_contract_call_acts_for_its_signed_in_principal() {
         area: "customer".to_owned(),
         principal: CUSTOMER,
     };
+    assert_eq!(*members.acting.lock().unwrap(), [Some(customer)]);
+    let _ = members.stop.send(());
+}
+
+async fn ask_city_later(directory: Dep<dyn Directory>) -> Result<()> {
+    directory.city_of("Ada").await.map(drop)
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_job_s_contract_call_acts_for_the_principal_whose_action_queued_it() {
+    let members = MembersApp::start().await;
+    members.join("Ada", "London").await;
+    let (shop, _database) = database(SHOP).await;
+    let remote = Remote::<dyn Directory>::new(members.reached_with(keys(7)));
+    sofie::db::provide::<dyn Directory>(&shop, Arc::new(remote));
+    let customer = Acting {
+        area: "customer".to_owned(),
+        principal: Uuid::now_v7().unwrap(),
+    };
+    let mut queued = Jobs::queue_named_at("remote.ask_city", &(), shop.clock().now()).unwrap();
+    let reach = Reach::AllAs(customer.principal);
+    let commit = shop.commit_with(&mut queued, Vec::new(), reach);
+    sofie::remote::acting_as(Some(customer.clone()), commit)
+        .await
+        .unwrap();
+
+    Worker::new(shop)
+        .job("remote.ask_city", ask_city_later)
+        .drain()
+        .await
+        .unwrap();
+
     assert_eq!(*members.acting.lock().unwrap(), [Some(customer)]);
     let _ = members.stop.send(());
 }

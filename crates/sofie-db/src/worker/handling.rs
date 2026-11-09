@@ -91,9 +91,10 @@ impl Outcome for FanOut<'_> {
             name: &self.event.name,
             payload: self.event.payload.clone(),
             traceparent: sofie_telemetry::current_traceparent().map(|parent| parent.to_string()),
+            actor: self.event.actor.as_ref(),
         };
-        let (at, actor) = (self.event.available_at, self.event.actor);
-        if let Some(step) = fan_out_events(plan.dialect(), [event], at, actor, self.listeners)? {
+        let at = self.event.available_at;
+        if let Some(step) = fan_out_events(plan.dialect(), [event], at, self.listeners)? {
             plan.push_message(step);
         }
         Ok(())
@@ -117,5 +118,8 @@ async fn run_job(worker: &Worker, name: &str, message: &Claimed) -> Result<()> {
         context.complete(&mut *outcome).await
     };
     let work = crate::action::acting_for(job.name, work);
+    #[cfg(feature = "remote-contracts")]
+    let work =
+        crate::remote::acting_as(message.actor.as_ref().and_then(crate::Actor::acting), work);
     lease::caught(sofie_core::moves::recorded(work)).await
 }

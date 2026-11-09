@@ -31,7 +31,7 @@ async fn started() -> TestApp {
             db.schema().migrate(&[sofie_identity::migrations()]).await?;
             let builtin = [("sofie_identity", sofie_identity::TRANSLATIONS)];
             let translations = sofie::http::translations(&["en", "de"], &[], &builtin, &[])?;
-            sofie_mail::translations(&db, Arc::new(translations));
+            sofie::mail::translations(&db, Arc::new(translations));
             let mut screens = sofie::http::Screens::default();
             screens.add_builtin(sofie_identity::module(&[]).screens)?;
             screens.describe_forms(sofie_identity::FORMS)?;

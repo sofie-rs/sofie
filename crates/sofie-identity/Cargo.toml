@@ -60,8 +60,8 @@ notify = ["account-data", "sofie/notify"]
 # recorded with its reason (`impersonation::routes`, `impersonation::stop_routes`).
 impersonation = ["permissions", "sessions", "sofie/resources"]
 # Mailed links written in the account's chosen language, else the one the asker's browser
-# named first, among those registered with sofie-mail's `translations`.
-i18n = ["links", "sofie/i18n", "dep:sofie-mail", "sofie-mail/i18n"]
+# named first, among those registered with `sofie::mail::translations`.
+i18n = ["links", "sofie/i18n"]
 # Internal: what each mails a signed link with; the asker's language goes with the request.
 links = ["account-links", "sofie/client-headers", "sofie/mail"]
 # Internal: single-use links an account follows, signed.
@@ -74,8 +74,6 @@ sofie = { workspace = true, default-features = false, features = ["engine", "web
 argon2.workspace = true
 ring.workspace = true
 sofie-client = { workspace = true, optional = true }
-# Only for its `i18n`, which the `sofie` facade does not forward.
-sofie-mail = { workspace = true, optional = true }
 sofie-testing = { workspace = true, optional = true }
 tokio.workspace = true
 unicode-normalization.workspace = true

@@ -1416,7 +1416,6 @@ dependencies = [
  "sofie-engine",
  "sofie-framework",
  "sofie-identity",
- "sofie-mail",
  "sofie-testing",
  "tokio",
  "unicode-normalization",

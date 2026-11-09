@@ -10,7 +10,7 @@ pub struct JobContext {
     pub(crate) db: Db,
     pub(crate) payload: Value,
     event: Option<&'static str>,
-    actor: Option<Actor>,
+    pub(crate) actor: Option<Actor>,
     completion: Step,
     #[cfg(feature = "remote-contracts")]
     pub(crate) message: sofie_core::Uuid,

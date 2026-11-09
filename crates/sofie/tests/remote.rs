@@ -6,8 +6,8 @@ use std::sync::{Arc, Mutex};
 use sofie::auth::{Acting, SigningKeys};
 use sofie::core::{Error, Result, SqlValue};
 use sofie::db::{
-    Context, Db, Dep, Event, FeedSource, File, Id, Jobs, Lookup, Migrations, Reach, Resolve, Uuid,
-    Writes,
+    Actor, Context, Db, Dep, Event, FeedSource, File, Id, Jobs, Lookup, Migrations, Reach, Resolve,
+    Uuid, Writes,
 };
 use sofie::http::{Admitter, App, Area, Principal, Routes, Session, SignInRight, Web};
 use sofie::postgres::Postgres;
@@ -269,6 +269,52 @@ async fn a_call_signed_with_other_keys_is_refused() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_pulled_event_carries_the_actor_whose_change_raised_it() {
+    let members = MembersApp::start().await;
+    let customer = Acting {
+        area: "customer".to_owned(),
+        principal: Uuid::now_v7().unwrap(),
+    };
+    let mut ada = Member {
+        meta: Meta::new().unwrap(),
+        name: "Ada".to_owned(),
+        city: "London".to_owned(),
+    };
+    let commit = members
+        .db
+        .commit_with(&mut ada, Vec::new(), Reach::AllAs(customer.principal));
+    sofie::remote::acting_as(Some(customer.clone()), commit)
+        .await
+        .unwrap();
+    members.worker().drain().await.unwrap();
+    let (shop, shop_database) = database(SHOP).await;
+
+    let entries = sofie::db::read_feed(&members.db, 0, 10).await.unwrap();
+    sofie::db::receive_feed(&shop, "members", 0, &entries)
+        .await
+        .unwrap();
+
+    let actor = Actor {
+        principal: customer.principal,
+        area: Some(customer.area),
+    };
+    assert_eq!(entries[0].actor, Some(actor.clone()));
+    let queued = rows(
+        &shop_database,
+        "SELECT actor, actor_area FROM sofie.messages",
+    )
+    .await;
+    assert_eq!(
+        queued,
+        [[
+            SqlValue::Uuid(actor.principal),
+            SqlValue::Text("customer".to_owned())
+        ]]
+    );
+    let _ = members.stop.send(());
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_batch_lookup_crosses_apps_in_one_call() {
     let members = MembersApp::start().await;
     let ada = members.join("Ada", "London").await;
@@ -452,6 +498,10 @@ async fn a_pulled_event_fans_out_to_a_listener_another_worker_of_the_process_has
             "id": Uuid::now_v7().unwrap(), "version": 1, "name": "Ada", "city": "Paris"
         }),
         traceparent: None,
+        actor: Some(Actor {
+            principal: CUSTOMER,
+            area: Some("customer".to_owned()),
+        }),
     };
     let hearing =
         Worker::new(shop.clone()).on::<MemberChanged, _>("remote.note_change", note_change);
@@ -463,12 +513,18 @@ async fn a_pulled_event_fans_out_to_a_listener_another_worker_of_the_process_has
 
     pulling.drain().await.unwrap();
 
-    let queued = rows(&shop_database, "SELECT name, event_id FROM sofie.messages").await;
+    let queued = rows(
+        &shop_database,
+        "SELECT name, event_id, actor, actor_area FROM sofie.messages",
+    )
+    .await;
     assert_eq!(
         queued,
         [[
             SqlValue::Text("remote.note_change".to_owned()),
-            SqlValue::Uuid(entry.id)
+            SqlValue::Uuid(entry.id),
+            SqlValue::Uuid(CUSTOMER),
+            SqlValue::Text("customer".to_owned()),
         ]]
     );
     assert_eq!(hearing.drain().await.unwrap(), 1);

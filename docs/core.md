@@ -1331,7 +1331,8 @@ the answer as JSON. The behaviour is library code:
   (hourly `sofie.feed.prune`). `Feeds::pull(source)` reads another app's feed
   after its cursor in `sofie.feed_cursors` and, in one transaction that
   fails for a consumer racing from the same cursor, queues a job for each
-  listener the process heard, keyed by the producer's event id (before any
+  listener the process heard, as the actor the entry carries (the principal
+  and area whose change raised it), keyed by the producer's event id (before any
   worker is published it queues the events themselves), and moves the
   cursor, so each event is delivered once; pulls run every second, at once
   after a full page.

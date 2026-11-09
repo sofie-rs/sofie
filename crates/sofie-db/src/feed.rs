@@ -9,7 +9,7 @@ use tokio::sync::watch;
 use crate::heard::Listeners;
 use crate::messages::{Fanned, current_traceparent, fan_out_events};
 use crate::worker::JobContext;
-use crate::{AnyOutcome, BoxFuture, Db, Dialect, Outcome, Plan, Run, Step, query_decoded};
+use crate::{Actor, AnyOutcome, BoxFuture, Db, Dialect, Outcome, Plan, Run, Step, query_decoded};
 
 /// Entries older than this are pruned; a consumer further behind misses them.
 const FEED_RETENTION: Duration = Duration::from_hours(7 * 24);
@@ -36,6 +36,7 @@ pub struct FeedEntry {
     pub name: String,
     pub payload: Value,
     pub traceparent: Option<String>,
+    pub actor: Option<Actor>,
 }
 
 impl FeedEntry {
@@ -46,6 +47,7 @@ impl FeedEntry {
             name: row.text()?.to_owned(),
             payload: row.json()?,
             traceparent: Option::<String>::decode(row)?,
+            actor: Actor::decode(row)?,
         })
     }
 }
@@ -114,7 +116,7 @@ impl Received<'_> {
             name: &entry.name,
             payload: entry.payload.clone(),
             traceparent: entry.traceparent.clone(),
-            actor: None,
+            actor: entry.actor.as_ref(),
         });
         let now = plan.stamp().now.timestamp();
         if let Some(step) = fan_out_events(plan.dialect(), entries, now, listeners)? {
@@ -127,7 +129,7 @@ impl Received<'_> {
         let feed = feed_sql(plan.dialect())?;
         let now = SqlValue::Timestamp(plan.stamp().now.timestamp());
         for entry in self.entries {
-            let params = vec![
+            let mut params = vec![
                 SqlValue::Uuid(entry.id),
                 SqlValue::Text(entry.name.clone()),
                 SqlValue::Json(entry.payload.clone()),
@@ -137,6 +139,7 @@ impl Received<'_> {
                     .clone()
                     .map_or(SqlValue::Null, SqlValue::Text),
             ];
+            params.extend(Actor::columns(entry.actor.as_ref()));
             plan.push_message(Step::statement(feed.receive, params, None));
         }
         Ok(())
@@ -196,16 +199,18 @@ struct Appended {
     id: Uuid,
     name: &'static str,
     payload: Value,
+    actor: Option<Actor>,
 }
 
 impl Outcome for Appended {
     fn plan(&self, plan: &mut Plan<'_>) -> Result<()> {
-        let params = vec![
+        let mut params = vec![
             SqlValue::Uuid(self.id),
             SqlValue::Text(self.name.to_owned()),
             SqlValue::Json(self.payload.clone()),
             current_traceparent(),
         ];
+        params.extend(Actor::columns(self.actor.as_ref()));
         plan.push(Step::statement(
             feed_sql(plan.dialect())?.append,
             params,
@@ -222,6 +227,7 @@ pub(crate) fn append(event: &'static str) -> Run<JobContext> {
             id: context.message,
             name: event,
             payload: context.payload.clone(),
+            actor: context.actor.clone(),
         };
         Box::pin(std::future::ready(Ok(
             Box::new(appended) as Box<dyn AnyOutcome>

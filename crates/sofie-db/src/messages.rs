@@ -81,13 +81,13 @@ impl Actor {
         })
     }
 
-    fn decode(row: &mut dyn ColumnReader) -> Result<Option<Self>> {
+    pub(crate) fn decode(row: &mut dyn ColumnReader) -> Result<Option<Self>> {
         let principal = Option::<Uuid>::decode(row)?;
         let area = Option::<String>::decode(row)?;
         Ok(principal.map(|principal| Self { principal, area }))
     }
 
-    fn columns(actor: Option<&Self>) -> [SqlValue; 2] {
+    pub(crate) fn columns(actor: Option<&Self>) -> [SqlValue; 2] {
         let Some(actor) = actor else {
             return [SqlValue::Null, SqlValue::Null];
         };

@@ -2,7 +2,6 @@ use std::mem::discriminant;
 
 use serde::{Deserializer, Serializer};
 
-use crate::case::snake_case;
 use crate::{Cast, ColumnReader, ColumnSpec, Error, Result, SqlValue};
 
 pub trait Variants: Copy + 'static {
@@ -21,7 +20,8 @@ pub trait Variants: Copy + 'static {
             .expect("`#[derive(Enum)]` lists every variant")
     }
 
-    fn to(self, next: Self) -> Result<Self> {
+    /// A refused move is an error on `field`, the one holding the value.
+    fn to(self, next: Self, field: &str) -> Result<Self> {
         let allowed = Self::TRANSITIONS
             .iter()
             .any(|(source, target)| same(*source, self) && same(*target, next));
@@ -29,11 +29,7 @@ pub trait Variants: Copy + 'static {
             crate::moves::record(Self::PATH, self.name(), next.name());
             return Ok(next);
         }
-        Err(crate::moves::refused(
-            snake_case(Self::TYPE),
-            self.name(),
-            next.name(),
-        ))
+        Err(crate::moves::refused(field, self.name(), next.name()))
     }
 }
 
@@ -137,16 +133,20 @@ mod tests {
 
     #[test]
     fn allows_only_listed_transitions() {
-        assert_eq!(Light::Green.to(Light::Red).unwrap(), Light::Red);
-        let Err(Error::Invalid(refused)) = Light::Red.to(Light::Green) else {
+        assert_eq!(Light::Green.to(Light::Red, "light").unwrap(), Light::Red);
+        let Err(Error::Invalid(refused)) = Light::Red.to(Light::Green, "signal") else {
             panic!("an unlisted move is a field error");
         };
         assert_eq!(
             refused,
             [
-                crate::FieldError::new("light", "validation.move", "cannot move from RED to GREEN")
-                    .with("from", "RED")
-                    .with("to", "GREEN")
+                crate::FieldError::new(
+                    "signal",
+                    "validation.move",
+                    "cannot move from RED to GREEN"
+                )
+                .with("from", "RED")
+                .with("to", "GREEN")
             ]
         );
     }

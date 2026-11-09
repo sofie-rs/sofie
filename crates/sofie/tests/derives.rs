@@ -393,7 +393,9 @@ struct Purchase {
 
 #[test]
 fn a_move_of_another_enum_of_the_same_name_explains_no_save() {
-    payment::Status::Pending.to(payment::Status::Paid).unwrap();
+    payment::Status::Pending
+        .to(payment::Status::Paid, "status")
+        .unwrap();
     let purchase = Purchase {
         meta: Meta::new().unwrap(),
         status: purchase::Status::Paid,
@@ -519,21 +521,19 @@ fn enum_refuses_an_unknown_name_listing_the_accepted_ones() {
 #[test]
 fn enum_allows_only_the_listed_transitions() {
     assert_eq!(
-        LineStatus::Open.to(LineStatus::Reserved).unwrap(),
+        LineStatus::Open.to(LineStatus::Reserved, "status").unwrap(),
         LineStatus::Reserved
     );
     assert_eq!(
-        LineStatus::Reserved.to(LineStatus::Cancelled).unwrap(),
+        LineStatus::Reserved
+            .to(LineStatus::Cancelled, "status")
+            .unwrap(),
         LineStatus::Cancelled
     );
 
-    let refused = LineStatus::Cancelled.to(LineStatus::Open);
+    let refused = LineStatus::Cancelled.to(LineStatus::Open, "status");
 
-    assert_refused_move(
-        &refused,
-        "line_status",
-        "cannot move from CANCELLED to OPEN",
-    );
+    assert_refused_move(&refused, "status", "cannot move from CANCELLED to OPEN");
 }
 
 #[test]

@@ -323,7 +323,7 @@ pub struct Order {
 
 impl Order {
     pub fn cancel(&mut self, reason: CancelReason) -> Result<()> {
-        self.status = self.status.to(OrderStatus::Cancelled)?;
+        self.status = self.status.to(OrderStatus::Cancelled, "status")?;
         self.meta.raise(OrderCancelled { order: self.id().uuid(), reason })
     }
 }
@@ -428,8 +428,8 @@ while let Some(order) = stale.next().await? { … }
 - A field whose enum lists `#[to]` transitions may only have moved along a
   listed edge between the loaded and the saved state; any other save fails as
   `Invalid` on that field (key `validation.move` with `from` and `to`),
-  whichever code set the field, as does an unlisted `to()`, on the enum's
-  name in snake case. Moves made through `to()` are
+  whichever code set the field, as does an unlisted `to(next, field)`, on the
+  field it names. Moves made through `to()` are
   recorded for the action (the request's or the job's task), so two moves in
   one action pass as the chain of listed edges they took; a direct assignment
   still needs a direct edge. A value carries no record, so each recorded move

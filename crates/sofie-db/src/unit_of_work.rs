@@ -537,8 +537,8 @@ mod tests {
 
     #[test]
     fn moves_made_on_two_records_do_not_explain_a_third_s_jump() {
-        let paid = Stage::Open.to(Stage::Paid).unwrap();
-        let shipped = Stage::Paid.to(Stage::Shipped).unwrap();
+        let paid = Stage::Open.to(Stage::Paid, "stage").unwrap();
+        let shipped = Stage::Paid.to(Stage::Shipped, "stage").unwrap();
 
         assert!(refused_move("stage", Stage::Open, paid).is_ok());
         assert!(refused_move("stage", Stage::Paid, shipped).is_ok());
@@ -556,8 +556,8 @@ mod tests {
         ));
 
         let shipped = Stage::Open
-            .to(Stage::Paid)
-            .and_then(|paid| paid.to(Stage::Shipped));
+            .to(Stage::Paid, "stage")
+            .and_then(|paid| paid.to(Stage::Shipped, "stage"));
 
         assert!(refused_stage_move(shipped.unwrap()).is_ok());
     }

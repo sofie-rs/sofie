@@ -43,7 +43,7 @@ pub fn assert_moves<E: Variants>(expected: &[(&str, &[&str])]) {
             let listed = E::TRANSITIONS
                 .iter()
                 .any(|(source, target)| source.name() == from.name() && target.name() == to.name());
-            let refusal = from.to(*to).err();
+            let refusal = from.to(*to, E::TYPE).err();
             assert_eq!(
                 refusal.is_none(),
                 listed,

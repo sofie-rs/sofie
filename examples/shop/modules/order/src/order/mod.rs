@@ -40,7 +40,7 @@ impl CancelReason {
 
 impl Order {
     pub fn cancel(&mut self, reason: Option<CancelReason>) -> Result<()> {
-        self.status = self.status.to(OrderStatus::Cancelled)?;
+        self.status = self.status.to(OrderStatus::Cancelled, "status")?;
         self.meta.raise(OrderCancelled {
             order: self.id().uuid(),
             reason: reason.map(|reason| reason.0),
@@ -48,7 +48,7 @@ impl Order {
     }
 
     pub fn expire(&mut self) -> Result<()> {
-        self.status = self.status.to(OrderStatus::Expired)?;
+        self.status = self.status.to(OrderStatus::Expired, "status")?;
         Ok(())
     }
 }

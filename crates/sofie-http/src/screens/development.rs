@@ -50,7 +50,7 @@ impl TemplateFile {
     }
 
     /// The lock is held across the check and the reread, so requests never race on one file.
-    pub(super) fn current(&self) -> Result<Arc<Template>> {
+    pub(super) fn current(&self, reread: impl FnOnce(&Template)) -> Result<Arc<Template>> {
         let components = &self.components;
         let mut loaded = unpoisoned::lock(&self.loaded);
         if latest(&self.key, &self.path, components)? != loaded.modified {
@@ -61,6 +61,7 @@ impl TemplateFile {
                 &self.descriptions,
                 components,
             )?;
+            reread(&loaded.template);
         }
         Ok(Arc::clone(&loaded.template))
     }
@@ -220,6 +221,39 @@ mod tests {
         rewrite(&path, "<p>new {data.a}</p>");
 
         assert_eq!(rendered(&screens, "order/web/orders"), "<p>new 1</p>");
+        fs::remove_file(&path).unwrap();
+    }
+
+    #[cfg(feature = "i18n")]
+    #[test]
+    fn a_reread_screen_using_a_key_the_translations_lack_is_logged() {
+        let path =
+            std::env::temp_dir().join(format!("sofie-http-translated-{}.html", std::process::id()));
+        fs::write(&path, "<p>{t(\"orders.title\")}</p>").unwrap();
+        let mut screens = from_file("order/web/orders", &path);
+        let mut translations = sofie_engine::Translations::new(&["en"]).unwrap();
+        translations
+            .add("order", "en", "[orders]\ntitle = \"Orders\"\n")
+            .unwrap();
+        screens.translate(translations);
+        let telemetry = sofie_telemetry::capture();
+
+        rewrite(&path, "<p>{t(\"orders.heading\")}</p>");
+
+        assert_eq!(
+            rendered(&screens, "order/web/orders"),
+            "<p>orders.heading</p>"
+        );
+        let warned: Vec<String> = telemetry
+            .events()
+            .into_iter()
+            .filter(|event| {
+                event.fields.get("screen").map(String::as_str) == Some("order/web/orders")
+            })
+            .map(|event| event.fields["error"].clone())
+            .collect();
+        assert_eq!(warned.len(), 1, "{warned:?}");
+        assert!(warned[0].contains("orders.heading"), "{warned:?}");
         fs::remove_file(&path).unwrap();
     }
 

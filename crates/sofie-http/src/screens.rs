@@ -200,9 +200,27 @@ impl Screens {
         match self.by_key.get(key) {
             Some(Screen::Embedded(template)) => Ok(Arc::clone(template)),
             #[cfg(feature = "development")]
-            Some(Screen::File(file)) => file.current(),
+            Some(Screen::File(file)) => file.current(|template| self.check_reread(template)),
             None => Err(not_loaded(key)),
         }
+    }
+
+    /// `sofie check` checks a screen as the app is built; an edit made while it runs is
+    /// checked here, and logged, as the page still renders.
+    #[cfg(feature = "development")]
+    fn check_reread(&self, template: &Template) {
+        #[cfg(feature = "i18n")]
+        if let Some(translations) = &self.translations
+            && let Err(error) = sofie_engine::check_translations(template, translations)
+        {
+            tracing::warn!(
+                screen = template.name(),
+                error = %error,
+                "a reread screen does not match the translations"
+            );
+        }
+        #[cfg(not(feature = "i18n"))]
+        let _ = (self, template);
     }
 }
 

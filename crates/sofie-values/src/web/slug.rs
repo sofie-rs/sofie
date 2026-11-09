@@ -39,13 +39,31 @@ fn invalid_slug(message: &str) -> Error {
 
 sofie_core::text_value!(Slug, text, Slug::from_stored);
 
+/// `is_slug_character` for the browser, which reads a pattern with the `v` flag: letters that
+/// lowercasing keeps, digits and marks, less the marks and fillers that draw nothing, enclosing
+/// marks and decomposed Latin accents.
+macro_rules! slug_character_class {
+    () => {
+        concat!(
+            r"[[\p{Ll}\p{Lm}\p{Lo}\p{Mn}\p{Mc}\p{N}]--[\u{300}-\u{36f}\u{34f}\u{17b4}\u{17b5}",
+            r"\u{180b}-\u{180d}\u{180f}\u{fe00}-\u{fe0f}\u{e0100}-\u{e01ef}\u{115f}\u{1160}",
+            r"\u{3164}\u{ffa0}\u{2160}-\u{216f}]]",
+        )
+    };
+}
+
 crate::present::present_text!(
     Slug,
     crate::Input::typed(&[
         ("type", "text"),
         (
             "pattern",
-            r"[\p{Ll}\p{Lm}\p{Lo}\p{M}\p{N}]+(-[\p{Ll}\p{Lm}\p{Lo}\p{M}\p{N}]+)*"
+            concat!(
+                slug_character_class!(),
+                "+(-",
+                slug_character_class!(),
+                "+)*"
+            )
         )
     ]),
     Exact

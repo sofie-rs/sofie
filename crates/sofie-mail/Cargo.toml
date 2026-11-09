@@ -12,6 +12,8 @@ homepage.workspace = true
 # Each mail rereads its template's source, so an edit shows without a rebuild.
 development = ["sofie-engine/parse"]
 metrics = ["sofie-telemetry/metrics"]
+# Mails and their texts in the recipient's language (`translations`, `Mailer::in_language`).
+i18n = ["sofie-engine/i18n"]
 # A fake transport with an outbox, and SMTP trusting a test's own root certificate.
 testing = []
 # `web::routes`: the unsubscribe page and its one-click POST, and webhooks for a

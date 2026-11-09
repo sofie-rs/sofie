@@ -5,6 +5,7 @@ use sofie_values::{Instant, Locale, Money, Present};
 
 use super::conventions::{self, Conventions, NEUTRAL};
 use super::{CountedKeys, Message, Part, Translations, Variant, negotiate};
+use crate::label::humanize;
 use crate::message::{is_exactly_one, number_of};
 
 static PLAIN: LazyLock<Translations> =
@@ -138,6 +139,19 @@ impl<'a> Language<'a> {
             return self.field_message(fallback).to_owned();
         }
         filled(message, arguments)
+    }
+
+    /// `None` where no language of the app has the key, so the caller writes its own words.
+    #[must_use]
+    pub fn translated(self, key: &str, arguments: &[(&str, String)]) -> Option<String> {
+        self.message(key).map(|message| filled(message, arguments))
+    }
+
+    #[must_use]
+    pub fn label(self, field: &str) -> String {
+        self.message(&format!("label.{field}"))
+            .and_then(Message::plain)
+            .map_or_else(|| humanize(field), str::to_owned)
     }
 
     pub(crate) fn text<'m>(self, key: &str, fallback: &'m str) -> &'m str
@@ -343,5 +357,31 @@ impl PluralRule {
             Self::OneEndsInOneNotEleven => "one-ends-in-one-not-eleven",
             Self::OtherOnly => "other-only",
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_text_outside_a_template_reads_in_the_language_with_its_arguments() {
+        let mut translations = Translations::new(&["en", "tr"]).unwrap();
+        translations
+            .add(
+                "shop",
+                "tr",
+                "[label]\nstatus = \"Durum\"\n\n[mail]\nsubject = \"{name} katıl\"\n",
+            )
+            .unwrap();
+        let turkish = translations.negotiate(None, Some("tr"));
+
+        assert_eq!(
+            turkish.translated("mail.subject", &[("name", "Acme".to_owned())]),
+            Some("Acme katıl".to_owned())
+        );
+        assert_eq!(turkish.translated("mail.missing", &[]), None);
+        assert_eq!(turkish.label("status"), "Durum");
+        assert_eq!(turkish.label("placed_at"), "Placed at");
     }
 }

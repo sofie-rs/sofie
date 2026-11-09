@@ -4,6 +4,7 @@ use sofie_core::{Error, Result, Show};
 use sofie_db::{Db, File};
 
 use crate::Body;
+use crate::language::{Language, rendered};
 
 /// A template the build script compiled, keyed `<crate>/<name>` after its file `mails/<name>.html`.
 #[derive(Clone, Copy, Debug)]
@@ -24,9 +25,13 @@ impl Template {
     }
 
     /// Loaded per mail: mails are few, and a template is a short read of bytes.
-    pub(crate) fn render(&self, data: &(impl Show + ?Sized)) -> Result<Body> {
+    pub(crate) fn render(
+        &self,
+        data: &(impl Show + ?Sized),
+        language: Language<'_>,
+    ) -> Result<Body> {
         let template = self.load()?;
-        let html = template.render(data).map_err(|error| self.failed(error))?;
+        let html = rendered(&template, data, language).map_err(|error| self.failed(error))?;
         Ok(Body::rendered(html))
     }
 

@@ -2,6 +2,7 @@
 //! a job, so a request never waits on a mail server.
 
 mod delivery;
+mod language;
 mod mail;
 mod settings;
 mod smtp;
@@ -21,6 +22,8 @@ use sofie_core::{Error, Result, Show};
 use sofie_db::worker::Worker;
 use sofie_db::{Db, Dep, Extensions, Jobs, Queued, Resolve, Writes};
 
+#[cfg(feature = "i18n")]
+pub use language::translations;
 pub use mail::{Address, Body, Mail};
 pub use settings::{Security, SmtpSettings};
 pub use suppression::{Reason, Scope, Suppression, scopes, suppress};
@@ -74,6 +77,10 @@ pub struct Mailer {
     setup: Setup,
     registered: Vec<Arc<Registered>>,
     jobs: Jobs,
+    #[cfg(feature = "i18n")]
+    translations: Option<Arc<sofie_engine::Translations>>,
+    #[cfg(feature = "i18n")]
+    locale: Option<sofie_values::Locale>,
 }
 
 impl Mailer {
@@ -85,14 +92,13 @@ impl Mailer {
                  in its module and run `sofie gen`"
             ))
         })?;
-        template.render(data)
+        self.render(template, data)
     }
 
     /// A crate's own template, unless the app replaces it with one of the same key.
     pub fn body_from(&self, template: &Template, data: &(impl Show + ?Sized)) -> Result<Body> {
-        templates::find(&self.registered, template.key())
-            .unwrap_or(template)
-            .render(data)
+        let template = templates::find(&self.registered, template.key()).unwrap_or(template);
+        self.render(template, data)
     }
 
     pub fn link(&self, path: &str) -> Result<String> {
@@ -122,6 +128,13 @@ impl<C: Writes> Resolve<C> for Mailer {
             setup,
             registered: registered.to_vec(),
             jobs: Jobs::resolve(context).await?,
+            #[cfg(feature = "i18n")]
+            translations: Extensions::<language::Spoken>::resolve(context)
+                .await?
+                .first()
+                .map(|spoken| Arc::clone(&spoken.0)),
+            #[cfg(feature = "i18n")]
+            locale: None,
         })
     }
 }

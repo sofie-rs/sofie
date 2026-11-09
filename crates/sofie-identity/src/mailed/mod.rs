@@ -181,14 +181,24 @@ pub(crate) async fn mail_link(
     let link = factory::issue(account.id(), purpose, now)?;
     let path = format!("{}{}/{}", asked.prefix, purpose.segment(), link.id().uuid());
     let signed = crate::account_link::signed_action(&urls, &path, link.expires_at(), now)?;
-    let (template, subject) = match purpose {
-        LinkPurpose::PasswordReset if asked.sign_up_repeated => {
-            (&SIGN_UP_REPEATED_MAIL, "You already have an account")
-        }
-        LinkPurpose::PasswordReset => (&PASSWORD_RESET_MAIL, "Reset your password"),
-        LinkPurpose::EmailVerification => (&VERIFICATION_MAIL, "Confirm your email address"),
-        LinkPurpose::SignIn => (&SIGN_IN_MAIL, "Sign in"),
-        LinkPurpose::Join => (&JOIN_MAIL, "Sign in to join"),
+    let (template, subject, english) = match purpose {
+        LinkPurpose::PasswordReset if asked.sign_up_repeated => (
+            &SIGN_UP_REPEATED_MAIL,
+            "identity.sign_up_repeated_mail.subject",
+            "You already have an account",
+        ),
+        LinkPurpose::PasswordReset => (
+            &PASSWORD_RESET_MAIL,
+            "identity.password_reset_mail.subject",
+            "Reset your password",
+        ),
+        LinkPurpose::EmailVerification => (
+            &VERIFICATION_MAIL,
+            "identity.verification_mail.subject",
+            "Confirm your email address",
+        ),
+        LinkPurpose::SignIn => (&SIGN_IN_MAIL, "identity.sign_in_mail.subject", "Sign in"),
+        LinkPurpose::Join => (&JOIN_MAIL, "identity.join_mail.subject", "Sign in to join"),
         LinkPurpose::SecondFactor => {
             return Err(Error::internal_message(
                 "a second factor's link is never mailed",
@@ -196,7 +206,8 @@ pub(crate) async fn mail_link(
         }
     };
     let body = mailer.body_from(template, &json!({ "link": mailer.link(&signed)? }))?;
-    let mail = Mail::new(Address::new(account.email())?, subject, body)?;
+    let subject = mailer.text(subject, &[], english);
+    let mail = Mail::new(Address::new(account.email())?, &subject, body)?;
     Ok(vec![(link, mailer.send(mail)?)])
 }
 

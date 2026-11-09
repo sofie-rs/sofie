@@ -43,7 +43,10 @@ jobs:
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --all-targets -- -D warnings
       # A workspace build unifies features, so a feature set no member uses is checked alone.
-      - run: cargo check -p sofie-http --no-default-features
+      - run: |
+          for features in "" shield cors,flags signed-links remote-contracts; do
+            cargo clippy -p sofie-http --no-default-features --features "$features" -- -D warnings
+          done
       - run: cargo check -p sofie-framework --no-default-features --features sqlite
       - run: cargo test --workspace --no-fail-fast
       # Only a run of its own leaves `email-verification` off; the workspace run unifies features.

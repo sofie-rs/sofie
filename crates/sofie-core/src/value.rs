@@ -13,8 +13,7 @@ pub trait Value: Sized {
 
     fn try_from_inner(inner: Self::Inner) -> Result<Self, impl Display>;
 
-    /// A value whose input rule tightens overrides this, so rows written under the looser rule
-    /// still read.
+    /// Overridden when an input rule tightens, so rows written under the looser one still read.
     fn decode_stored(inner: Self::Inner) -> Result<Self> {
         stored(Self::try_from_inner(inner))
     }

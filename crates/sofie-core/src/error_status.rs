@@ -1,7 +1,5 @@
 use crate::Error;
 
-/// One table both ways: sofie-http answers an error with its status and a remote caller reads
-/// the status back into the same kind.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ErrorStatus {
     BadRequest,

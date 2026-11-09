@@ -1,5 +1,4 @@
-/// A form posted without JavaScript carries in it the key engine.js otherwise sends as the
-/// `Idempotency-Key` header.
+/// Carries the `Idempotency-Key` of a form posted without JavaScript.
 pub const IDEMPOTENCY_KEY_FIELD: &str = "_idempotency_key";
 
 #[must_use]

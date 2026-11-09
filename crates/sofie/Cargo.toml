@@ -232,6 +232,7 @@ sofie = { package = "sofie-framework", path = "../sofie", features = [
     "listing",
     "log-fields",
     "measure",
+    "metrics",
     "percentage",
     "permissions",
     "image-variants",

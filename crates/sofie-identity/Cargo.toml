@@ -82,7 +82,7 @@ sofie-engine = { workspace = true, features = ["compile"] }
 # SQLite tables checked against its records; product events forgotten on closing.
 sofie = { package = "sofie-framework", path = "../sofie", features = ["capture", "contracts", "history", "menu", "product-reports", "sqlite", "tasks"] }
 # Its own optional features, so their tests run in every test run.
-sofie-identity = { path = ".", features = ["email-verification", "password-reset", "account-data", "impersonation", "oauth", "passkeys", "permitted-shield", "session-screens", "sign-in-links", "testing", "tokens", "totp"] }
+sofie-identity = { path = ".", features = ["email-verification", "password-reset", "account-data", "impersonation", "oauth", "passkeys", "permitted-shield", "session-screens", "sign-in-links", "testing", "token-screens", "tokens", "totp"] }
 sofie-testing = { path = "../sofie-testing", features = ["mail"] }
 serde_json.workspace = true
 tokio = { workspace = true, features = ["macros", "net"] }

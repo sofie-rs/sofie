@@ -239,3 +239,94 @@ fn splitting_the_last_module_takes_its_members_out_and_earlier_splits_follow_its
         "{earlier}"
     );
 }
+
+#[cfg(feature = "slow-tests")]
+mod shop {
+    use std::fs;
+    use std::path::{Path, PathBuf};
+    use std::process::Command;
+
+    use sofie_cli::split_module;
+    use sofie_model::testing::TemporaryDirectory;
+
+    fn copy_tree(from: &Path, to: &Path) {
+        fs::create_dir_all(to).unwrap();
+        for entry in fs::read_dir(from).unwrap() {
+            let entry = entry.unwrap();
+            if ["target", "node_modules"]
+                .iter()
+                .any(|skipped| entry.file_name() == *skipped)
+            {
+                continue;
+            }
+            let target = to.join(entry.file_name());
+            if entry.file_type().unwrap().is_dir() {
+                copy_tree(&entry.path(), &target);
+            } else {
+                fs::copy(entry.path(), target).unwrap();
+            }
+        }
+    }
+
+    /// The copy names the framework's crates by absolute path, so Cargo reuses their builds in the shared target directory.
+    fn shop_copy(directory: &TemporaryDirectory) -> PathBuf {
+        let repository = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../..")
+            .canonicalize()
+            .unwrap();
+        let workspace = fs::read_to_string(repository.join("Cargo.toml")).unwrap();
+        let members_start = workspace.find("members = [").unwrap();
+        let members_end =
+            workspace.find("exclude = [\"bench\"]\n").unwrap() + "exclude = [\"bench\"]\n".len();
+        let workspace = format!(
+            "{}members = [\"shop/app\", \"shop/modules/*\", \"shop/modules/*/contract\"]\n{}",
+            &workspace[..members_start],
+            &workspace[members_end..]
+        )
+        .replace(
+            "path = \"crates/",
+            &format!("path = \"{}/crates/", repository.display()),
+        );
+        directory.write("Cargo.toml", &workspace);
+        fs::copy(repository.join("Cargo.lock"), directory.path("Cargo.lock")).unwrap();
+        let shop = directory.path("shop");
+        copy_tree(&repository.join("examples/shop"), &shop);
+        shop
+    }
+
+    fn shared_target() -> PathBuf {
+        std::env::current_exe()
+            .unwrap()
+            .ancestors()
+            .nth(3)
+            .unwrap()
+            .to_path_buf()
+    }
+
+    #[test]
+    fn both_apps_of_a_split_shop_compile() {
+        let directory = TemporaryDirectory::new("sofie-split-shop");
+        let shop = shop_copy(&directory);
+
+        let split = split_module(&shop, "order").unwrap();
+        let cargo = Command::new(std::env::var_os("CARGO").unwrap_or_else(|| "cargo".into()))
+            .args([
+                "check",
+                "--offline",
+                "--quiet",
+                "--workspace",
+                "--target-dir",
+            ])
+            .arg(shared_target())
+            .current_dir(directory.root())
+            .output()
+            .unwrap();
+
+        assert!(split.plan.to.join("app/Cargo.toml").is_file());
+        assert!(
+            cargo.status.success(),
+            "{}",
+            String::from_utf8_lossy(&cargo.stderr)
+        );
+    }
+}

@@ -20,7 +20,7 @@ permitted-flags = ["permitted-screens", "sofie/feature-flags"]
 
 # Kept as digests and revoked softly.
 tokens = ["permissions", "sofie/tokens"]
-token-screens = ["tokens", "sofie/resources"]
+token-screens = ["tokens", "sofie/resources", "sofie/signed-links"]
 
 # Each sign-in recorded, asked on every request (cached per instance until it changes)
 # and ended from elsewhere; pruned once no cookie can outlive it.

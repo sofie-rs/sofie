@@ -2603,7 +2603,8 @@ in a token area: each principal lists the tokens its own account issued and
 revokes one (`sofie_identity.access_token.*.read` and `.delete`); another
 account's token is not found. `/tokens/new` (`.create`) issues one for the area, with
 optional scopes and a life of 1 to 365 days; its text stays on that screen, sealed in the
-row, until the principal says done or the token is first used, and never to an
+row, until the principal says done or the token is first used, ten minutes at
+most (identity's hourly pruning then erases the sealed text), and never to an
 impersonation. Like every account
 screen (`sessions`, `two_factor`, `passkeys`), it mounts only in an
 `AccountArea`, one whose principal is the account itself.

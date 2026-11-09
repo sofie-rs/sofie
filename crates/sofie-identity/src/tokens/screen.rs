@@ -6,12 +6,14 @@ use sofie::prelude::*;
 
 use super::{AccessToken, AccessTokenId, Issued, REVEALING};
 use crate::signing_in::OwnSession;
-use crate::{AccountArea, account_of};
+use crate::{AccountArea, Unscoped, account_of};
 
 const READ: Permission = Permission::new("sofie_identity.access_token.*.read");
 const REVOKE: Permission = Permission::new("sofie_identity.access_token.*.delete");
 const CREATE: Permission = Permission::new("sofie_identity.access_token.*.create");
 const DAY: Duration = Duration::from_hours(24);
+/// A token's text is shown this long at most; pruning then erases its sealed copy.
+const REVEALED_FOR: Duration = Duration::from_mins(10);
 
 /// Each principal sees and revokes only the tokens its own account issued.
 pub fn routes<A: AccountArea>(routes: &mut Routes<A>) {
@@ -137,11 +139,14 @@ async fn revealed<A: AccountArea>(
     principal: Principal<A>,
     _own: OwnSession,
     read: Read,
+    clock: Clock,
     sealing: Sealing,
 ) -> Result<Revealing> {
+    let since = clock.now().checked_sub(REVEALED_FOR)?;
     let Some(sealed) = unseen(&read, &principal)
         .await?
         .into_iter()
+        .filter(|token| token.created_at().is_some_and(|created| created > since))
         .find_map(|token| token.revealing)
     else {
         return Ok(Revealing { revealed: None });
@@ -176,4 +181,23 @@ async fn unseen<A: AccountArea>(read: &Read, principal: &Principal<A>) -> Result
         .latest()
         .all(read)
         .await
+}
+
+/// Revoked tokens too, so no sealed text outlives its window.
+pub(crate) async fn forget_revealing(unscoped: &Unscoped, clock: &Clock) -> Result<()> {
+    let before = clock.now().checked_sub(REVEALED_FOR)?;
+    let mut stale = AccessToken::query()
+        .with_trashed()
+        .where_(AccessToken::REVEALING.is_not_null())
+        .where_(AccessToken::CREATED_AT.lt(before))
+        .all(&unscoped.0.read())
+        .await?;
+    for token in &mut stale {
+        token.revealing = None;
+    }
+    match unscoped.0.commit(&mut stale).await {
+        // Used or dismissed meanwhile, which cleared it too; the rest goes at the next pruning.
+        Err(Error::Conflict) => Ok(()),
+        forgotten => forgotten,
+    }
 }

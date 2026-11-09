@@ -24,7 +24,7 @@ async fn started() -> TestApp {
                 .area::<Web>("sofie_identity", sofie_identity::routes::<Console>)
                 .area::<Console>("sofie_identity", tokens::screen::routes::<Console>))
         },
-        sofie::worker::Worker::new,
+        |db| sofie_identity::worker(sofie::worker::Worker::new(db)),
     )
     .await
 }
@@ -88,6 +88,36 @@ async fn a_principal_lists_and_revokes_only_its_own_tokens() {
     assert_eq!(ids, [kept.to_string()]);
     let held = tokens::list(&app.db().read(), grace).await.unwrap();
     assert_eq!(held.len(), 1);
+}
+
+#[tokio::test]
+async fn a_new_token_s_secret_shows_ten_minutes_at_most_and_is_then_erased() {
+    let app = started().await;
+    let (_, session) = member(&app, "ada@example.com").await;
+    let issued = app
+        .post("/console/tokens/new")
+        .session(&session)
+        .accept_json()
+        .json(&json!({ "days": 30 }))
+        .await;
+    issued.assert_ok();
+    let secret = issued.json()["token"].as_str().unwrap().to_owned();
+    let revealing = || {
+        app.query(
+            "SELECT 1 FROM sofie_identity.access_token WHERE revealing IS NOT NULL",
+            &[],
+        )
+    };
+
+    app.clock().advance(Duration::from_mins(11)).unwrap();
+    let page = app.get("/console/tokens/new").session(&session).await;
+    let kept = revealing().await.len();
+    app.advance(Duration::from_hours(1)).await;
+
+    assert_eq!(page.status, 200, "{}", page.body);
+    assert!(!page.body.contains(&secret), "{}", page.body);
+    assert_eq!(kept, 1, "the sealed text waits for the pruning");
+    assert_eq!(revealing().await.len(), 0, "pruning erased it");
 }
 
 #[tokio::test]

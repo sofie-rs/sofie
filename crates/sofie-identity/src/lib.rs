@@ -291,22 +291,38 @@ pub fn worker(worker: Worker) -> Worker {
     let worker = worker.every("sofie_identity.prune_sessions", PRUNE_EVERY, prune);
     #[cfg(all(feature = "account-links", not(feature = "sessions")))]
     let worker = worker.every("sofie_identity.prune_account_links", PRUNE_EVERY, prune);
+    #[cfg(all(
+        feature = "token-screens",
+        not(any(feature = "sessions", feature = "account-links"))
+    ))]
+    let worker = worker.every("sofie_identity.prune_tokens", PRUNE_EVERY, prune);
     worker
 }
 
-#[cfg(any(feature = "sessions", feature = "account-links"))]
+#[cfg(any(
+    feature = "sessions",
+    feature = "account-links",
+    feature = "token-screens"
+))]
 const PRUNE_EVERY: std::time::Duration = std::time::Duration::from_hours(1);
 
 /// One schedule whatever the features, so turning one on adds no job to an app's worker.
-#[cfg(any(feature = "sessions", feature = "account-links"))]
+#[cfg(any(
+    feature = "sessions",
+    feature = "account-links",
+    feature = "token-screens"
+))]
 async fn prune(
-    prune: sofie::db::Prune,
+    #[cfg(any(feature = "sessions", feature = "account-links"))] prune: sofie::db::Prune,
     clock: sofie::prelude::Clock,
+    #[cfg(feature = "token-screens")] unscoped: Unscoped,
 ) -> sofie::prelude::Result<()> {
     #[cfg(feature = "sessions")]
     sessions::prune(&prune, &clock).await?;
     #[cfg(feature = "account-links")]
     account_link::prune(&prune, &clock).await?;
+    #[cfg(feature = "token-screens")]
+    tokens::screen::forget_revealing(&unscoped, &clock).await?;
     Ok(())
 }
 

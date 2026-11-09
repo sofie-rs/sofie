@@ -764,6 +764,26 @@ async fn read_inbox_items_and_mailed_digests_are_pruned_after_ninety_days() {
 }
 
 #[tokio::test]
+async fn forgetting_a_principal_refreshes_its_inbox_screens() {
+    let app = start().await;
+    let me = app.as_(&member(43));
+    me.post("/members/ship").accept_json().await;
+    app.drain().await;
+    let mut changes = sofie_db::committed_changes(app.db());
+
+    assert_eq!(me.post("/members/forget").accept_json().await.status, 204);
+
+    let topic = sofie_db::Topic::named("sofie", "inbox");
+    let mut readers = Vec::new();
+    while let Ok(sofie_db::Announced::Changed(announced)) = changes.try_recv() {
+        let touched = announced.iter().filter(|change| change.topic == topic);
+        readers.extend(touched.map(|change| change.readers));
+    }
+    let owner = sofie_db::Readers::Owner(Uuid::from_u128(43));
+    assert!(readers.contains(&owner), "{readers:?}");
+}
+
+#[tokio::test]
 async fn a_forgotten_principal_keeps_no_rows_and_gets_no_digest() {
     let app = start().await;
     let day = year_ahead();

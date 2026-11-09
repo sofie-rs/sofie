@@ -402,6 +402,12 @@ pub mod personal_data {
                     None,
                 ));
             }
+            let principal = Some(self.principal);
+            plan.touched::<Settings>(principal);
+            plan.touched::<Choice>(principal);
+            plan.touched::<InboxEntry>(principal);
+            plan.touched::<DigestItem>(principal);
+            plan.touched::<PushSubscription>(principal);
             self.digest.plan(plan)
         }
 

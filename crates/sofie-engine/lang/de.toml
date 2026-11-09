@@ -16,6 +16,16 @@ passkey_unused = "Der Passkey wurde nicht verwendet. Bitte versuchen Sie es erne
 [field]
 currency = "Währung"
 
+[resource]
+new = "{record} anlegen"
+edit_record = "{record} bearbeiten"
+show = "Anzeigen"
+edit = "Bearbeiten"
+delete = "Löschen"
+create = "Anlegen"
+save = "Speichern"
+history = "Verlauf"
+
 [validation]
 required = "ist erforderlich"
 invalid = "ist ungültig"

@@ -155,6 +155,10 @@ tokio = { workspace = true, features = ["net", "sync", "time"] }
 tokio-rustls = { workspace = true, optional = true }
 tracing.workspace = true
 
+[build-dependencies]
+# With `resources`, the texts a generated screen writes without `i18n`; on with `engine`.
+sofie-engine = { workspace = true, optional = true, features = ["compile"] }
+
 [dev-dependencies]
 # So `tests/clients.rs`, `etag.rs`, `cors.rs`, `live.rs`, `middleware.rs`, `session_cache.rs`,
 # `tls.rs` and `uploads.rs` run in every test run; the tests parse their screens.

@@ -97,6 +97,8 @@ async fn roles_are_listed_created_changed_and_shown_without_a_template() {
     assert_eq!(page.status, 200, "{}", page.body);
     assert!(page.body.contains("<td>support</td>"), "{}", page.body);
     assert!(page.body.contains(">New role</a>"), "{}", page.body);
+    assert!(page.body.contains(">Show</a>"), "{}", page.body);
+    assert!(!page.body.contains("resource."), "{}", page.body);
     assert!(
         page.body
             .contains("<a href=\"/console/roles\" aria-current=\"page\">Roles</a>"),

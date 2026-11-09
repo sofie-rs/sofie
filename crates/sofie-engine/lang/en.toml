@@ -19,6 +19,16 @@ passkey_unused = "The passkey was not used. Try again."
 [field]
 currency = "Currency"
 
+[resource]
+new = "New {record}"
+edit_record = "Edit {record}"
+show = "Show"
+edit = "Edit"
+delete = "Delete"
+create = "Create"
+save = "Save"
+history = "History"
+
 [validation]
 required = "is required"
 invalid = "is not valid"

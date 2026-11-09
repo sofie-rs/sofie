@@ -16,6 +16,16 @@ passkey_unused = "Geçiş anahtarı kullanılmadı. Lütfen yeniden deneyin."
 [field]
 currency = "Para birimi"
 
+[resource]
+new = "Yeni {record}"
+edit_record = "{record} düzenle"
+show = "Göster"
+edit = "Düzenle"
+delete = "Sil"
+create = "Oluştur"
+save = "Kaydet"
+history = "Geçmiş"
+
 [validation]
 required = "zorunludur"
 invalid = "geçerli değil"

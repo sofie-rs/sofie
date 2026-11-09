@@ -59,6 +59,9 @@ impl<const N: usize> From<(&'static str, &'static [u8; N], Option<Describe>)> fo
     }
 }
 
+/// The source-language text of each `t(…)` a generated screen writes, for an app without `i18n`.
+const RESOURCE_TEXTS: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/resource_texts.sft"));
+
 pub type Describe = fn(&mut crate::Screens, &str) -> sofie_core::Result<()>;
 
 /// Runs before the routes are checked against the screens.
@@ -103,14 +106,26 @@ fn built_in(route: &crate::routes::Route) -> Option<(&str, &Builtin)> {
 
 impl Builtin {
     fn add(&self, screens: &mut crate::Screens, key: &str, path: &str) -> sofie_core::Result<()> {
-        if let Self::Shipped(ShippedTemplate {
-            compiled: Some(program),
-            ..
-        }) = self
-        {
-            return screens.add(key, &sofie_db::File::new("its shipped program", program));
+        match self {
+            Self::Shipped(ShippedTemplate {
+                compiled: Some(program),
+                ..
+            }) => screens.add(key, &sofie_db::File::new("its shipped program", program)),
+            Self::Shipped(_) => screens.add_source(key, &self.source(path)),
+            Self::Resource { .. } => screens.add_with(key, || {
+                let source = self.source(path);
+                let components = sofie_engine::Components::default();
+                sofie_engine::parse_template_with_recorded(
+                    key,
+                    &source,
+                    &components,
+                    RESOURCE_TEXTS,
+                )
+                .map_err(|error| {
+                    sofie_core::Error::internal(format!("parsing screen {key}"), error)
+                })
+            }),
         }
-        screens.add_source(key, &self.source(path))
     }
 
     fn source(&self, path: &str) -> String {

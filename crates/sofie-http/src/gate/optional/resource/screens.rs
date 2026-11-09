@@ -39,8 +39,11 @@ impl Plan<'_> {
         sofie_engine::humanize(self.description.name)
     }
 
-    fn title_of(&self, verb: &str) -> String {
-        titled(verb, self.description.name)
+    fn titled_text(&self, key: &str) -> String {
+        format!(
+            "{{t(\"resource.{key}\", record = \"{}\")}}",
+            self.description.name.replace('_', " ")
+        )
     }
 
     fn keeps(&self, resource: Resource) -> bool {
@@ -69,7 +72,10 @@ impl Plan<'_> {
         };
         let mut html = format!("<Section title=\"{}\">", self.title(true));
         if self.keeps(Resource::Create) {
-            let new = format!("<p><a href=\"{at}/new\">{}</a></p>", self.title_of("New"));
+            let new = format!(
+                "<p><a href=\"{at}/new\">{}</a></p>",
+                self.titled_text("new")
+            );
             html.push_str(&self.gated("create", &new));
         }
         let _ = write!(
@@ -95,14 +101,15 @@ impl Plan<'_> {
         let row = format!("{at}/{{row.id}}");
         let mut links = String::new();
         if self.keeps(Resource::Show) {
-            let _ = write!(links, "<a href=\"{row}\">Show</a> ");
+            let _ = write!(links, "<a href=\"{row}\">{{t(\"resource.show\")}}</a> ");
         }
         if self.keeps(Resource::Edit) {
-            links.push_str(&self.gated("update", &format!("<a href=\"{row}/edit\">Edit</a> ")));
+            let edit = format!("<a href=\"{row}/edit\">{{t(\"resource.edit\")}}</a> ");
+            links.push_str(&self.gated("update", &edit));
         }
         if self.keeps(Resource::Delete) {
             let delete = format!(
-                "<Action post=\"{row}/delete\" label=\"Delete\" target=\"{}\" />",
+                "<Action post=\"{row}/delete\" label={{t(\"resource.delete\")}} target=\"{}\" />",
                 list_id(self.description.name)
             );
             links.push_str(&self.gated("delete", &delete));
@@ -139,12 +146,13 @@ impl Plan<'_> {
             let _ = write!(html, "<a href=\"{at}\">{}</a> ", self.title(true));
         }
         if self.keeps(Resource::Edit) {
-            let edit = format!("<a href=\"{at}/{{data.record.id}}/edit\">Edit</a>");
+            let edit =
+                format!("<a href=\"{at}/{{data.record.id}}/edit\">{{t(\"resource.edit\")}}</a>");
             html.push_str(&self.gated("update", &edit));
         }
         html.push_str("</p></Section>");
         html.push_str(
-            "{#if data.history}<Section title=\"History\"><Table id=\"history\" \
+            "{#if data.history}<Section title={t(\"resource.history\")}><Table id=\"history\" \
              of={data.history} columns=\"change fields actor action at\" /></Section>{/if}",
         );
         html
@@ -152,9 +160,9 @@ impl Plan<'_> {
 
     fn create(&self) -> String {
         format!(
-            "<Section title=\"{}\"><Form id=\"create\" post=\"{}/new\">\
-             <Submit label=\"Create\" /></Form></Section>",
-            self.title_of("New"),
+            "<Section title={}><Form id=\"create\" post=\"{}/new\">\
+             <Submit label={{t(\"resource.create\")}} /></Form></Section>",
+            self.titled_text("new"),
             self.list_path()
         )
     }
@@ -162,8 +170,8 @@ impl Plan<'_> {
     /// A password or sensitive value is never sent back to the page.
     fn edit(&self) -> String {
         let mut html = format!(
-            "<Section title=\"{}\"><Form id=\"edit\" post=\"{}/{{data.record.id}}/edit\">",
-            self.title_of("Edit"),
+            "<Section title={}><Form id=\"edit\" post=\"{}/{{data.record.id}}/edit\">",
+            self.titled_text("edit_record"),
             self.list_path()
         );
         for field in self.description.edited {
@@ -177,7 +185,7 @@ impl Plan<'_> {
                 field.name
             );
         }
-        html.push_str("<Submit label=\"Save\" /></Form></Section>");
+        html.push_str("<Submit label={t(\"resource.save\")} /></Form></Section>");
         html
     }
 }

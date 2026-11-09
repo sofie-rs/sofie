@@ -69,6 +69,37 @@ impl Behavior for Slugged {
         }
         Ok(())
     }
+
+    #[cfg(feature = "retention")]
+    fn pruned(&self, schema: &str, name: &str, ids: &[sofie_core::Uuid], plan: &mut Plan<'_>) {
+        let table = SqlValue::Text(format!("{schema}.{name}"));
+        plan.push(forget_records(plan.dialect(), table, ids));
+    }
+}
+
+#[cfg(feature = "retention")]
+fn forget_records(dialect: &dyn Dialect, table: SqlValue, ids: &[sofie_core::Uuid]) -> Step {
+    let previous_slug = dialect.qualified("sofie", "previous_slug");
+    let ids = ids.iter().map(|id| SqlValue::Uuid(*id));
+    if dialect.binds_arrays() {
+        let sql = format!(
+            "DELETE FROM {previous_slug} WHERE record_table = {} AND record = ANY({}::uuid[])",
+            dialect.placeholder(1),
+            dialect.placeholder(2)
+        );
+        return Step::statement(sql, vec![table, SqlValue::Array(ids.collect())], None);
+    }
+    let mut params = vec![table];
+    params.extend(ids);
+    let records: Vec<String> = (2..=params.len())
+        .map(|index| dialect.placeholder(index))
+        .collect();
+    let sql = format!(
+        "DELETE FROM {previous_slug} WHERE record_table = {} AND record IN ({})",
+        dialect.placeholder(1),
+        records.join(", ")
+    );
+    Step::statement(sql, params, None)
 }
 
 const FORGET_RECORD: &str = "DELETE FROM {table} WHERE record_table = {1} AND record = {2}";

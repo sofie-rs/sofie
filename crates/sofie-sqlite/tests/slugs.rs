@@ -178,3 +178,30 @@ async fn a_title_without_a_letter_or_digit_is_refused_under_the_title() {
         other => panic!("expected the title refused, got {other:?}"),
     }
 }
+
+async fn forget_articles(prune: sofie_db::Prune) -> Result<()> {
+    let title = sofie_db::Column::<Article, String>::new("title");
+    prune.before(title, "~".to_owned()).await.map(drop)
+}
+
+#[tokio::test]
+async fn pruning_an_article_drops_its_previous_slugs() {
+    let path = std::env::temp_dir().join(format!("sofie-slugs-prune-{}.db", std::process::id()));
+    let _ = std::fs::remove_file(&path);
+    let db = Db::new(Sqlite::open(&path).unwrap());
+    db.schema().migrate(&[MIGRATIONS]).await.unwrap();
+    let mut lunch = written(&db, "Lunch").await;
+    retitled(&db, &mut lunch, "Dinner").await;
+    let forget = std::time::Duration::from_hours(1);
+
+    sofie_db::worker::Worker::new(db)
+        .every("press.forget", forget, forget_articles)
+        .drain()
+        .await
+        .unwrap();
+
+    let sql = "SELECT count(*) FROM sofie_previous_slug";
+    let kept = sofie_db::query_values(&Sqlite::open(&path).unwrap(), sql, &[]).await;
+    let _ = std::fs::remove_file(&path);
+    assert_eq!(kept.unwrap(), [[SqlValue::Int(0)]]);
+}

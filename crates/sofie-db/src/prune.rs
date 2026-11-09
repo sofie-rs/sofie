@@ -115,13 +115,17 @@ impl<A: Aggregate> Outcome for Pruned<A> {
             return Ok(());
         }
         plan.push_as::<A>(delete_loaded::<A>(&self.records, plan.dialect())?);
+        let ids: Vec<sofie_core::Uuid> = self
+            .records
+            .iter()
+            .map(|record| record.meta().id())
+            .collect();
+        let table = crate::aggregate::table::<A>();
+        for (behavior, _) in &table.behaviors {
+            behavior.pruned(table.schema, table.name, &ids, plan);
+        }
         #[cfg(feature = "search-engine")]
         if let Some(index) = &self.index {
-            let ids: Vec<sofie_core::Uuid> = self
-                .records
-                .iter()
-                .map(|record| record.meta().id())
-                .collect();
             crate::search::queue_forget(index, &ids, plan)?;
         }
         for record in &self.records {

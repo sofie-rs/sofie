@@ -37,6 +37,12 @@ pub trait Behavior: Sync {
         Ok(())
     }
 
+    /// Runs when retention hard-deletes `ids` from the aggregate's table `schema.name`.
+    #[cfg(feature = "retention")]
+    fn pruned(&self, schema: &str, name: &str, ids: &[Uuid], plan: &mut Plan<'_>) {
+        let _ = (schema, name, ids, plan);
+    }
+
     /// Names the behavior in errors, which see it only as `dyn Behavior`.
     fn name(&self) -> &'static str {
         std::any::type_name::<Self>()

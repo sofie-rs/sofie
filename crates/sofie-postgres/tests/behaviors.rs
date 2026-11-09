@@ -462,6 +462,28 @@ async fn a_pruned_record_is_dropped_by_a_mirror_that_hides_deleted_ones() {
     assert_eq!(archived, [[SqlValue::Int(0)]]);
 }
 
+#[tokio::test]
+async fn pruning_a_record_drops_its_previous_slugs() {
+    let (database, db) = catalog().await;
+    let mut scarf = added(&db, Uuid::now_v7().unwrap(), "Scarf").await;
+    renamed(&db, &mut scarf, "Red Scarf").await;
+
+    sofie_db::worker::Worker::new(db.clone())
+        .every("catalog.forget", HOURLY, forget_products)
+        .drain()
+        .await
+        .unwrap();
+
+    let kept = sofie_db::query_values(
+        &Postgres::connect(database.url()).unwrap(),
+        "SELECT count(*) FROM sofie.previous_slug",
+        &[],
+    )
+    .await
+    .unwrap();
+    assert_eq!(kept, [[SqlValue::Int(0)]]);
+}
+
 /// Every message queued from now on, in `public.queued`.
 async fn noting_queued(database: &TestDatabase) -> Postgres {
     let raw = Postgres::connect(database.url()).unwrap();

@@ -1,4 +1,4 @@
-use sofie_core::{Error, Result};
+use sofie_core::Result;
 use sofie_http::Serving;
 
 #[cfg(feature = "trusted-proxies")]
@@ -34,17 +34,17 @@ fn configured(
     let token = lookup(METRICS_TOKEN)?
         .map(|token| sofie_http::MetricsToken::parse(&token))
         .transpose()
-        .map_err(|error| Error::internal(METRICS_TOKEN, error))?;
+        .map_err(|error| sofie_core::Error::internal(METRICS_TOKEN, error))?;
     #[cfg(feature = "browser-telemetry")]
     let sample = lookup(BROWSER_SAMPLE)?
         .map(|share| sofie_http::BrowserSample::parse(&share))
         .transpose()
-        .map_err(|error| Error::internal(BROWSER_SAMPLE, error))?;
+        .map_err(|error| sofie_core::Error::internal(BROWSER_SAMPLE, error))?;
     #[cfg(feature = "shield")]
     let shield = shield(&lookup)?;
     #[cfg(feature = "cors")]
     let cors_origins = sofie_http::CorsOrigins::parse(&lookup(CORS_ORIGINS)?.unwrap_or_default())
-        .map_err(|error| Error::internal(CORS_ORIGINS, error))?;
+        .map_err(|error| sofie_core::Error::internal(CORS_ORIGINS, error))?;
     #[cfg(feature = "storage")]
     let storage = crate::storage_settings::configured(&lookup)?;
     #[cfg(feature = "tls")]
@@ -87,10 +87,10 @@ fn tls(lookup: &impl Fn(&str) -> Result<Option<String>>) -> Result<Option<sofie_
             std::path::Path::new(&key),
         )
         .map(Some),
-        (Some(_), None) => Err(Error::internal_message(format!(
+        (Some(_), None) => Err(sofie_core::Error::internal_message(format!(
             "{TLS_CERTIFICATE} is set without {TLS_KEY}; set both to serve HTTPS, or neither"
         ))),
-        (None, Some(_)) => Err(Error::internal_message(format!(
+        (None, Some(_)) => Err(sofie_core::Error::internal_message(format!(
             "{TLS_KEY} is set without {TLS_CERTIFICATE}; set both to serve HTTPS, or neither"
         ))),
     }
@@ -101,11 +101,11 @@ fn trusted_proxies(
     lookup: &impl Fn(&str) -> Result<Option<String>>,
 ) -> Result<sofie_http::TrustedProxies> {
     let proxies = sofie_http::TrustedProxies::parse(&lookup(TRUSTED_PROXIES)?.unwrap_or_default())
-        .map_err(|error| Error::internal(TRUSTED_PROXIES, error))?;
+        .map_err(|error| sofie_core::Error::internal(TRUSTED_PROXIES, error))?;
     match lookup(REQUEST_ID_HEADER)? {
         Some(name) => proxies
             .request_id_header(&name)
-            .map_err(|error| Error::internal(REQUEST_ID_HEADER, error)),
+            .map_err(|error| sofie_core::Error::internal(REQUEST_ID_HEADER, error)),
         None => Ok(proxies),
     }
 }
@@ -115,13 +115,14 @@ fn trusted_proxies(
 fn shield(lookup: &impl Fn(&str) -> Result<Option<String>>) -> Result<sofie_http::Shield> {
     let mut shield = match lookup(SHIELD)? {
         Some(mode) => sofie_http::Shield::new(
-            sofie_http::ShieldMode::parse(&mode).map_err(|error| Error::internal(SHIELD, error))?,
+            sofie_http::ShieldMode::parse(&mode)
+                .map_err(|error| sofie_core::Error::internal(SHIELD, error))?,
         ),
         None => sofie_http::Shield::default(),
     };
     if let Some(thresholds) = lookup(SHIELD_THRESHOLDS)? {
         let thresholds = sofie_http::Thresholds::parse(&thresholds)
-            .map_err(|error| Error::internal(SHIELD_THRESHOLDS, error))?;
+            .map_err(|error| sofie_core::Error::internal(SHIELD_THRESHOLDS, error))?;
         shield = shield.thresholds(thresholds);
     }
     if crate::settings::switch(SHIELD_SHARED, lookup(SHIELD_SHARED)?.as_deref())? {

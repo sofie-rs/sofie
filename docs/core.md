@@ -173,7 +173,8 @@ actions queued through `Jobs`), `storage` and `storage-s3` (sofie-storage as
 `sofie::storage`, `Serving::storage`, `SOFIE_STORAGE*`), `uploads` (`Upload`
 input fields from `multipart/form-data`, `.file_limit(…)`), `image-variants`
 (`Storage::make_variants` with the app's `Resizer`, `Dep<Storage>` in jobs),
-`search` (`Searched`, `Aggregate::matching`), `search-meilisearch` (searched
+`search` (`Searched`, `Aggregate::matching`, `<app> task sofie.search.reindex`
+rewriting stale search text), `search-meilisearch` (searched
 records kept in Meilisearch with `SOFIE_SEARCH=meilisearch`, `<app> task
 sofie.search.reindex`), `csv` (`.document(Media::Csv)`,
 `CsvRows`), `retention` (`Prune` in jobs), `content` (the engine's `<Markdown>`
@@ -997,8 +998,10 @@ a file control. CSRF and the session apply as to any form post.
   (quoted phrases, `-word`), served by a GIN index on that expression;
   another database finds the words as one piece of text, ignoring case.
   `sofie new search MODULE Aggregate` adds the behavior, the column and an
-  index built concurrently. A record written before the column existed is
-  found once it is written again.
+  index built concurrently. A record written before the column existed, or
+  before a field became searched, is found once it is written again or once
+  `<app> task sofie.search.reindex` (with `tasks`) has rewritten every stale
+  `search_text`, 500 records a page.
 - **Search engines** (`search-meilisearch`). `matching` and listings keep
   their API whichever engine answers. The `SearchEngine` gateway (sofie-db)
   has two adapters, chosen by `SOFIE_SEARCH`: `database` (the default, and

@@ -125,6 +125,7 @@ fn task_span(name: &str) -> Span {
 /// once the task is known.
 pub(crate) async fn run_by_hand(
     tasks: Option<fn() -> Tasks>,
+    migrations: &[sofie_db::Migrations],
     db: Db,
     name: &str,
     arguments: Map<String, Value>,
@@ -132,7 +133,7 @@ pub(crate) async fn run_by_hand(
     worker: crate::WorkerBuilder<'_>,
 ) -> Result<()> {
     let wired = tasks.is_some();
-    let tasks = framework_tasks(tasks.map_or_else(Tasks::new, |tasks| tasks()));
+    let tasks = framework_tasks(tasks.map_or_else(Tasks::new, |tasks| tasks()), migrations);
     if let Err(missing) = tasks.find(name) {
         return Err(if wired {
             missing
@@ -148,11 +149,21 @@ pub(crate) async fn run_by_hand(
 }
 
 /// The framework's own, beside the app's.
-fn framework_tasks(tasks: Tasks) -> Tasks {
-    #[cfg(feature = "search-meilisearch")]
-    return tasks.task(sofie_db::REINDEX_TASK, sofie_db::reindex);
-    #[cfg(not(feature = "search-meilisearch"))]
+fn framework_tasks(tasks: Tasks, migrations: &[sofie_db::Migrations]) -> Tasks {
+    #[cfg(feature = "search")]
+    let tasks = search_reindex(tasks, migrations);
+    #[cfg(not(feature = "search"))]
+    let _ = migrations;
     tasks
+}
+
+#[cfg(feature = "search")]
+fn search_reindex(tasks: Tasks, migrations: &[sofie_db::Migrations]) -> Tasks {
+    let texts = sofie_db::SearchTexts::of(migrations);
+    tasks.task(sofie_db::REINDEX_TASK, move |read: sofie_db::Read| {
+        let texts = texts.clone();
+        async move { texts.reindex(read).await }
+    })
 }
 
 /// `--name value` pairs, as `#[derive(Input)]` reads a form: every value a string.
@@ -230,6 +241,7 @@ mod tests {
 
         let unwired = run_by_hand(
             None,
+            &[],
             db.clone(),
             "shop.noted",
             Map::new(),
@@ -240,6 +252,7 @@ mod tests {
         .unwrap_err();
         let unknown = run_by_hand(
             Some(registered),
+            &[],
             db.clone(),
             "shop.other",
             Map::new(),
@@ -250,6 +263,7 @@ mod tests {
         .unwrap_err();
         run_by_hand(
             Some(registered),
+            &[],
             db,
             "shop.noted",
             Map::new(),

@@ -5,18 +5,17 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use serde_json::{Value, json};
-use sofie_core::{Cast, ColumnReader, Error, Result, SqlType, SqlValue, Uuid};
+use sofie_core::{Cast, Error, Result, SqlType, SqlValue, Uuid};
 
-use super::SEARCH_COLUMN;
-use super::engine::{Document, Installed, SearchEngine, SearchIndex};
+use super::engine::{Installed, SearchEngine};
+use super::texts::{PAGE, Record, Records, read_records, rewrite_stale};
+use super::{Document, SEARCH_COLUMN, SearchIndex};
 use crate::worker::{JobContext, Worker};
-use crate::{Db, MessageKind, Outcome, Plan, Resolve, Step, Write, Writes, query_decoded};
+use crate::{Db, MessageKind, Outcome, Plan, Resolve, Write, query_decoded};
 
 const INDEX_JOB: &str = "sofie.search.index";
 const REINDEX_JOB: &str = "sofie.search.reindex_page";
 const FORGET_JOB: &str = "sofie.search.forget";
-pub const REINDEX_TASK: &str = "sofie.search.reindex";
-const PAGE: usize = 500;
 const INDEX_TRIES: usize = 3;
 
 /// On the worker of a database a search engine is installed on.
@@ -229,59 +228,19 @@ async fn moved_since(
         .collect())
 }
 
-/// Each stored `search_text` that differs from the recomputed text, unless the record changed
-/// since it was read: that commit wrote its own.
-async fn rewrite_stale(db: &Db, index: &SearchIndex, records: &[Record]) -> Result<()> {
-    let dialect = db.driver().dialect();
-    let sql = format!(
-        "UPDATE {} SET {} = {} WHERE {} = {} AND {} = {}",
-        dialect.qualified(index.module, index.name),
-        dialect.quote(SEARCH_COLUMN),
-        dialect.placeholder(1),
-        dialect.quote("id"),
-        dialect.placeholder(2),
-        dialect.quote("version"),
-        dialect.placeholder(3),
-    );
-    let steps: Vec<Step> = records
-        .iter()
-        .filter(|record| record.stale)
-        .map(|record| {
-            let params = vec![
-                SqlValue::Text(record.document.text.clone()),
-                SqlValue::Uuid(record.document.id),
-                record.version.clone(),
-            ];
-            Step::statement(sql.clone(), params, None)
-        })
-        .collect();
-    if steps.is_empty() {
-        return Ok(());
-    }
-    db.driver().transaction(steps).await
-}
-
-pub struct SearchIndexes(Vec<SearchIndex>);
-
-impl<C: Writes> Resolve<C> for SearchIndexes {
-    fn resolve(context: &mut C) -> impl Future<Output = Result<Self>> + Send {
-        let indexes = Installed::of(context.db()).map(|installed| installed.indexes.clone());
-        std::future::ready(indexes.map(Self))
-    }
-}
-
-/// Each page queues the next, as a mirror's backfill does, so a stopped worker resumes.
-pub async fn reindex(indexes: SearchIndexes) -> Result<Reindexing> {
-    let SearchIndexes(indexes) = indexes;
-    Ok(Reindexing {
-        pages: indexes.into_iter().map(|index| (index, None)).collect(),
-        moved: Vec::new(),
-    })
-}
-
 pub struct Reindexing {
     pages: Vec<(SearchIndex, Option<Uuid>)>,
     moved: Vec<(SearchIndex, Uuid)>,
+}
+
+impl Reindexing {
+    /// Each page queues the next, as a mirror's backfill does, so a stopped worker resumes.
+    pub(crate) fn every_page(indexes: &[SearchIndex]) -> Self {
+        Self {
+            pages: indexes.iter().map(|index| (index.clone(), None)).collect(),
+            moved: Vec::new(),
+        }
+    }
 }
 
 impl Outcome for Reindexing {
@@ -299,114 +258,5 @@ impl Outcome for Reindexing {
             .iter()
             .map(|(index, id)| index_job(index.module, index.name, *id));
         plan.queue(MessageKind::Job, pages.chain(records))
-    }
-}
-
-enum Records {
-    One(Uuid),
-    After(Option<Uuid>),
-}
-
-struct Record {
-    document: Document,
-    hidden: bool,
-    version: SqlValue,
-    stale: bool,
-}
-
-/// Deleted records too, so a job can remove them. The text is recomputed from the fields searched
-/// now, so one a field no longer searched (made `#[sensitive]`) still held leaves the engine.
-async fn read_records(db: &Db, index: &SearchIndex, records: Records) -> Result<Vec<Record>> {
-    let dialect = db.driver().dialect();
-    let text_columns = super::text_columns(index.fields);
-    let mut columns = vec!["id", "version", SEARCH_COLUMN];
-    let mut types = vec![Some(SqlType::Uuid), Some(SqlType::Int), Some(SqlType::Text)];
-    if let Some(owner) = index.owner {
-        columns.push(owner);
-        types.push(Some(SqlType::Uuid));
-    }
-    if let Some(hidden) = index.hidden {
-        columns.push(hidden);
-        types.push(None);
-    }
-    columns.extend(text_columns.iter().map(|(column, _)| column.as_str()));
-    types.extend(text_columns.iter().map(|_| None));
-    let selected: Vec<String> = columns.iter().map(|column| dialect.quote(column)).collect();
-    let (id, first) = (dialect.quote("id"), dialect.placeholder(1));
-    let (rows, params) = match records {
-        Records::One(record) => (
-            format!("WHERE {id} = {first}"),
-            vec![SqlValue::Uuid(record)],
-        ),
-        Records::After(Some(after)) => (
-            format!("WHERE {id} > {first} ORDER BY {id} LIMIT {PAGE}"),
-            vec![SqlValue::Uuid(after)],
-        ),
-        Records::After(None) => (format!("ORDER BY {id} LIMIT {PAGE}"), Vec::new()),
-    };
-    let sql = format!(
-        "SELECT {} FROM {} {rows}",
-        selected.join(", "),
-        dialect.qualified(index.module, index.name)
-    );
-    query_decoded(db.driver(), &sql, &params, types, |row| {
-        decode_record(index, &text_columns, row)
-    })
-    .await
-}
-
-fn decode_record(
-    index: &SearchIndex,
-    text_columns: &[(String, SqlType)],
-    row: &mut dyn ColumnReader,
-) -> Result<Record> {
-    let id = Uuid::decode(row)?;
-    let version = SqlValue::Int(i64::decode(row)?);
-    let stored = String::decode(row)?;
-    let owner = match index.owner {
-        Some(_) => Option::<Uuid>::decode(row)?,
-        None => None,
-    };
-    let hidden = match index.hidden {
-        Some(_) => {
-            let hidden = !row.is_null()?;
-            row.skip()?;
-            hidden
-        }
-        None => false,
-    };
-    let values = text_columns
-        .iter()
-        .map(|(_, ty)| searched_value(*ty, row))
-        .collect::<Result<Vec<_>>>()?;
-    let text = if index.fields.is_empty() {
-        stored.clone()
-    } else {
-        super::search_text(index.fields, |column| {
-            let position = text_columns.iter().position(|(name, _)| name == column)?;
-            values.get(position)
-        })
-    };
-    Ok(Record {
-        stale: text != stored,
-        document: Document { id, text, owner },
-        hidden,
-        version,
-    })
-}
-
-/// Only text and ids make words; any other value reads as nothing.
-fn searched_value(ty: SqlType, row: &mut dyn ColumnReader) -> Result<SqlValue> {
-    if row.is_null()? {
-        row.skip()?;
-        return Ok(SqlValue::Null);
-    }
-    match ty {
-        SqlType::Text => Ok(SqlValue::Text(row.text()?.to_owned())),
-        SqlType::Uuid => Ok(SqlValue::Uuid(row.uuid()?)),
-        _ => {
-            row.skip()?;
-            Ok(SqlValue::Null)
-        }
     }
 }

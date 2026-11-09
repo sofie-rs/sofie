@@ -26,7 +26,7 @@ pub trait Behavior: Sync {
         false
     }
 
-    #[cfg(feature = "search-engine")]
+    #[cfg(feature = "search")]
     fn search_fields(&self) -> &'static [crate::SearchedField] {
         &[]
     }

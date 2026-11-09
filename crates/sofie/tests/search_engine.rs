@@ -5,7 +5,7 @@ use std::sync::{Arc, Mutex};
 
 use sofie::db::{
     AggregateTable, BoxFuture, Db, Document, File, Migrations, REINDEX_TASK, Reach, SearchEngine,
-    SearchIndex, Uuid, index_searches, install_search, reindex,
+    SearchIndex, SearchTexts, Uuid, index_searches, install_search,
 };
 use sofie::postgres::Postgres;
 use sofie::prelude::*;
@@ -233,8 +233,12 @@ async fn the_reindex_task_pages_through_every_record_and_leaves_deleted_ones_out
         .await
         .unwrap();
 
+    let texts = SearchTexts::of(&[Migrations::new("search_engine", MIGRATIONS).aggregates(TABLES)]);
     sofie::Tasks::new()
-        .task(REINDEX_TASK, reindex)
+        .task(REINDEX_TASK, move |read: Read| {
+            let texts = texts.clone();
+            async move { texts.reindex(read).await }
+        })
         .run(&db, REINDEX_TASK, serde_json::Map::new())
         .await
         .unwrap();

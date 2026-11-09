@@ -29,7 +29,7 @@ pub struct AggregateTable {
     behaviors: &'static [&'static dyn Behavior],
     #[cfg(feature = "children")]
     children: &'static [&'static crate::ChildTable],
-    #[cfg(feature = "search-engine")]
+    #[cfg(feature = "search")]
     owner: fn() -> Option<&'static str>,
 }
 
@@ -43,12 +43,12 @@ impl AggregateTable {
             behaviors: A::BEHAVIORS,
             #[cfg(feature = "children")]
             children: A::CHILDREN,
-            #[cfg(feature = "search-engine")]
+            #[cfg(feature = "search")]
             owner: crate::aggregate::direct_owner::<A>,
         }
     }
 
-    #[cfg(feature = "search-engine")]
+    #[cfg(feature = "search")]
     pub(crate) fn search_index(&self) -> Option<crate::SearchIndex> {
         let behaviors = self.behaviors;
         behaviors

@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use sofie_core::{Error, Result, SqlType, SqlValue, Uuid};
 
+use super::{Document, SearchIndex};
 use crate::condition::Kind;
 use crate::statement::Criteria;
 use crate::{BoxFuture, Db, Migrations, Read};
@@ -26,15 +27,6 @@ pub trait SearchEngine: Send + Sync + 'static {
     ) -> BoxFuture<'a, Result<()>>;
 
     fn remove<'a>(&'a self, index: &'a SearchIndex, ids: &'a [Uuid]) -> BoxFuture<'a, Result<()>>;
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct SearchIndex {
-    pub(crate) module: &'static str,
-    pub(crate) name: &'static str,
-    pub(crate) owner: Option<&'static str>,
-    pub(crate) hidden: Option<&'static str>,
-    pub(crate) fields: &'static [crate::SearchedField],
 }
 
 impl SearchIndex {
@@ -63,14 +55,6 @@ impl SearchIndex {
     pub const fn owned(&self) -> bool {
         self.owner.is_some()
     }
-}
-
-/// `text` is the record's search text, recomputed from the fields `Searched` names.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Document {
-    pub id: Uuid,
-    pub text: String,
-    pub owner: Option<Uuid>,
 }
 
 pub(crate) struct Installed {

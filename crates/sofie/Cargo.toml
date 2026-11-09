@@ -80,7 +80,8 @@ publishing = ["sofie-db/publishing"]
 retention = ["sofie-db/retention", "sofie-macros/retention"]
 # `.document(Media::Csv)` exporting a list as CSV, `CsvRows` importing one.
 csv = ["sofie-http/csv"]
-# `#[aggregate(behaviors(Searched))]` and `Searches::matching`: full-text search.
+# `#[aggregate(behaviors(Searched))]` and `Searches::matching`: full-text search;
+# with `tasks`, `<app> task sofie.search.reindex` rewrites each stale `search_text`.
 search = ["sofie-db/search", "sofie-postgres?/search"]
 # Searched records kept in Meilisearch when `SOFIE_SEARCH=meilisearch`, indexed by the worker;
 # `<app> task sofie.search.reindex` indexes every one again.

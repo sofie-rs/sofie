@@ -185,11 +185,12 @@ pub use prune::Prune;
 pub use publishing::{Broadcasts, PublishLock, Publishes};
 #[cfg(feature = "search-engine")]
 pub use search::{
-    Document, MATCHES_READ, REINDEX_TASK, Reindexing, SearchEngine, SearchIndex, SearchIndexes,
-    index_searches, install_search, reindex,
+    Document, MATCHES_READ, Reindexing, SearchEngine, index_searches, install_search,
 };
 #[cfg(feature = "search")]
-pub use search::{SEARCH_COLUMN, Searched, SearchedField, Searches};
+pub use search::{
+    REINDEX_TASK, SEARCH_COLUMN, SearchIndex, SearchTexts, Searched, SearchedField, Searches,
+};
 #[cfg(feature = "shield")]
 pub use shield::{SharedBlock, SharedBlocks, ShieldSql};
 #[cfg(feature = "soft-delete")]

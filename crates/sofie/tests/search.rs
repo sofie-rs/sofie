@@ -92,3 +92,36 @@ async fn finds_records_by_the_words_and_whole_values_of_their_searched_fields() 
     db.commit(&mut products).await.unwrap();
     assert_eq!(found(&db, "wool").await, ["Blue wool scarf"]);
 }
+
+#[cfg(feature = "tasks")]
+#[tokio::test]
+async fn the_reindex_task_rewrites_every_page_of_text_written_before_its_fields_were_searched() {
+    let database = TestDatabase::create().await;
+    let db = Db::new(Postgres::connect(database.url()).unwrap());
+    const TABLES: &[sofie::db::AggregateTable] = &[sofie::db::AggregateTable::of::<Product>()];
+    let migrations = [Migrations::new("search", MIGRATIONS).aggregates(TABLES)];
+    db.schema().migrate(&migrations).await.unwrap();
+    sofie::db::query_values(
+        &Postgres::connect(database.url()).unwrap(),
+        "INSERT INTO search.product
+         SELECT gen_random_uuid(), 1, now(), now(), '', 'Old wool ' || n, 'old@example.com', 100, 'EUR'
+         FROM generate_series(1, 600) AS n",
+        &[],
+    )
+    .await
+    .unwrap();
+    assert!(found(&db, "wool").await.is_empty());
+
+    let texts = sofie::db::SearchTexts::of(&migrations);
+    sofie::Tasks::new()
+        .task(sofie::db::REINDEX_TASK, move |read: Read| {
+            let texts = texts.clone();
+            async move { texts.reindex(read).await }
+        })
+        .run(&db, sofie::db::REINDEX_TASK, sofie::serde_json::Map::new())
+        .await
+        .unwrap();
+
+    assert_eq!(found(&db, "wool").await.len(), 600);
+    assert_eq!(found(&db, "old@example.com").await.len(), 600);
+}

@@ -385,7 +385,7 @@ pub trait Aggregate: Sized + Send + Sync + 'static {
 }
 
 /// The column holding the owner itself, unless the owner is reached through a parent.
-#[cfg(feature = "search-engine")]
+#[cfg(feature = "search")]
 pub(crate) fn direct_owner<A: Aggregate>() -> Option<&'static str> {
     let column = A::OWNER?;
     let probe = Uuid::from_u128(0);

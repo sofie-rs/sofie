@@ -2,6 +2,7 @@
 mod engine;
 #[cfg(feature = "search-engine")]
 mod indexing;
+mod texts;
 
 use sofie_core::{Cast, ColumnSpec, SqlValue};
 use sofie_values::Search;
@@ -10,13 +11,16 @@ use crate::condition::Kind;
 use crate::{Aggregate, Behavior, Condition, Field, Uses, Write};
 
 #[cfg(feature = "search-engine")]
-pub use engine::{Document, MATCHES_READ, SearchEngine, SearchIndex, install_search};
-#[cfg(feature = "search-engine")]
 pub(crate) use engine::{Installed, matched};
 #[cfg(feature = "search-engine")]
-pub use indexing::{REINDEX_TASK, Reindexing, SearchIndexes, index_searches, reindex};
+pub use engine::{MATCHES_READ, SearchEngine, install_search};
+#[cfg(feature = "search-engine")]
+pub use indexing::{Reindexing, index_searches};
 #[cfg(all(feature = "search-engine", feature = "retention"))]
 pub(crate) use indexing::{index_of, queue_forget};
+#[cfg(feature = "search-engine")]
+pub use texts::Document;
+pub use texts::{REINDEX_TASK, SearchIndex, SearchTexts};
 
 pub const SEARCH_COLUMN: &str = "search_text";
 
@@ -39,7 +43,6 @@ impl Behavior for Searched {
         true
     }
 
-    #[cfg(feature = "search-engine")]
     fn search_fields(&self) -> &'static [SearchedField] {
         self.fields
     }
@@ -71,7 +74,6 @@ fn worded(fields: &[SearchedField]) -> impl Iterator<Item = (String, &ColumnSpec
         })
 }
 
-#[cfg(feature = "search-engine")]
 pub(crate) fn text_columns(fields: &[SearchedField]) -> Vec<(String, sofie_core::SqlType)> {
     worded(fields)
         .map(|(column, spec)| (column, spec.ty))

@@ -213,7 +213,8 @@ fn launch(
         #[cfg(feature = "tasks")]
         Command::Task { name, arguments } => {
             let packages = Packages::start(&db, migrations).await?;
-            let outcome = tasks::run_by_hand(tasks, db, &name, arguments, app, worker).await;
+            let outcome =
+                tasks::run_by_hand(tasks, migrations, db, &name, arguments, app, worker).await;
             packages.stop().await;
             outcome
         }

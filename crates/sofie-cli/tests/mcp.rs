@@ -104,6 +104,7 @@ fn tools_list_describes_every_tool_with_its_input_schema() {
             "new_event",
             "new_listener",
             "new_task",
+            "new_topic",
             "new_search",
             "new_plan",
             "new_mail",

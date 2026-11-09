@@ -1169,6 +1169,59 @@ fn a_task_turns_tasks_on_once_and_refuses_a_main_it_cannot_change_or_a_taken_nam
 }
 
 #[test]
+fn a_topic_is_a_notify_constant_named_after_its_module_allowed_unused_until_sent() {
+    let app = billing_app();
+    app.write(
+        "modules/billing/Cargo.toml",
+        &manifest("billing", "sofie.workspace = true\n"),
+    );
+    let topic = |name: &str| NewCode::Topic {
+        module: "billing".to_owned(),
+        name: name.to_owned(),
+    };
+
+    let first = generate(&app, &topic("invoice_paid"));
+    let second = generate(&app, &topic("invoice_overdue"));
+
+    assert_eq!(
+        first,
+        [
+            "changed modules/billing/Cargo.toml",
+            "created modules/billing/src/topics.rs",
+            "changed modules/billing/src/lib.rs",
+            "created dead-code-allow.toml",
+        ]
+    );
+    assert_eq!(
+        second,
+        [
+            "changed modules/billing/src/topics.rs",
+            "changed dead-code-allow.toml"
+        ]
+    );
+    assert_eq!(
+        read(&app, "modules/billing/src/topics.rs"),
+        "use sofie::notify::Topic;\n\n\
+         pub const INVOICE_PAID: Topic = Topic::new(\"billing.invoice_paid\");\n\n\
+         pub const INVOICE_OVERDUE: Topic = Topic::new(\"billing.invoice_overdue\");\n"
+    );
+    assert!(read(&app, "modules/billing/src/lib.rs").contains("mod topics;\n"));
+    assert!(
+        read(&app, "modules/billing/Cargo.toml")
+            .contains("sofie = { workspace = true, features = [\"notify\"] }")
+    );
+    assert!(read(&app, "dead-code-allow.toml").contains(
+        "[[item]]\npackage = \"billing\"\nname = \"INVOICE_PAID\"\n\
+         reason = \"scaffolded by `sofie new topic`;"
+    ));
+    let taken = usage(&app, &topic("invoice_paid"));
+    assert!(
+        taken.contains("declares the topic `billing.invoice_paid` already"),
+        "{taken}"
+    );
+}
+
+#[test]
 fn a_plan_joins_the_modules_catalog_and_turns_billing_on() {
     let app = billing_app();
     app.write(

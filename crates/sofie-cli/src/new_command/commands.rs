@@ -214,6 +214,28 @@ pub const NEW_COMMANDS: &[NewCommand] = &[
         },
     },
     NewCommand {
+        name: "topic",
+        tool: "new_topic",
+        description: "`sofie new topic`: a `sofie-notify` `Topic` constant named \
+                      `<module>.<name>`, in the inbox by default, in the module's `src/topics.rs`, \
+                      and the `notify` feature on its `sofie` dependency; send it with \
+                      `Notify::send`; then `sofie gen` and `sofie check`.",
+        arguments: &[
+            MODULE,
+            required(
+                "name",
+                "name",
+                "The topic's name in snake_case, as `order_shipped`.",
+            ),
+        ],
+        build: |values| {
+            Ok(NewCode::Topic {
+                module: values.text("module"),
+                name: values.text("name"),
+            })
+        },
+    },
+    NewCommand {
         name: "search",
         tool: "new_search",
         description: "`sofie new search`: full-text search over an aggregate's fields whose values \

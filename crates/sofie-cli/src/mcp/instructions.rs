@@ -54,6 +54,7 @@ const STEPS: &[Step] = &[
             "new_module",
             "new_area",
             "new_search",
+            "new_topic",
             "new_plan",
             "new_mail",
             "new_account_screen",

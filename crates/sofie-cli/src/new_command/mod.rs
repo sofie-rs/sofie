@@ -14,6 +14,7 @@ mod schema;
 mod schema_migration;
 mod search;
 pub(crate) mod task;
+mod topic;
 
 use std::path::Path;
 
@@ -93,6 +94,11 @@ pub enum NewCode {
     },
     Route(NewRoute),
     Task {
+        module: String,
+        name: String,
+    },
+    /// A `sofie-notify` topic named `<module>.<name>`, in the module's `src/topics.rs`.
+    Topic {
         module: String,
         name: String,
     },
@@ -285,6 +291,9 @@ fn generate(edits: &mut Edits, app: &App, code: &NewCode) -> Result<(), GenError
         NewCode::Route(new_route) => route::new_route(edits, app, new_route),
         NewCode::Task { module, name } => {
             task::new_task(edits, app, find_module(app, module)?, checked_name(name)?)
+        }
+        NewCode::Topic { module, name } => {
+            topic::new_topic(edits, app, find_module(app, module)?, checked_name(name)?)
         }
         NewCode::Search { module, aggregate } => search::new_search(
             edits,

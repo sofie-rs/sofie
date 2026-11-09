@@ -152,7 +152,7 @@ impl Blocks {
         true
     }
 
-    /// Found under the read lock, as hashing every key would hold up every request's lookup.
+    /// Verified outside the lock, as hashing every key would hold up every request's lookup.
     pub(crate) fn lift(&self, id: &str, keys: &SigningKeys) -> Option<Key> {
         let held: Vec<Key> = unpoisoned::read(&self.table).keys().copied().collect();
         let key = held

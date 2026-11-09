@@ -809,9 +809,12 @@ control); a `Uuid` or `Id<A>` is a hidden
 input and sofie-identity's `Password` a password control. A `Field` no input
 describes is a text input; there is no `kind="…"`.
 `Language::field_error(key, arguments, fallback)` writes a `FieldError`
-(`validation.max` with `max = 120`) in the viewer's language, a value's own
-refusal (`validation.invalid`) in its own words; sofie-http writes every field
-error, notice and re-rendered form this way. `Filter` (`OPERATORS`) and `LogFields` (members as
+(`validation.max` with `max = 120`) in the viewer's language; each value
+refuses under its own key (`validation.email.no_at`, `validation.money.decimals`
+with `currency` and `digits`), and a refusal under `validation.invalid` keeps
+its own words; sofie-http writes every field error, notice and re-rendered form
+this way. `Language::translated(key, arguments)` and `Language::label(field)`
+give a text outside a template, such as a mail's subject. `Filter` (`OPERATORS`) and `LogFields` (members as
 `LogValue`s, sensitive values as their mask) sit behind sofie-values' `filter`
 and `log-fields` features.
 
@@ -1620,7 +1623,7 @@ it, and `sofie feature` changes the app's features:
   repository) and with `path` answers that file's `git diff -M HEAD`, or a new
   file's text; generate tools `new_module`,
   `new_migration`, `new_aggregate`, `new_event`, `new_listener`, `new_task`,
-  `new_route`, `new_menu_entry`, `new_search`, `new_plan`, `new_mail`,
+  `new_topic`, `new_route`, `new_menu_entry`, `new_search`, `new_plan`, `new_mail`,
   `new_area`, `new_account_screen`, `new_impersonation`, `new_tenancy`,
   `scaffold_screen`, `scaffold_tests` (also taking `all`), `gen`, `fix`,
   `feature` and `split` (the CLI commands below), and `edit_screen`, which
@@ -1894,6 +1897,10 @@ case for modules, functions and screens, Pascal case for types):
   `src/tasks.rs` (or `src/tasks/mod.rs`), the `tasks` feature on the
   module's `sofie` dependency and, for the app's first task, `main` calling
   `sofie::run_with_tasks` with the wiring's `tasks`, re-exported by `lib.rs`.
+- `sofie new topic MODULE name`: `pub const NAME: Topic =
+  Topic::new("<module>.<name>")` (inbox only until `.channels(…)` names more)
+  in `src/topics.rs`, the `notify` feature on the module's `sofie` dependency,
+  and a `dead-code-allow.toml` entry until `Notify::send` names it.
 - `sofie new route MODULE AREA METHOD PATH handler [--screen NAME] [--fields FIELDS] [--read-model NAME] [--title TITLE] [--back HANDLER]`:
   PATH is relative to the area's prefix (`/orders/{order}` in an area under
   `/account`; a path repeating the prefix is refused); a handler

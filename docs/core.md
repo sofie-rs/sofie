@@ -1097,6 +1097,12 @@ The `sofie-mail` crate, behind the `sofie` facade's `mail` feature, off by defau
   address cannot end an SMTP command or a header, a subject is one line.
   `mailer.send(mail)` returns a `Queued` outcome, so a mail leaves only if the
   handler commits, and a request never waits on SMTP.
+- **The recipient's language.** A template's `t(…)` texts are compiled in the
+  source language. With sofie-mail's `i18n` and the app's translations
+  registered (`sofie_mail::translations(&db, translations)`),
+  `mailer.in_language(locale)` writes the bodies that follow in that language,
+  and `mailer.text(key, arguments, fallback)` a subject; without them both keep
+  the source language.
 - **One job sends.** `sofie_mail.deliver` renders RFC 5322 headers (RFC 2047 for
   UTF-8) and a multipart/alternative base64 body, and speaks SMTP itself over
   tokio: EHLO, STARTTLS (`tokio-rustls`, Mozilla roots; bytes sent before TLS

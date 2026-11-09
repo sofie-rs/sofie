@@ -1,0 +1,10 @@
+<Section id="inbox" title={t("notify.inbox.title")}>
+  {#if data.any_unread}
+    <Action post="notifications/read" label={t("notify.inbox.mark_all_read")} target="inbox" />
+  {/if}
+  {#if data.items}
+    <ul>{#each data.items as item}<li><strong>{#if item.link}<a href={item.link}>{item.title}</a>{:else}{item.title}{/if}</strong> <span>{item.body}</span></li>{/each}</ul>
+  {:else}
+    <p>{t("notify.inbox.empty")}</p>
+  {/if}
+</Section>

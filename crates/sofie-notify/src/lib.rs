@@ -9,6 +9,8 @@ mod notice;
 mod preferences;
 mod push;
 mod retention;
+#[cfg(feature = "screens")]
+mod screens;
 mod store;
 mod time_of_day;
 mod topic;
@@ -28,9 +30,14 @@ pub use push::{
     PushEndpoint, PushRegistration, SERVICE_WORKER, Subscribed, Unsubscribed, VapidKey, VapidKeys,
     subscribe_push, unsubscribe_push, vapid_key,
 };
+#[cfg(feature = "screens")]
+pub use screens::inbox_routes;
 pub use store::personal_data;
 pub use time_of_day::TimeOfDay;
 pub use topic::{Channel, Topic};
+
+pub const TRANSLATIONS: &[sofie_db::File] =
+    sofie_db::embed!("lang", ["de.toml", "en.toml", "tr.toml"]);
 
 /// Without VAPID keys the push channel is skipped.
 #[derive(Clone)]

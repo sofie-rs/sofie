@@ -1,0 +1,4 @@
+[notify.inbox]
+title = "Bildirimler"
+mark_all_read = "Tümünü okundu say"
+empty = "Henüz bir şey yok."

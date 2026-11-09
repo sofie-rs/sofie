@@ -8,6 +8,10 @@ license.workspace = true
 repository.workspace = true
 homepage.workspace = true
 
+[features]
+# `inbox_routes`: the inbox screen, kept current through live screens.
+screens = ["sofie-http/resources", "sofie-http/live"]
+
 [dependencies]
 sofie-client.workspace = true
 sofie-core.workspace = true

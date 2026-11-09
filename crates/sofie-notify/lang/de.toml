@@ -1,0 +1,4 @@
+[notify.inbox]
+title = "Benachrichtigungen"
+mark_all_read = "Alle als gelesen markieren"
+empty = "Noch nichts hier."

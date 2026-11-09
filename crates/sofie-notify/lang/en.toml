@@ -1,0 +1,6 @@
+# The source language.
+
+[notify.inbox]
+title = "Notifications"
+mark_all_read = "Mark all read"
+empty = "Nothing here yet."

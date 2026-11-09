@@ -1,5 +1,6 @@
 //! The calling side of a split: contracts, batch lookups and the event feed of another app.
 
+use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::marker::PhantomData;
 use std::sync::Arc;
@@ -9,7 +10,7 @@ use serde::Deserialize;
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 use sofie_auth::SigningKeys;
-use sofie_core::{Error, ErrorStatus, FieldError, Result, Timestamp, Uuid};
+use sofie_core::{Error, ErrorStatus, FieldError, KeyedRule, Result, Timestamp, Uuid};
 use sofie_db::remote::{CONTRACTS_PATH, FEED_PATH, LOOKUPS_PATH, PRINCIPAL_HEADER, lookup_name};
 use sofie_db::{BoxFuture, FeedEntry, FeedSource, Lookup};
 use tracing::Instrument;
@@ -67,11 +68,14 @@ impl RemoteApp {
     }
 }
 
-/// `{"error": …}`, or `{"errors": [{"field", "key", "arguments", "message"}]}` for invalid input.
+/// `{"error": …}`, with `key` and `arguments` for a keyed rule, or
+/// `{"errors": [{"field", "key", "arguments", "message"}]}` for invalid input.
 #[derive(Default, Deserialize)]
 #[serde(default)]
 struct Refusal {
     error: String,
+    key: Option<String>,
+    arguments: BTreeMap<String, String>,
     errors: Option<Vec<RefusedField>>,
 }
 
@@ -101,7 +105,7 @@ fn refused(app: &str, response: &Response) -> Error {
                     .map(RefusedField::into_field_error)
                     .collect(),
             ),
-            None => Error::Rule(refusal.error),
+            None => refusal.into_rule(),
         },
         Some(ErrorStatus::TooManyRequests) => Error::TooManyRequests(retry_after(response)),
         Some(ErrorStatus::Unavailable) => Error::Unavailable(format!("{app} is unavailable")),
@@ -114,6 +118,23 @@ fn refused(app: &str, response: &Response) -> Error {
 
 fn unkeyed() -> String {
     "remote".to_owned()
+}
+
+impl Refusal {
+    fn into_rule(self) -> Error {
+        let Some(key) = self.key else {
+            return Error::Rule(self.error);
+        };
+        Error::KeyedRule(Box::new(KeyedRule {
+            key: Cow::Owned(key),
+            arguments: self
+                .arguments
+                .into_iter()
+                .map(|(name, value)| (Cow::Owned(name), value))
+                .collect(),
+            message: self.error,
+        }))
+    }
 }
 
 impl RefusedField {
@@ -270,6 +291,16 @@ mod tests {
         assert!(
             matches!(answered(422, r#"{"error":"closed"}"#), Error::Rule(message) if message == "closed")
         );
+        let keyed = answered(
+            422,
+            r#"{"error":"Only an owner may do this.","key":"tenancy.rule.only_an_owner","arguments":{"role":"admin"}}"#,
+        );
+        let Error::KeyedRule(rule) = keyed else {
+            panic!("a keyed rule: {keyed:?}");
+        };
+        assert_eq!(rule.key, "tenancy.rule.only_an_owner");
+        assert_eq!(rule.arguments, [("role".into(), "admin".to_owned())]);
+        assert_eq!(rule.message, "Only an owner may do this.");
         assert!(
             matches!(answered(400, "not json"), Error::BadRequest(message) if message.is_empty())
         );

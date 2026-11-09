@@ -133,7 +133,7 @@ fn a_key_one_language_lacks_is_a_finding_and_its_files_are_wired_once_complete()
     let text = stdout(&check);
     assert_eq!(check.status.code(), Some(1), "{text}");
     assert!(
-        text.contains("error[screen-template]: `orders.title` has no `en` translation"),
+        text.contains("error[translations]: `orders.title` has no `en` translation"),
         "{text}"
     );
     assert!(

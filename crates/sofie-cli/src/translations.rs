@@ -298,7 +298,7 @@ fn enum_clashes(app: &App) -> Vec<Finding> {
             let name = snake_case(&declared.name);
             if let Some((_, first)) = seen.iter().find(|(seen, _)| *seen == name) {
                 findings.push(Finding {
-                    rule: Rule::ScreenTemplate,
+                    rule: Rule::Translations,
                     file: module.krate.path.join("src/lib.rs"),
                     line: 1,
                     message: format!(
@@ -318,7 +318,7 @@ fn enum_clashes(app: &App) -> Vec<Finding> {
 
 fn finding(file: PathBuf, line: usize, message: String) -> Finding {
     Finding {
-        rule: Rule::ScreenTemplate,
+        rule: Rule::Translations,
         file,
         line,
         message,

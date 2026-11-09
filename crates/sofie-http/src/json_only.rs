@@ -8,3 +8,8 @@ pub(crate) fn parse(_body: &[u8]) -> Result<Map<String, Value>> {
         "this app reads JSON request bodies only".to_owned(),
     ))
 }
+
+#[cfg(feature = "idempotency")]
+pub(crate) fn posted(_body: &[u8], _name: &str) -> Option<String> {
+    None
+}

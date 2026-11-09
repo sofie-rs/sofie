@@ -5,9 +5,9 @@ use std::sync::{Arc, Mutex};
 use sofie_core::{Cast, ColumnReader, Error, Instant, Result, SqlValue, Uuid};
 use sofie_db::worker::Worker;
 use sofie_db::{
-    Aggregate, AggregateTable, Behavior, BoxFuture, Column, Context, Db, Document, Driver, Field,
-    File, Meta, Migrations, Prune, Reach, Resolve, SearchEngine, SearchIndex, SearchIndexes,
-    Searched, Step, Writes, index_searches, install_search, query_values, reindex,
+    Aggregate, AggregateTable, Behavior, BoxFuture, Column, Db, Document, Driver, Field, File,
+    Meta, Migrations, Prune, SearchEngine, SearchIndex, SearchTexts, Searched, Step,
+    index_searches, install_search, query_values,
 };
 use sofie_postgres::Postgres;
 use sofie_testing::TestDatabase;
@@ -148,23 +148,21 @@ impl SearchEngine for Kept {
     }
 }
 
-struct Task(Db);
-
-impl Context for Task {
-    fn db(&self) -> &Db {
-        &self.0
-    }
-
-    fn reach(&self) -> Reach {
-        Reach::All
-    }
+fn migrations() -> [Migrations; 1] {
+    [Migrations::new("search_test", MIGRATIONS).aggregates(TABLES)]
 }
 
-impl Writes for Task {}
+async fn reindexed(db: &Db) {
+    let mut reindexing = SearchTexts::of(&migrations())
+        .reindex(db.read())
+        .await
+        .unwrap();
+    db.commit(&mut reindexing).await.unwrap();
+}
 
 async fn started(database: &TestDatabase) -> (Db, Arc<Kept>) {
     let db = Db::new(Postgres::connect(database.url()).unwrap());
-    let migrations = [Migrations::new("search_test", MIGRATIONS).aggregates(TABLES)];
+    let migrations = migrations();
     db.schema().migrate(&migrations).await.unwrap();
     let engine = Arc::new(Kept::default());
     install_search(
@@ -246,10 +244,7 @@ async fn a_reindex_recomputes_each_record_s_text_from_the_fields_searched_now() 
     .await
     .unwrap();
 
-    let indexes = SearchIndexes::resolve(&mut Task(db.clone())).await.unwrap();
-    db.commit(&mut reindex(indexes).await.unwrap())
-        .await
-        .unwrap();
+    reindexed(&db).await;
     index_searches(Worker::new(db.clone()))
         .drain()
         .await
@@ -300,10 +295,7 @@ async fn a_reindex_page_overtaken_by_a_later_change_leaves_the_later_text() {
     worker().drain().await.unwrap();
     *engine.overtaken_by.lock().unwrap() = Some(Postgres::connect(database.url()).unwrap());
 
-    let indexes = SearchIndexes::resolve(&mut Task(db.clone())).await.unwrap();
-    db.commit(&mut reindex(indexes).await.unwrap())
-        .await
-        .unwrap();
+    reindexed(&db).await;
     worker().drain().await.unwrap();
 
     let texts: Vec<String> = engine

@@ -691,7 +691,9 @@ SQLite is the second implementation (`sofie-sqlite`, sofie's `sqlite`
 feature; `postgres` is the default): `?1` placeholders, a module's tables
 named after it (`Dialect::qualified`), `pragma_table_info` as the catalog,
 no `Wakeups`, so the worker polls, and `Dialect::engine` choosing a
-module's `migrations/sqlite/` files where its SQL differs.
+module's `migrations/sqlite/` files where its SQL differs. It keeps no event
+feed and no product events: a worker publishing or pulling a feed is refused
+before any work, and `ProductEvents::keep` at start, each saying it needs Postgres.
 
 - **Rows are read where they arrive.** `Driver::query` takes a `RowSink`,
   which names the type each leading column must hold and receives every row

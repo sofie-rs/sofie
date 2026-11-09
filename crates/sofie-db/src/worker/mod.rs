@@ -170,9 +170,12 @@ impl Worker {
         self
     }
 
-    /// Refuses jobs of one name and intervals out of range before any work starts.
+    /// Refuses jobs of one name, intervals out of range and a feed the database cannot keep
+    /// before any work starts.
     pub async fn run(self, shutdown: impl Future<Output = ()> + Send) -> Result<()> {
         self.registry.validate()?;
+        #[cfg(feature = "remote-contracts")]
+        self.feeds.refuse_unkept(&self.db)?;
         publish_heard(&self);
         self.registry
             .schedules
@@ -198,6 +201,8 @@ impl Worker {
 
     pub async fn drain_reporting(&self) -> Result<Drained> {
         self.registry.validate()?;
+        #[cfg(feature = "remote-contracts")]
+        self.feeds.refuse_unkept(&self.db)?;
         publish_heard(self);
         self.registry
             .schedules

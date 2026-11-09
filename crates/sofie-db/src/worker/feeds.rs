@@ -57,6 +57,13 @@ impl Feeds {
         }
     }
 
+    pub(super) fn refuse_unkept(&self, db: &Db) -> Result<()> {
+        if self.published.is_empty() && self.pulled.is_empty() {
+            return Ok(());
+        }
+        crate::feed::feed_sql(db.driver().dialect()).map(drop)
+    }
+
     pub(super) async fn pull_all(&self, db: &Db) -> Result<()> {
         for source in &self.pulled {
             while crate::feed::pull_once(db, source.as_ref()).await? {}

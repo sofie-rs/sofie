@@ -21,7 +21,7 @@ serde_json.workspace = true
 
 [dev-dependencies]
 sofie-core = { path = "../sofie-core", features = ["testing"] }
-sofie-db = { path = "../sofie-db", features = ["children", "codes", "contracts", "fresh", "jobs", "live", "local-time", "retention", "search", "soft-delete"] }
+sofie-db = { path = "../sofie-db", features = ["children", "codes", "contracts", "fresh", "jobs", "live", "local-time", "product-reports", "remote-contracts", "retention", "search", "soft-delete"] }
 sofie-values = { path = "../sofie-values", features = ["time"] }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread", "time"] }
 

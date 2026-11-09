@@ -141,9 +141,11 @@ impl crate::Prune {
 }
 
 pub(crate) fn product_sql(dialect: &dyn Dialect) -> Result<&'static ProductSql> {
-    dialect
-        .product_events()
-        .ok_or_else(|| Error::internal_message("this database keeps no product events"))
+    dialect.product_events().ok_or_else(|| {
+        Error::internal_message(
+            "`product-reports` needs Postgres: this database keeps no product events",
+        )
+    })
 }
 
 enum Kept {

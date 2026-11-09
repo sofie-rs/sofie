@@ -58,10 +58,13 @@ pub trait FeedSource: Send + Sync {
     fn after(&self, position: i64, limit: i64) -> BoxFuture<'_, Result<Vec<FeedEntry>>>;
 }
 
-fn feed_sql(dialect: &dyn Dialect) -> Result<&'static FeedSql> {
-    dialect
-        .feed()
-        .ok_or_else(|| Error::internal_message("this database keeps no event feed"))
+pub(crate) fn feed_sql(dialect: &dyn Dialect) -> Result<&'static FeedSql> {
+    dialect.feed().ok_or_else(|| {
+        Error::internal_message(
+            "the event feed of split apps needs Postgres: this database keeps none, so its \
+             worker may neither publish nor pull events",
+        )
+    })
 }
 
 pub async fn read_feed(db: &Db, after: i64, limit: i64) -> Result<Vec<FeedEntry>> {

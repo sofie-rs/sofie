@@ -32,7 +32,7 @@ pub(super) fn check_exposed(modules: &[Module]) -> Vec<Finding> {
                         "exposed field `{}` is a `{}`, which a contract cannot name",
                         field.name, field.ty
                     ),
-                    fix: "expose a field of a scalar, `String`, an sofie value, `Id<X>`, a module \
+                    fix: "expose a field of a scalar, `String`, an sofie value, `Id<X>` or an id alias, a module \
                           enum or an `Option` of one, or drop `#[expose]`"
                         .to_owned(),
                 });

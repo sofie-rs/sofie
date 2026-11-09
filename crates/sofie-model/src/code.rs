@@ -241,12 +241,15 @@ impl Code {
         })
     }
 
-    /// A contract cannot name the module's own types: an `Id<X>` becomes its uuid, a module enum its stored name.
+    /// A contract cannot name the module's own types: an `Id<X>` or an id alias such as
+    /// `AccountId` becomes its uuid, a module enum its stored name.
     pub(crate) fn contract_type(&self, ty: &TypeName) -> Option<String> {
         let name = ty.name.as_str();
+        let own_value = self.values.iter().any(|value| value == name);
         match ty.arguments.as_slice() {
             [inner] if name == "Option" => Some(format!("Option<{}>", self.contract_type(inner)?)),
             [_] if name == "Id" => Some("sofie::db::Uuid".to_owned()),
+            [] if !own_value && ty.record().is_some() => Some("sofie::db::Uuid".to_owned()),
             [] if self.enums.iter().any(|declared| declared.name == name) => {
                 Some("String".to_owned())
             }

@@ -896,7 +896,8 @@ Most DTOs are never written:
 - A read model (`OrderSummary`) is the output DTO of the queries that select it.
 - Fields marked `#[expose]` become the contract DTO other modules receive:
   `sofie gen` writes `pub struct Order { pub id: sofie::db::Uuid, … }` into the
-  contract's `src/gen/mod.rs` (`Id<X>` as its uuid, a module enum as its
+  contract's `src/gen/mod.rs` (`Id<X>` and an id alias such as `AccountId` as
+  its uuid, a module enum as its
   stored name, scalars and sofie values as they are; `sofie check` refuses any
   other type), which the contract exports with `pub use r#gen::Order;` and
   fills with `sofie::db::exposed(&order)`. Beside it `sofie gen` writes the change

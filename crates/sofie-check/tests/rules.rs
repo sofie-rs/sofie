@@ -2276,18 +2276,21 @@ fn every_framework_behavior_s_columns_are_checked_with_their_type() {
 #[test]
 fn exposed_fields_need_a_contract_that_names_and_exports_them() {
     let product = || Aggregate {
-        exposed: vec!["name".to_owned(), "sku".to_owned()],
+        exposed: ["name", "owner", "tax"].map(str::to_owned).to_vec(),
         ..aggregate(
             "Product",
             vec![
                 constrained("name", "String", &[], 2),
                 constrained("sku", "Sku", &[], 3),
+                constrained("owner", "AccountId", &[], 4),
+                constrained("tax", "TaxId", &[], 5),
             ],
             "modules/catalog/src/product.rs",
         )
     };
     let mut without_contract = module("catalog", "modules/catalog");
     without_contract.code.aggregates = vec![product()];
+    without_contract.code.values = vec!["TaxId".to_owned()];
     let mut unexported = module("stock", "modules/stock");
     define_area(&mut unexported, "member");
     unexported.defined_areas.clear();
@@ -2302,7 +2305,7 @@ fn exposed_fields_need_a_contract_that_names_and_exports_them() {
         rule_lines(&findings),
         [
             ("exposed-field", 1),
-            ("exposed-field", 3),
+            ("exposed-field", 5),
             ("undeclared-gen", 1)
         ],
         "{findings:?}"

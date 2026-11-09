@@ -1494,18 +1494,20 @@ k6 is an external tool run by the CLI, not a dependency of the app.
 `sofie fuzz [--seed N] [--requests N] [ROOT]` sends generated requests to every
 route and reports each 500, dropped answer (a panicking handler), crash of
 the app, or success answering a signed-in member's request for another
-member's record, with no test written. It runs the development app as `sofie dev`
+member's record, with no test written; a 429 from a route's throttle is
+expected and only counted. It runs the development app as `sofie dev`
 builds it, on a free local port with `SOFIE_SHIELD=off`, and refuses a
 `DATABASE_URL` not on this machine as `db fresh` does.
 
-- **Routes:** every module route and, for an sofie-identity member area, its
-  sign-in and sign-up routes. Two members per area are signed up and in
+- **Routes:** every module route and every route sofie-identity serves in the
+  app's areas, with its sign-in and sign-up for each member area. Two members per area are signed up and in
   (`fuzz-a-<area>@example.com`, `fuzz-b-…`); the second gets three records
   from each creating route first. One request in eight to a member route is
   sent signed out. A route of a `Permitted` area or one outside sofie-identity is
   fuzzed signed out only, and the report says so.
 - **Inputs:** from the handler's `Input` type, field by field: a valid value
-  (sofie-values' fixtures and accepted samples), boundary values, malformed ones
+  (sofie-values' fixtures and accepted samples), boundary values (with each
+  declared `#[min]`, `#[max]`, `#[length]` or `#[range]` bound and one past it), malformed ones
   (sofie-values' refused samples, control characters, markup, SQL), oversized
   ones (100,000 characters, numbers past 64 bits), a wrong JSON type, the
   field missing, an unknown field; and broken bodies (empty, truncated, not
@@ -2827,7 +2829,9 @@ What the modifiers do:
   the framework builds one. The engine's script sends a key with every htmx
   write and keeps it for that element until an answer arrives, so an
   idempotent HTML form resent after a lost answer writes once (routes not
-  marked ignore the header); a plain form post without the script sends none.
+  marked ignore the header); without the script, every form the engine
+  renders carries a fresh key in a hidden `_idempotency_key` field, read when
+  the header is missing and never handed to the handler as input.
 - `.body_limit(bytes)` raises the 64 KiB a body may hold.
 - `.file_limit(bytes)` (with `uploads`) lets a route take files and holds
   each file of a `multipart/form-data` form below it (elsewhere a file part

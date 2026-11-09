@@ -30,7 +30,7 @@ pub(crate) struct Targets {
 }
 
 /// Reaching an area as a member works only through sofie-identity, whose
-/// sign-in and sign-up routes are targets too.
+/// served routes are targets too.
 pub(crate) fn targets(app: &App) -> Result<Targets, GenError> {
     let mut found = Targets {
         targets: Vec::new(),
@@ -42,20 +42,7 @@ pub(crate) fn targets(app: &App) -> Result<Targets, GenError> {
             found.skipped.push(format!("{}: {reason}", site.name()));
             continue;
         };
-        let member = match access(app, &site.area.area)? {
-            Access::Anonymous => None,
-            Access::Member(paths) => {
-                found.add_identity(paths.clone());
-                Some(paths)
-            }
-            Access::Unreachable(reason) => {
-                found.skipped.push(format!(
-                    "{}: reached signed out only; {reason}",
-                    site.name()
-                ));
-                None
-            }
-        };
+        let member = found.member(app, &site.area.area, &site.name())?;
         found.targets.push(Target {
             name: site.name(),
             module: site.module.krate.crate_name.clone(),
@@ -66,6 +53,7 @@ pub(crate) fn targets(app: &App) -> Result<Targets, GenError> {
             fields: input_fields(&site),
         });
     }
+    found.add_identity_routes(app)?;
     Ok(found)
 }
 
@@ -99,6 +87,72 @@ pub(crate) fn member_areas(targets: &[Target]) -> BTreeMap<&str, &SignInPaths> {
 }
 
 impl Targets {
+    fn member(
+        &mut self,
+        app: &App,
+        area: &str,
+        name: &str,
+    ) -> Result<Option<SignInPaths>, GenError> {
+        match access(app, area)? {
+            Access::Anonymous => Ok(None),
+            Access::Member(paths) => {
+                self.add_identity(paths.clone());
+                Ok(Some(paths))
+            }
+            Access::Unreachable(reason) => {
+                self.skipped
+                    .push(format!("{name}: reached signed out only; {reason}"));
+                Ok(None)
+            }
+        }
+    }
+
+    /// Those its sign-in and sign-up do not cover already.
+    fn add_identity_routes(&mut self, app: &App) -> Result<(), GenError> {
+        let Some(identity) = &app.identity else {
+            return Ok(());
+        };
+        let code = identity.code().map_err(GenError::Model)?;
+        for served in app.package_routes().identity().map_err(GenError::Model)? {
+            let Some(method) =
+                Method::from_routes_method(&served.route.method.to_ascii_lowercase())
+            else {
+                continue;
+            };
+            let path = served.path.replace("{*", "{");
+            let taken = self
+                .targets
+                .iter()
+                .any(|target| target.method == method && target.path == path);
+            if taken {
+                continue;
+            }
+            let member = self.member(app, &served.area, &served.name)?;
+            let fields = served
+                .route
+                .function(&code)
+                .and_then(|function| code.input_of(function))
+                .map(|input| {
+                    input
+                        .fields
+                        .iter()
+                        .map(|field| Field::declared(field, &code.enums))
+                        .collect()
+                })
+                .unwrap_or_default();
+            self.targets.push(Target {
+                name: served.name.clone(),
+                module: IDENTITY.to_owned(),
+                method,
+                path,
+                area: served.area.clone(),
+                member,
+                fields,
+            });
+        }
+        Ok(())
+    }
+
     fn add_identity(&mut self, paths: SignInPaths) {
         let credentials = || {
             vec![
@@ -143,7 +197,7 @@ pub(crate) fn input_fields(site: &RouteSite) -> Vec<Field> {
     input
         .fields
         .iter()
-        .map(|field| Field::of(&field.name, &field.ty, &code.enums))
+        .map(|field| Field::declared(field, &code.enums))
         .collect()
 }
 
@@ -172,5 +226,63 @@ pub(crate) fn access(app: &App, area: &str) -> Result<Access, GenError> {
         None => Ok(Access::Unreachable(
             "the area's `SIGN_IN` is not a string literal",
         )),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::Path;
+
+    use sofie_model::testing::{app, define_area, module};
+    use sofie_model::{Identity, ListedRoute, Method, RouteMount};
+
+    use super::targets;
+
+    #[test]
+    fn the_routes_identity_serves_in_the_app_s_areas_are_targets_with_their_inputs() {
+        let mut order = module("order", "shop/modules/order");
+        define_area(&mut order, "console");
+        order.defined_areas[0].type_path = vec!["order_contract".to_owned(), "Console".to_owned()];
+        order.defined_areas[0].principal = vec!["Permitted".to_owned()];
+        let mut shop = app("shop", vec![order]);
+        shop.identity = Some(Identity {
+            directory: Path::new(env!("CARGO_MANIFEST_DIR")).join("../sofie-identity"),
+            routes: vec![ListedRoute {
+                mount: "account_data::routes".to_owned(),
+                method: "POST".to_owned(),
+                path: "/account-data/close".to_owned(),
+                handler: "close".to_owned(),
+                permission: None,
+            }],
+            mounts: vec![RouteMount {
+                mount: "account_data::routes".to_owned(),
+                area_type: "Console".to_owned(),
+            }],
+            ..Identity::default()
+        });
+
+        let found = targets(&shop).unwrap();
+
+        let close = found
+            .targets
+            .iter()
+            .find(|target| target.name == "sofie_identity.console.close")
+            .unwrap();
+        assert_eq!(
+            (close.method, close.path.as_str()),
+            (Method::Post, "/account/account-data/close")
+        );
+        let fields: Vec<&str> = close
+            .fields
+            .iter()
+            .map(|field| field.name.as_str())
+            .collect();
+        assert_eq!(fields, ["email"]);
+        assert!(
+            found.skipped.iter().any(|skipped| skipped
+                .starts_with("sofie_identity.console.close: reached signed out only")),
+            "{:?}",
+            found.skipped
+        );
     }
 }

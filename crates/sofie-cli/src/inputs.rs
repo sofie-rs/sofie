@@ -7,7 +7,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use serde_json::{Map, Value, json};
 use sofie_core::Variants;
 use sofie_core::encoding::percent;
-use sofie_model::{EnumDeclaration, TypeName};
+use sofie_model::{EnumDeclaration, FieldDeclaration, TypeName};
 use sofie_values::fixture::field_json;
 use sofie_values::{
     Currency, Date, Email, Instant, LocalDateTime, Money, Samples, Seed, TimeOfDay, TimeZone,
@@ -51,6 +51,35 @@ pub(crate) struct Field {
     pub(crate) name: String,
     pub(crate) kind: Kind,
     pub(crate) optional: bool,
+    /// Characters of text or the value of a number.
+    bounds: Vec<Bound>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Bound {
+    Min(i64),
+    Max(i64),
+}
+
+impl Bound {
+    /// As the model describes a field's `#[min]`, `#[max]`, `#[length]` or `#[range]`.
+    fn described(text: &str) -> Option<Self> {
+        let (key, value) = text.split_once(' ')?;
+        let value = value.parse().ok()?;
+        match key {
+            "min" => Some(Self::Min(value)),
+            "max" => Some(Self::Max(value)),
+            _ => None,
+        }
+    }
+
+    /// At the bound and one past it.
+    fn edges(self) -> [i64; 2] {
+        match self {
+            Self::Min(bound) => [bound, bound.saturating_sub(1)],
+            Self::Max(bound) => [bound, bound.saturating_add(1)],
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -100,7 +129,34 @@ impl Field {
             name: name.to_owned(),
             kind: Kind::of(inner, enums),
             optional,
+            bounds: Vec::new(),
         }
+    }
+
+    pub(crate) fn declared(field: &FieldDeclaration, enums: &[EnumDeclaration]) -> Self {
+        Self {
+            bounds: field
+                .bounds
+                .iter()
+                .filter_map(|bound| Bound::described(bound))
+                .collect(),
+            ..Self::of(&field.name, &field.ty, enums)
+        }
+    }
+
+    fn boundaries(&self) -> Vec<Value> {
+        let mut values = self.kind.boundaries();
+        for edge in self.bounds.iter().flat_map(|bound| bound.edges()) {
+            match self.kind {
+                Kind::Text | Kind::Password => {
+                    let length = usize::try_from(edge).unwrap_or_default();
+                    values.push(json!("x".repeat(length)));
+                }
+                Kind::Integer => values.push(json!(edge)),
+                _ => {}
+            }
+        }
+        values
     }
 }
 
@@ -356,7 +412,7 @@ fn broken_field(fields: &[Field], mut body: Map<String, Value>, seed: &mut Seed)
             body.remove(&field.name);
             return json_case(label, &body);
         }
-        Breakage::Boundary => field.kind.boundaries(),
+        Breakage::Boundary => field.boundaries(),
         Breakage::Malformed => field.kind.malformed(),
         Breakage::Oversized => field.kind.oversized(),
         Breakage::WrongType => field.kind.wrong_types(seed),
@@ -467,6 +523,34 @@ mod tests {
         assert_eq!(fields[2].kind, Kind::Integer);
         let id = Field::of("order", &ty("OrderId", vec![]), &[]);
         assert_eq!(id.kind, Kind::Uuid);
+    }
+
+    #[test]
+    fn a_bounded_field_is_tried_at_each_bound_and_one_past_it() {
+        let declared = |type_name: &str, bounds: &[&str]| sofie_model::FieldDeclaration {
+            name: "field".to_owned(),
+            ty: ty(type_name, vec![]),
+            constraints: Vec::new(),
+            bounds: bounds.iter().map(|bound| (*bound).to_owned()).collect(),
+            line: 1,
+        };
+        let text = Field::declared(&declared("String", &["min 3", "max 5", "required"]), &[]);
+        let count = Field::declared(&declared("i64", &["min 1", "max 10"]), &[]);
+
+        let boundaries = text.boundaries();
+        for length in [2, 3, 5, 6] {
+            assert!(
+                boundaries.contains(&Value::from("x".repeat(length))),
+                "{length} in {boundaries:?}"
+            );
+        }
+        let boundaries = count.boundaries();
+        for edge in [0, 1, 10, 11] {
+            assert!(
+                boundaries.contains(&Value::from(edge)),
+                "{edge} in {boundaries:?}"
+            );
+        }
     }
 
     #[test]

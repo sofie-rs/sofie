@@ -372,6 +372,7 @@ mod tests {
         );
         assert_eq!(answered(200, "OK", false), None);
         assert_eq!(answered(404, "Not Found", true), None);
+        assert_eq!(answered(429, "Too Many Requests", false), None);
         assert_eq!(
             answered(500, "Internal Server Error", false),
             Some(Outcome::Status(500, "Internal Server Error".to_owned()))

@@ -134,7 +134,10 @@ impl fmt::Display for FuzzReport {
         let statuses: Vec<String> = self
             .statuses
             .iter()
-            .map(|(status, count)| format!("{status} ×{count}"))
+            .map(|(status, count)| match status {
+                429 => format!("{status} ×{count} (a route's throttle, expected)"),
+                _ => format!("{status} ×{count}"),
+            })
             .collect();
         if !statuses.is_empty() {
             writeln!(formatter, "  answered {}", statuses.join(", "))?;
@@ -193,7 +196,7 @@ mod tests {
             seed: 42,
             sent: 300,
             routes: 5,
-            statuses: BTreeMap::from([(200, 120), (500, 3)]),
+            statuses: BTreeMap::from([(200, 120), (429, 9), (500, 3)]),
             skipped: vec!["order.admin.list: reached signed out only".to_owned()],
             findings: Vec::new(),
         };
@@ -207,7 +210,7 @@ mod tests {
         assert!(
             text.starts_with(
                 "sofie fuzz: 300 requests to 5 routes, seed 42: 2 findings\n  \
-                 answered 200 ×120, 500 ×3\n  order.admin.list: reached signed out only\n\n1. POST /account/orders \
+                 answered 200 ×120, 429 ×9 (a route's throttle, expected), 500 ×3\n  order.admin.list: reached signed out only\n\n1. POST /account/orders \
                  (order.customer.place_order) answered 500 Internal Server Error as json, signed in\n  \
                  input: oversized total: {\"total\":\"999"
             ),

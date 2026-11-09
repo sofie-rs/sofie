@@ -9,7 +9,7 @@ use http::header::{
 use http::{HeaderValue, StatusCode};
 use http_body_util::Full;
 use sofie_core::encoding::percent;
-use sofie_core::{Error, FieldError, Result};
+use sofie_core::{Error, ErrorStatus, FieldError, Result};
 use sofie_db::Reply;
 
 use crate::caller::Caller;
@@ -78,17 +78,21 @@ pub(crate) enum Refusal {
     Fields(Vec<FieldError>),
 }
 
+fn status_code(status: ErrorStatus) -> StatusCode {
+    StatusCode::from_u16(status.code()).expect("an error's status is a valid HTTP status")
+}
+
 impl Refusal {
     pub(crate) fn of(error: Error) -> Self {
-        let message = |status, text: &str| Self::Message(status, text.to_owned());
+        let status = status_code(ErrorStatus::of(&error));
+        let message = |text: &str| Self::Message(status, text.to_owned());
         match error {
-            Error::NotFound | Error::Moved { .. } => message(StatusCode::NOT_FOUND, "Not found."),
-            Error::Conflict => message(StatusCode::CONFLICT, CONFLICT),
-            Error::BadRequest(text) => Self::Message(StatusCode::BAD_REQUEST, text),
+            Error::NotFound | Error::Moved { .. } => message("Not found."),
+            Error::Conflict => message(CONFLICT),
+            Error::BadRequest(text) | Error::Rule(text) => Self::Message(status, text),
             Error::Invalid(fields) => Self::Fields(fields),
-            Error::Rule(text) => Self::Message(StatusCode::UNPROCESSABLE_ENTITY, text),
             Error::TooManyRequests(wait) => Self::Message(
-                StatusCode::TOO_MANY_REQUESTS,
+                status,
                 format!(
                     "Too many requests; try again in {} seconds.",
                     whole_seconds(wait)
@@ -96,11 +100,11 @@ impl Refusal {
             ),
             Error::Unavailable(reason) => {
                 tracing::warn!(error.kind = "unavailable", error = %reason, "the request was turned away");
-                message(StatusCode::SERVICE_UNAVAILABLE, UNAVAILABLE)
+                message(UNAVAILABLE)
             }
             internal @ Error::Internal { .. } => {
                 tracing::error!(error.kind = "internal", error = %internal, "the request failed");
-                message(StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong.")
+                message("Something went wrong.")
             }
         }
     }
@@ -108,7 +112,7 @@ impl Refusal {
     pub(crate) fn status(&self) -> StatusCode {
         match self {
             Self::Message(status, _) => *status,
-            Self::Fields(_) => StatusCode::UNPROCESSABLE_ENTITY,
+            Self::Fields(_) => status_code(ErrorStatus::Unprocessable),
         }
     }
 

@@ -35,6 +35,10 @@ pub(crate) fn message_span(message: &Claimed, work: Work, registered: &str) -> S
         trace_id = Empty,
     );
     let _ = sofie_telemetry::continue_trace(&span, message.traceparent);
+    #[cfg(feature = "product-reports")]
+    if let Some(actor) = &message.actor {
+        sofie_telemetry::attach_principal(&span, actor.principal);
+    }
     span
 }
 

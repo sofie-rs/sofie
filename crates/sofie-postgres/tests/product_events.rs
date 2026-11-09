@@ -3,8 +3,8 @@
 use sofie_core::{Date, Result, SqlValue, Timestamp, Uuid};
 use sofie_db::worker::Worker;
 use sofie_db::{
-    Cohort, Db, Outcome, Period, Plan, ProductEvents, Prune, Retention, cohorts, forget_principal,
-    query_values,
+    Cohort, Db, Jobs, Outcome, Period, Plan, ProductEvents, Prune, Reach, Retention, cohorts,
+    forget_principal, query_values,
 };
 use sofie_postgres::Postgres;
 use sofie_testing::TestDatabase;
@@ -56,6 +56,23 @@ async fn insert(postgres: &Postgres, at: &str, name: &str, principal: u128) {
     .unwrap();
 }
 
+async fn raise_job_ran() -> Result<()> {
+    sofie_telemetry::product_event!(job.ran);
+    Ok(())
+}
+
+async fn run_a_job_as(db: &Db, actor: Uuid) {
+    let mut queued = Jobs::queue_named_at("test.raise", &(), db.clock().now()).unwrap();
+    db.commit_with(&mut queued, Vec::new(), Reach::AllAs(actor))
+        .await
+        .unwrap();
+    Worker::new(db.clone())
+        .job("test.raise", raise_job_ran)
+        .drain()
+        .await
+        .unwrap();
+}
+
 #[tokio::test]
 async fn events_raised_in_a_span_are_written_with_their_principal_unless_it_was_forgotten() {
     let migrated = migrated().await;
@@ -71,6 +88,7 @@ async fn events_raised_in_a_span_are_written_with_their_principal_unless_it_was_
 
     request.in_scope(|| sofie_telemetry::product_event!(account.signed_up));
     sofie_telemetry::product_event!(page.viewed);
+    run_a_job_as(db, Uuid::from_u128(5)).await;
     kept.flush().await;
 
     let rows = query_values(
@@ -86,6 +104,10 @@ async fn events_raised_in_a_span_are_written_with_their_principal_unless_it_was_
             vec![
                 SqlValue::Text("account.signed_up".to_owned()),
                 SqlValue::Uuid(Uuid::from_u128(1))
+            ],
+            vec![
+                SqlValue::Text("job.ran".to_owned()),
+                SqlValue::Uuid(Uuid::from_u128(5))
             ],
             vec![SqlValue::Text("page.viewed".to_owned()), SqlValue::Null],
         ]

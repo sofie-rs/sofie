@@ -112,6 +112,7 @@ impl AreaMembers for Store {
                 account: MEMBER,
                 expires_at: None,
                 impersonator: None,
+                language: None,
             })
         })
     }

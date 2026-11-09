@@ -92,6 +92,12 @@ issue = "Oluştur"
 shown_until_done = "Bu tokenı şimdi kopyalayın: işiniz bittiğinde bir daha gösterilmez."
 done = "Tamam"
 
+[identity.language]
+title = "Dil"
+intro = "Sayfalar ve e-postalar bu dili kullanır; boş bırakılırsa tarayıcınızınkini izler."
+current = "Seçilen: {locale}"
+save = "Kaydet"
+
 [identity.sessions]
 title = "Açık oturumlar"
 end = "Oturumu kapat"

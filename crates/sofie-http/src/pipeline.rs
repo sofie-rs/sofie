@@ -364,6 +364,8 @@ impl Pipeline {
         let request = asked.request;
         #[cfg(feature = "remote-contracts")]
         let acting = found.session.acting();
+        #[cfg(feature = "engine")]
+        let preferred_language = found.session.language();
         let matched = Matched {
             parameters: found.parameters,
             query: request
@@ -412,6 +414,8 @@ impl Pipeline {
             keys: &self.sessions.keys,
             #[cfg(feature = "live")]
             principal,
+            #[cfg(feature = "engine")]
+            preferred_language,
         };
         let answer = sofie_core::moves::recorded(route_answer.answer(matched));
         #[cfg(feature = "remote-contracts")]

@@ -76,7 +76,7 @@ pub trait AreaMembers: Send + Sync + 'static {
 
 /// What a session store holds of a session.
 #[cfg(feature = "session-list")]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SessionRecord {
     /// Signed in before the store recorded sessions: live until its cookie expires.
     Unrecorded,
@@ -86,6 +86,8 @@ pub enum SessionRecord {
         expires_at: Option<sofie_core::Instant>,
         /// The account signed in as `account`; each request it makes is logged.
         impersonator: Option<Uuid>,
+        /// The account's chosen language tag, preferred over `Accept-Language`.
+        language: Option<Arc<str>>,
     },
     Ended,
 }
@@ -93,7 +95,7 @@ pub enum SessionRecord {
 #[cfg(feature = "session-list")]
 impl SessionRecord {
     #[must_use]
-    pub fn is_live(self, now: sofie_core::Instant) -> bool {
+    pub fn is_live(&self, now: sofie_core::Instant) -> bool {
         match self {
             Self::Unrecorded => true,
             Self::Live { expires_at, .. } => expires_at.is_none_or(|at| at > now),
@@ -396,6 +398,8 @@ pub(crate) struct RequestSession {
     /// The account the recorded session signed in, once its record is confirmed live.
     #[cfg(feature = "session-list")]
     account: Option<Uuid>,
+    #[cfg(feature = "session-list")]
+    language: Option<Arc<str>>,
     #[cfg(feature = "flows")]
     flow: Option<String>,
     #[cfg(feature = "client-headers")]
@@ -457,9 +461,11 @@ impl RequestSession {
             Some(SessionRecord::Live {
                 account,
                 impersonator,
+                language,
                 ..
             }) => {
                 self.account = Some(account);
+                self.language = language;
                 if let Some(impersonator) = impersonator {
                     tracing::info!(
                         impersonation.account = %account,
@@ -496,6 +502,14 @@ impl RequestSession {
 
     pub(crate) fn principal(&self) -> Option<Uuid> {
         self.claims.as_ref().map(SessionClaims::principal)
+    }
+
+    #[cfg(feature = "engine")]
+    pub(crate) fn language(&self) -> Option<Arc<str>> {
+        #[cfg(feature = "session-list")]
+        return self.language.clone();
+        #[cfg(not(feature = "session-list"))]
+        None
     }
 
     #[cfg(feature = "remote-contracts")]

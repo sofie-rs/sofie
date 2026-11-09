@@ -92,6 +92,12 @@ issue = "Ausstellen"
 shown_until_done = "Kopieren Sie diesen Token jetzt: Sobald Sie fertig sind, wird er nie wieder angezeigt."
 done = "Fertig"
 
+[identity.language]
+title = "Sprache"
+intro = "Seiten und E-Mails verwenden diese Sprache; leer gelassen, folgen sie der Ihres Browsers."
+current = "Gewählt: {locale}"
+save = "Speichern"
+
 [identity.sessions]
 title = "Angemeldete Sitzungen"
 end = "Abmelden"

@@ -1460,7 +1460,9 @@ compiled by the app's build script, loaded at boot and rendered by the engine.
   (`en`, the language names are written in, first), embeds every module's
   files and sofie-identity's own, and hands them to `Screens::translate` (the
   screens were checked against them as the app was built). Each request
-  negotiates its language from
+  negotiates its language from the signed-in account's chosen locale
+  (`SessionRecord::Live`'s `language`, which sofie-identity fills from the
+  account's `locale`, set on `sessions::language_routes`), then
   `Accept-Language` (pages vary by it); screens render through `Localized`,
   `Page.lang` is the negotiated tag, and the notice of a refused form, its
   field messages (`validation.*` keys) and their labels are translated, and

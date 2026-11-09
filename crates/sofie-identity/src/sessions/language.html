@@ -1,0 +1,7 @@
+<Section id="language" title={t("identity.language.title")}>
+  <p>{t("identity.language.intro")}</p>
+  {#if data.locale}<p>{t("identity.language.current", locale = data.locale)}</p>{/if}
+  <Form id="choose-language" post="language" target="language">
+    <Submit label={t("identity.language.save")} />
+  </Form>
+</Section>

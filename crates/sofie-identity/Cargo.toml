@@ -65,8 +65,9 @@ links = ["account-links", "sofie/mail"]
 account-links = ["sofie/retention", "sofie/signed-links"]
 
 [dependencies]
-# The app chooses its database and whether Postgres takes TLS; sign-in pages need screens.
-sofie = { workspace = true, default-features = false, features = ["engine"] }
+# The app chooses its database and whether Postgres takes TLS; sign-in pages need screens,
+# and an account's chosen language is a `Locale`.
+sofie = { workspace = true, default-features = false, features = ["engine", "web"] }
 argon2.workspace = true
 ring.workspace = true
 sofie-client = { workspace = true, optional = true }

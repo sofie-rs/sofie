@@ -52,7 +52,7 @@ impl Screens {
         clippy::unused_self,
         reason = "under the `i18n` feature the screens hold the translations"
     )]
-    pub(crate) fn language(&self, _request: &Parts) -> Language<'_> {
+    pub(crate) fn language(&self, _request: &Parts, _preferred: Option<&str>) -> Language<'_> {
         Language::plain()
     }
 }

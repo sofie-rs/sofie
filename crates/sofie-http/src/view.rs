@@ -37,9 +37,17 @@ pub(crate) struct RouteAnswer<'r> {
     pub(crate) keys: &'r sofie_auth::SigningKeys,
     #[cfg(feature = "live")]
     pub(crate) principal: Option<sofie_core::Uuid>,
+    #[cfg(feature = "engine")]
+    pub(crate) preferred_language: Option<std::sync::Arc<str>>,
 }
 
 impl RouteAnswer<'_> {
+    #[cfg(feature = "engine")]
+    fn language(&self) -> crate::language::Language<'_> {
+        self.screens
+            .language(self.asked.request, self.preferred_language.as_deref())
+    }
+
     pub(crate) async fn answer(&self, matched: Matched) -> Response {
         match &self.target.view {
             View::Json | View::Document(_) => self.loaded(matched).await,
@@ -126,7 +134,7 @@ impl RouteAnswer<'_> {
             return answer::document(result, media, caller);
         }
         #[cfg(feature = "engine")]
-        let result = answer::in_language(result, self.screens.language(self.asked.request));
+        let result = answer::in_language(result, self.language());
         answer::outcome(result, caller)
     }
 
@@ -136,7 +144,7 @@ impl RouteAnswer<'_> {
         if !takes_views(caller) {
             let result = action(self.db.clone(), matched).await;
             #[cfg(feature = "engine")]
-            let result = answer::in_language(result, self.screens.language(self.asked.request));
+            let result = answer::in_language(result, self.language());
             return answer::outcome(result, caller);
         }
         #[cfg(feature = "engine")]
@@ -161,7 +169,7 @@ impl RouteAnswer<'_> {
             Err(error) => {
                 #[cfg(feature = "clients")]
                 if caller == Caller::Screen {
-                    let language = self.screens.language(self.asked.request);
+                    let language = self.language();
                     return crate::client_page::refused(&answer::Refusal::of(error), language);
                 }
                 #[cfg(feature = "engine")]
@@ -285,7 +293,7 @@ impl RouteAnswer<'_> {
 
     #[cfg(feature = "engine")]
     fn refused_notice(&self, error: Error, trigger: Option<&str>) -> Response {
-        let language = self.screens.language(self.asked.request);
+        let language = self.language();
         let page = self.target.form_page.as_ref().or(self.target.page.as_ref());
         let template = match page.map(|page| self.screens.template(&page.screen.key)) {
             Some(Err(missing)) => return answer::failure(missing, self.asked.caller),
@@ -325,7 +333,7 @@ impl RouteAnswer<'_> {
         answer(&ScreenPage {
             template: &template,
             title: &view.title,
-            language: self.screens.language(self.asked.request),
+            language: self.language(),
             content_security: &self.target.admission.area.content_security,
             #[cfg(feature = "islands")]
             islands: self.screens.islands.links(self.target.audience.name),

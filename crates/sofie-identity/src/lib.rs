@@ -192,6 +192,7 @@ pub const fn migrations() -> Migrations {
         "0019_account_link_expires.sql",
         "0020_impersonator_granted.sql",
         "0021_access_token_revealing.sql",
+        "0022_account_locale.sql",
     ]
     .aggregates(AGGREGATES)
 }

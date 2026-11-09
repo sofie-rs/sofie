@@ -2386,7 +2386,8 @@ five minutes) and 30 days after sign-in, whichever comes first
 (`sofie-auth`'s `session.rs`).
 With sofie-identity, whose `sessions` is on by default (and turns on sofie's
 `session-list`), each sign-in is an `account_session` row with its device,
-every request asks it (`AreaMembers::session_record`), and an ended one is
+every request asks it (`AreaMembers::session_record`, which also carries the
+account's chosen language), and an ended one is
 cleared like an expired cookie: signing out, `sessions::routes` ("sign out
 everywhere else", feature `session-screens`), a password reset, closing the account, ending an
 impersonation and removing a membership (`remove_membership`, or a

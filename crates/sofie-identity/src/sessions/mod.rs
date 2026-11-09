@@ -1,4 +1,6 @@
 #[cfg(feature = "session-screens")]
+mod language;
+#[cfg(feature = "session-screens")]
 mod screen;
 
 use std::time::Duration;
@@ -8,6 +10,8 @@ use sofie::db::{Db, Query, Uuid};
 use sofie::http::SessionRecord;
 use sofie::prelude::*;
 
+#[cfg(feature = "session-screens")]
+pub use language::language_routes;
 #[cfg(feature = "session-screens")]
 pub use screen::routes;
 
@@ -146,6 +150,7 @@ pub(crate) async fn record(
         account: record.account.uuid(),
         expires_at: record.expires_at,
         impersonator,
+        language: chosen_language(&read, record.account).await?,
     };
     let Some(seen) = seen.map(Instant::from) else {
         return Ok(held);
@@ -175,6 +180,22 @@ async fn ending_impersonated(
         Err(Error::Conflict) | Ok(()) => Ok(SessionRecord::Ended),
         Err(error) => Err(error),
     }
+}
+
+#[derive(ReadModel)]
+#[read(from = crate::Account)]
+struct ChosenLanguage {
+    locale: Option<sofie::values::Locale>,
+}
+
+async fn chosen_language(read: &Read, account: AccountId) -> Result<Option<std::sync::Arc<str>>> {
+    let chosen = ChosenLanguage::query()
+        .where_(crate::Account::ID.eq(account))
+        .first(read)
+        .await?;
+    Ok(chosen
+        .and_then(|chosen| chosen.locale)
+        .map(|locale| locale.as_str().into()))
 }
 
 /// A record unseen for longer than a cookie lives can refuse no cookie, ended or not.

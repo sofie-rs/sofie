@@ -23,6 +23,7 @@ pub(crate) async fn register(
         email,
         password_hash,
         verified_at: None,
+        locale: None,
     }))
 }
 
@@ -34,5 +35,6 @@ pub(crate) fn without_password(email: Email) -> Result<Account> {
         email,
         password_hash: PasswordHash::unmatchable()?,
         verified_at: None,
+        locale: None,
     })
 }

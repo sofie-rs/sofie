@@ -3,6 +3,7 @@ pub(crate) mod factory;
 use sofie::core::Instant;
 use sofie::db::{Outcome, Plan, Stamp};
 use sofie::prelude::*;
+use sofie::values::Locale;
 
 use crate::PasswordHash;
 
@@ -18,6 +19,7 @@ pub struct Account {
     email: Email,
     password_hash: PasswordHash,
     verified_at: Option<Instant>,
+    locale: Option<Locale>,
 }
 
 impl Account {
@@ -77,6 +79,16 @@ impl Account {
         self.verified_at
     }
 
+    #[must_use]
+    pub fn locale(&self) -> Option<&Locale> {
+        self.locale.as_ref()
+    }
+
+    /// Preferred over the browser's languages on its pages, and used for the mails it gets.
+    pub fn choose_locale(&mut self, locale: Option<Locale>) {
+        self.locale = locale;
+    }
+
     pub(crate) fn password_hash(&self) -> &PasswordHash {
         &self.password_hash
     }
@@ -105,6 +117,7 @@ impl Account {
         self.email = Email::parse(&format!("closed-{}{CLOSED_DOMAIN}", self.id().uuid()))?;
         self.password_hash = PasswordHash::unmatchable()?;
         self.verified_at = None;
+        self.locale = None;
         Ok(())
     }
 

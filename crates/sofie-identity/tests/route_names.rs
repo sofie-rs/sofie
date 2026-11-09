@@ -57,6 +57,8 @@ fn app() -> App {
         .area::<Members>("sofie_identity", |routes| {
             #[cfg(feature = "sessions")]
             sofie_identity::sessions::routes(routes);
+            #[cfg(feature = "sessions")]
+            sofie_identity::sessions::language_routes(routes);
             #[cfg(feature = "totp")]
             sofie_identity::two_factor::routes(routes);
             #[cfg(feature = "passkeys")]
@@ -72,8 +74,9 @@ fn app() -> App {
 }
 
 /// A member's own screens, mounted where members sign in rather than in a `Permitted` area.
-const MEMBER_MOUNTS: [&str; 6] = [
+const MEMBER_MOUNTS: [&str; 7] = [
     "sessions::routes",
+    "sessions::language_routes",
     "two_factor::routes",
     "passkeys::routes",
     "oauth::routes",

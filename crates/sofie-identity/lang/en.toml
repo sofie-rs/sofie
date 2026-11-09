@@ -89,6 +89,12 @@ issue = "Issue"
 shown_until_done = "Copy this token now: once you are done, it is never shown again."
 done = "Done"
 
+[identity.language]
+title = "Language"
+intro = "Pages and mails use this language; left empty, they follow your browser's."
+current = "Chosen: {locale}"
+save = "Save"
+
 [identity.sessions]
 title = "Signed-in sessions"
 end = "Sign out"

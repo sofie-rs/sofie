@@ -23,7 +23,10 @@ async fn started() -> TestApp {
                 .screens(screens)
                 .membership(Memberships)
                 .area::<Web>("sofie_identity", sofie_identity::routes::<Member>)
-                .area::<Member>("sofie_identity", sofie_identity::sessions::routes::<Member>))
+                .area::<Member>("sofie_identity", |routes| {
+                    sofie_identity::sessions::routes::<Member>(routes);
+                    sofie_identity::sessions::language_routes::<Member>(routes);
+                }))
         },
         |db| sofie_identity::worker(Worker::new(db)),
     )
@@ -223,4 +226,40 @@ async fn sessions_no_cookie_can_outlive_are_pruned_ended_or_not() {
 
     assert_eq!(recorded_sessions(&app).await.len(), 1);
     assert_eq!(listed(&app, &current).await.len(), 1);
+}
+
+#[tokio::test]
+async fn a_member_chooses_its_language_and_clears_it_again() {
+    let app = started().await;
+    app.post("/sign-up").json(&CREDENTIALS()).await.assert_ok();
+    let session = signed_in(&app).await;
+    let chosen = || {
+        app.get("/account/language")
+            .session(&session)
+            .accept_json()
+    };
+
+    app.post("/account/language")
+        .session(&session)
+        .accept_json()
+        .json(&json!({ "locale": "de-de" }))
+        .await
+        .assert_ok();
+    let german = chosen().await.json();
+    app.post("/account/language")
+        .session(&session)
+        .accept_json()
+        .json(&json!({ "locale": null }))
+        .await
+        .assert_ok();
+
+    assert_eq!(german["locale"], "de-DE");
+    assert_eq!(chosen().await.json()["locale"], Value::Null);
+    let refused = app
+        .post("/account/language")
+        .session(&session)
+        .accept_json()
+        .json(&json!({ "locale": "deutsch" }))
+        .await;
+    assert_eq!(refused.status, 422, "{}", refused.body);
 }

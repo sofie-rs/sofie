@@ -45,14 +45,16 @@ impl Screens {
         self.translations = Some(translations);
     }
 
-    pub(crate) fn language(&self, request: &Parts) -> Language<'_> {
+    /// The signed-in account's `preferred` language first, when the app has it.
+    pub(crate) fn language(&self, request: &Parts, preferred: Option<&str>) -> Language<'_> {
         let accepted = request
             .headers
             .get(ACCEPT_LANGUAGE)
             .and_then(|value| value.to_str().ok());
+        let preferred = preferred.and_then(|tag| sofie_values::Locale::parse(tag).ok());
         match &self.translations {
             Some(translations) => Language {
-                language: translations.negotiate(None, accepted),
+                language: translations.negotiate(preferred.as_ref(), accepted),
                 negotiated: true,
             },
             None => Language::plain(),

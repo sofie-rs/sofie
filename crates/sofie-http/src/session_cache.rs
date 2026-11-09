@@ -48,7 +48,7 @@ struct Held {
     generation: u64,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 struct Entry {
     record: SessionRecord,
     until: Instant,
@@ -88,7 +88,7 @@ impl SessionCache {
         let mut state = unpoisoned::lock(&self.state);
         state.catch_up(db, topic);
         if state.held.generation == generation {
-            state.held.keep(session, record, now)?;
+            state.held.keep(session, record.clone(), now)?;
         }
         Ok(record.is_live(now).then_some(record))
     }
@@ -145,7 +145,7 @@ impl Held {
             return None;
         };
         if slot.get().until > now {
-            return Some(slot.get().record);
+            return Some(slot.get().record.clone());
         }
         slot.remove();
         None
@@ -158,8 +158,8 @@ impl Held {
         if self.entries.len() >= CAPACITY {
             return Ok(());
         }
-        if let SessionRecord::Live { account, .. } = record {
-            let sessions = self.by_account.entry(account).or_default();
+        if let SessionRecord::Live { account, .. } = &record {
+            let sessions = self.by_account.entry(*account).or_default();
             if !sessions.contains(&session) {
                 sessions.push(session);
             }

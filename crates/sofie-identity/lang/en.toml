@@ -54,3 +54,24 @@ submit = "Sign in and join"
 intro = "Someone tried to sign up here with this address, which already has an account."
 sign_in = "Sign in with that account to join"
 ignore = "The link works once, within an hour. If it was not you, ignore this mail: nothing changed."
+
+[identity.password_reset_mail]
+intro = "Someone asked to reset the password of the account with this address."
+choose = "Choose a new password"
+ignore = "The link works once, within an hour. If it was not you, ignore this mail: the password stays as it is."
+
+[identity.verification_mail]
+intro = "Confirm that this address is yours."
+confirm = "Confirm the address"
+ignore = "The link works once, within an hour. If you did not sign up, ignore this mail."
+
+[identity.sign_in_mail]
+intro = "Someone asked to sign in to the account with this address."
+sign_in = "Sign in"
+ignore = "The link works once, within fifteen minutes. If it was not you, ignore this mail: nobody signs in without it."
+
+[identity.sign_up_repeated_mail]
+intro = "Someone tried to sign up with this address, which already has an account."
+if_you = "If it was you, sign in as usual, or choose a new password if you forgot it."
+choose = "Choose a new password"
+ignore = "The link works once, within an hour. If it was not you, ignore this mail: nothing changed."

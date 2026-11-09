@@ -57,3 +57,24 @@ submit = "Anmelden und beitreten"
 intro = "Jemand wollte sich hier mit dieser Adresse registrieren, zu der bereits ein Konto gehört."
 sign_in = "Mit diesem Konto anmelden und beitreten"
 ignore = "Der Link funktioniert einmal, innerhalb einer Stunde. Waren Sie es nicht, ignorieren Sie diese E-Mail: Es hat sich nichts geändert."
+
+[identity.password_reset_mail]
+intro = "Jemand hat angefordert, das Passwort des Kontos mit dieser Adresse zurückzusetzen."
+choose = "Neues Passwort wählen"
+ignore = "Der Link funktioniert einmal, innerhalb einer Stunde. Waren Sie es nicht, ignorieren Sie diese E-Mail: Das Passwort bleibt, wie es ist."
+
+[identity.verification_mail]
+intro = "Bestätigen Sie, dass diese Adresse Ihnen gehört."
+confirm = "Adresse bestätigen"
+ignore = "Der Link funktioniert einmal, innerhalb einer Stunde. Haben Sie sich nicht registriert, ignorieren Sie diese E-Mail."
+
+[identity.sign_in_mail]
+intro = "Jemand möchte sich beim Konto mit dieser Adresse anmelden."
+sign_in = "Anmelden"
+ignore = "Der Link funktioniert einmal, innerhalb von fünfzehn Minuten. Waren Sie es nicht, ignorieren Sie diese E-Mail: Ohne ihn meldet sich niemand an."
+
+[identity.sign_up_repeated_mail]
+intro = "Jemand wollte sich mit dieser Adresse registrieren, zu der bereits ein Konto gehört."
+if_you = "Waren Sie es, melden Sie sich wie gewohnt an, oder wählen Sie ein neues Passwort, falls Sie es vergessen haben."
+choose = "Neues Passwort wählen"
+ignore = "Der Link funktioniert einmal, innerhalb einer Stunde. Waren Sie es nicht, ignorieren Sie diese E-Mail: Es hat sich nichts geändert."

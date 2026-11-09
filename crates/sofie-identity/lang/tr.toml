@@ -57,3 +57,24 @@ submit = "Giriş yap ve katıl"
 intro = "Biri bu adresle burada kaydolmaya çalıştı; bu adresin zaten bir hesabı var."
 sign_in = "Katılmak için o hesapla giriş yapın"
 ignore = "Bağlantı bir saat içinde, yalnızca bir kez çalışır. Siz değilseniz bu e-postayı yok sayın: hiçbir şey değişmedi."
+
+[identity.password_reset_mail]
+intro = "Biri bu adrese ait hesabın parolasını sıfırlamak istedi."
+choose = "Yeni bir parola seçin"
+ignore = "Bağlantı bir saat içinde, yalnızca bir kez çalışır. Siz değilseniz bu e-postayı yok sayın: parola olduğu gibi kalır."
+
+[identity.verification_mail]
+intro = "Bu adresin size ait olduğunu onaylayın."
+confirm = "Adresi onayla"
+ignore = "Bağlantı bir saat içinde, yalnızca bir kez çalışır. Kaydolmadıysanız bu e-postayı yok sayın."
+
+[identity.sign_in_mail]
+intro = "Biri bu adrese ait hesapla giriş yapmak istedi."
+sign_in = "Giriş yap"
+ignore = "Bağlantı on beş dakika içinde, yalnızca bir kez çalışır. Siz değilseniz bu e-postayı yok sayın: onsuz kimse giriş yapamaz."
+
+[identity.sign_up_repeated_mail]
+intro = "Biri bu adresle kaydolmaya çalıştı; bu adresin zaten bir hesabı var."
+if_you = "Sizseniz her zamanki gibi giriş yapın ya da parolanızı unuttuysanız yeni bir parola seçin."
+choose = "Yeni bir parola seçin"
+ignore = "Bağlantı bir saat içinde, yalnızca bir kez çalışır. Siz değilseniz bu e-postayı yok sayın: hiçbir şey değişmedi."

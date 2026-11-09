@@ -93,9 +93,18 @@ impl Cast for TimeZone {
     }
 
     /// Any zone the database knows: one stored before input was held to the browser's list
-    /// still reads.
+    /// still reads. A `posix/` or `right/` copy reads as its IANA zone, so it round-trips through
+    /// input; a zone with no IANA name, such as `Factory`, reads but input refuses it.
     fn decode(row: &mut dyn ColumnReader) -> Result<Self> {
-        let zone = jiff::tz::TimeZone::get(row.text()?)
+        let name = row.text()?;
+        let canonical = name
+            .strip_prefix("posix/")
+            .or_else(|| name.strip_prefix("right/"))
+            .and_then(|iana_name| Self::parse(iana_name).ok());
+        if let Some(zone) = canonical {
+            return Ok(zone);
+        }
+        let zone = jiff::tz::TimeZone::get(name)
             .map_err(|_| Error::invalid("time_zone", "must be an IANA time zone"));
         sofie_core::value::stored(zone.map(|zone| Self { zone }))
     }
@@ -157,6 +166,27 @@ mod tests {
 
         let unknown = [SqlValue::Text("Europe/Atlantis".into())];
         assert!(TimeZone::decode(&mut RowReader::new(&unknown)).is_err());
+    }
+
+    #[test]
+    fn a_stored_posix_or_right_copy_reads_as_its_iana_zone_and_round_trips() {
+        for stored in ["posix/Europe/Istanbul", "right/Europe/Istanbul"] {
+            let values = [SqlValue::Text(stored.into())];
+            let zone = TimeZone::decode(&mut RowReader::new(&values)).unwrap();
+
+            assert_eq!(zone.name(), "Europe/Istanbul");
+            let json = serde_json::to_value(&zone).unwrap();
+            assert_eq!(serde_json::from_value::<TimeZone>(json).unwrap(), zone);
+        }
+    }
+
+    #[test]
+    fn a_stored_zone_with_no_iana_name_reads_but_does_not_round_trip_through_input() {
+        let values = [SqlValue::Text("Factory".into())];
+        let zone = TimeZone::decode(&mut RowReader::new(&values)).unwrap();
+
+        let json = serde_json::to_value(&zone).unwrap();
+        assert!(serde_json::from_value::<TimeZone>(json).is_err());
     }
 
     #[test]

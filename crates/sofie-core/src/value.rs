@@ -12,6 +12,12 @@ pub trait Value: Sized {
     fn inner(&self) -> &Self::Inner;
 
     fn try_from_inner(inner: Self::Inner) -> Result<Self, impl Display>;
+
+    /// A value whose input rule tightens overrides this, so rows written under the looser rule
+    /// still read.
+    fn decode_stored(inner: Self::Inner) -> Result<Self> {
+        stored(Self::try_from_inner(inner))
+    }
 }
 
 impl<V: Value> Cast for V {
@@ -24,8 +30,7 @@ impl<V: Value> Cast for V {
     }
 
     fn decode(row: &mut dyn ColumnReader) -> Result<Self> {
-        let inner = V::Inner::decode(row)?;
-        stored(V::try_from_inner(inner))
+        V::decode_stored(V::Inner::decode(row)?)
     }
 }
 
@@ -71,7 +76,8 @@ where
 #[doc(hidden)]
 pub use serde;
 
-/// `from_stored` takes the column's text as it is, so a canonical value is not copied again.
+/// `from_stored` reads only stored rows, never input: it may take the column's text as it is,
+/// and may accept what an earlier, looser rule wrote.
 #[doc(hidden)]
 #[macro_export]
 macro_rules! text_value {
@@ -87,7 +93,11 @@ macro_rules! text_value {
             }
 
             fn try_from_inner(text: String) -> $crate::Result<Self, impl ::std::fmt::Display> {
-                $from_stored(text)
+                <$value>::parse(&text)
+            }
+
+            fn decode_stored(text: String) -> $crate::Result<Self> {
+                $crate::value::stored($from_stored(text))
             }
         }
 
@@ -168,6 +178,39 @@ mod tests {
             Even::decode(&mut row),
             Err(Error::Internal { context, .. }) if context.contains("Even")
         ));
+    }
+
+    #[derive(Debug, PartialEq)]
+    struct Small(i64);
+
+    impl Value for Small {
+        type Inner = i64;
+
+        fn inner(&self) -> &i64 {
+            &self.0
+        }
+
+        fn try_from_inner(inner: i64) -> Result<Self, impl Display> {
+            if inner < 10 {
+                return Ok(Self(inner));
+            }
+            Err(Error::invalid("small", "must be below 10"))
+        }
+
+        fn decode_stored(inner: i64) -> Result<Self> {
+            Ok(Self(inner))
+        }
+    }
+
+    #[test]
+    fn a_row_written_under_a_looser_rule_reads_while_input_stays_strict() {
+        let values = [SqlValue::Int(12)];
+
+        assert_eq!(
+            Small::decode(&mut crate::RowReader::new(&values)).unwrap(),
+            Small(12)
+        );
+        assert!(deserialize::<Small, _>(json!(12)).is_err());
     }
 
     #[test]

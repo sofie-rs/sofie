@@ -3,7 +3,7 @@ use std::fmt;
 use sofie_core::{Error, Result};
 use unicode_normalization::{UnicodeNormalization, is_nfc};
 
-use crate::slug_character::is_word_mark;
+use crate::slug_character::{draws_nothing, is_word_mark, without_marks_that_draw_nothing};
 
 const MAXIMUM_LENGTH: usize = 254;
 const MAXIMUM_LOCAL_LENGTH: usize = 64;
@@ -30,14 +30,19 @@ impl Email {
         Self::from_normalized(lowercase.nfc().collect())
     }
 
+    /// Also reads an address stored before marks that draw nothing were refused.
     fn from_stored(text: String) -> Result<Self> {
         let normalized = text.trim().len() == text.len()
             && text.chars().flat_map(char::to_lowercase).eq(text.chars())
             && is_nfc(&text);
-        if normalized {
-            return Self::from_normalized(text);
+        if !normalized {
+            return Self::parse(&text);
         }
-        Self::parse(&text)
+        if text.chars().any(draws_nothing) {
+            Self::from_normalized(without_marks_that_draw_nothing(&text))?;
+            return Ok(Self { address: text });
+        }
+        Self::from_normalized(text)
     }
 
     fn from_normalized(address: String) -> Result<Self> {
@@ -211,7 +216,7 @@ mod tests {
     #[test]
     fn stored_text_is_checked_and_normalized_like_input() {
         use sofie_core::value::Value;
-        let stored = |text: &str| Email::try_from_inner(text.to_owned()).map(|email| email.address);
+        let stored = |text: &str| Email::decode_stored(text.to_owned()).map(|email| email.address);
 
         assert_eq!(
             stored("jane@example.com").ok().as_deref(),
@@ -323,6 +328,21 @@ mod tests {
             round_trip(&email),
             vec![SqlValue::Text("jane@example.com".into())]
         );
+    }
+
+    #[test]
+    fn reads_an_address_stored_before_marks_that_draw_nothing_were_refused() {
+        let values = [SqlValue::Text("jane\u{FE0F}@example.com".into())];
+        let email = Email::decode(&mut RowReader::new(&values)).unwrap();
+
+        assert_eq!(email.as_str(), "jane\u{FE0F}@example.com");
+        assert!(
+            serde_json::to_value(&email)
+                .and_then(serde_json::from_value::<Email>)
+                .is_err()
+        );
+        let invisible = [SqlValue::Text("jane\u{200B}@example.com".into())];
+        assert!(Email::decode(&mut RowReader::new(&invisible)).is_err());
     }
 
     #[test]

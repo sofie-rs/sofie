@@ -713,7 +713,11 @@ impl Sku {
 ```
 
 - Construction goes through `try_new`; deserializing a request or a row calls
-  it too, so an invalid value never enters the app.
+  it too, so an invalid value never enters the app. A row goes through
+  `Value::decode_stored` (default: the same check), which a value whose input
+  rule tightened overrides so rows written under the looser rule still read:
+  `Email` and `Slug` read a stored mark that draws nothing, and `TimeZone`
+  reads a stored `posix/` or `right/` copy as its IANA zone.
 - A value of several named fields takes them in `try_new` in declaration
   order, spans one column per field (`<field>_<member>`; each field must span
   one column) and is a JSON object of its fields. An `Option` of it is `None`

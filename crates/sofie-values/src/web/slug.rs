@@ -1,5 +1,7 @@
 use sofie_core::{Error, Result};
 
+use crate::slug_character::{draws_nothing, without_marks_that_draw_nothing};
+
 const MAXIMUM_LENGTH: usize = 100;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -9,10 +11,19 @@ pub struct Slug {
 
 impl Slug {
     pub fn parse(text: &str) -> Result<Self> {
-        Self::from_stored(text.to_owned())
+        Self::checked(text.to_owned())
     }
 
+    /// Also reads a slug stored before marks that draw nothing were refused.
     fn from_stored(text: String) -> Result<Self> {
+        if text.chars().any(draws_nothing) {
+            Self::checked(without_marks_that_draw_nothing(&text))?;
+            return Ok(Self { text });
+        }
+        Self::checked(text)
+    }
+
+    fn checked(text: String) -> Result<Self> {
         if text.is_empty() || text.len() > MAXIMUM_LENGTH {
             return Err(invalid_slug("must have 1 to 100 characters"));
         }
@@ -71,7 +82,7 @@ crate::present::present_text!(
 
 #[cfg(test)]
 mod tests {
-    use sofie_core::SqlValue;
+    use sofie_core::{Cast, RowReader, SqlValue};
 
     use super::*;
     use crate::testing::{assert_refused, round_trip};
@@ -133,5 +144,20 @@ mod tests {
         let json = serde_json::to_value(&slug).unwrap();
         assert_eq!(serde_json::from_value::<Slug>(json).unwrap(), slug);
         assert!(serde_json::from_value::<Slug>(serde_json::json!("Blue")).is_err());
+    }
+
+    #[test]
+    fn reads_a_slug_stored_before_marks_that_draw_nothing_were_refused() {
+        let values = [SqlValue::Text("blue\u{FE0F}-scarf".into())];
+        let slug = Slug::decode(&mut RowReader::new(&values)).unwrap();
+
+        assert_eq!(slug.as_str(), "blue\u{FE0F}-scarf");
+        assert!(
+            serde_json::to_value(&slug)
+                .and_then(serde_json::from_value::<Slug>)
+                .is_err()
+        );
+        let refused = [SqlValue::Text("Blue\u{FE0F}".into())];
+        assert!(Slug::decode(&mut RowReader::new(&refused)).is_err());
     }
 }

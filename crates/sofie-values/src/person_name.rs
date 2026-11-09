@@ -129,7 +129,7 @@ mod tests {
     #[test]
     fn stored_text_is_checked_and_collapsed_like_input() {
         use sofie_core::value::Value;
-        let stored = |text: &str| PersonName::try_from_inner(text.to_owned()).map(|name| name.name);
+        let stored = |text: &str| PersonName::decode_stored(text.to_owned()).map(|name| name.name);
 
         assert_eq!(stored("Ada Lovelace").ok().as_deref(), Some("Ada Lovelace"));
         assert_eq!(

@@ -1032,6 +1032,31 @@ fn renders_a_large_table_quickly() {
 const FORM_OPEN: &str =
     "<form id=\"f\" method=\"post\" action=\"/x\" hx-post=\"/x\" hx-swap=\"outerHTML\">";
 
+#[test]
+fn a_keyed_rendering_gives_each_posting_form_a_fresh_idempotency_key() {
+    let template = template(
+        "<Form id=\"f\" post=\"/x\"><Submit label=\"Save\" /></Form>\
+         <Action post=\"/y\" label=\"Go\" with={{slot: data.slot}} />",
+    );
+    let keys = |html: &str| -> Vec<String> {
+        html.split("name=\"_idempotency_key\" value=\"")
+            .skip(1)
+            .map(|rest| rest[..rest.find('"').unwrap()].to_owned())
+            .collect()
+    };
+    let data = json!({ "slot": 7 });
+    let rendering = sofie_engine::rendering::Rendering::new(&template).keyed_forms();
+
+    let first = keys(&rendering.render(&data).unwrap());
+    let again = keys(&rendering.render(&data).unwrap());
+
+    assert_eq!(first.len(), 2);
+    assert!(first.iter().all(|key| key.len() == 36));
+    assert_ne!(first[0], first[1]);
+    assert!(first.iter().all(|key| !again.contains(key)));
+    assert_eq!(keys(&template.render(&data).unwrap()), Vec::<String>::new());
+}
+
 /// Controls the tests describe a field `a` with, as a value's `Present` would.
 const SELECT: Input = Input::new(Control::Select);
 const CHECKBOX: Input = Input::new(Control::Checkbox);

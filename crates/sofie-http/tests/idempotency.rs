@@ -131,6 +131,23 @@ async fn an_idempotent_route_refuses_a_missing_or_reused_key() {
 }
 
 #[tokio::test]
+async fn a_form_posted_without_javascript_sends_its_key_as_a_field() {
+    let app = start().await;
+    let posted = || {
+        app.post("/charges")
+            .form(&[("_idempotency_key", "form-1"), ("amount", "10")])
+            .accept_json()
+    };
+
+    let first = posted().await;
+    let resent = posted().await;
+
+    assert_eq!(first.status, StatusCode::OK, "{}", first.body);
+    assert_eq!(resent.json(), first.json());
+    assert_eq!(charges(&app).await, 1);
+}
+
+#[tokio::test]
 async fn retries_running_alongside_write_once_and_share_the_answer() {
     let app = start().await;
 

@@ -289,7 +289,7 @@ pub(crate) fn render<'a>(
         Content::Section(section) => render_section(section, id, renderer)?,
         Content::Table(table) => render_table(table, id, renderer)?,
         Content::Money(money) => render_money(money, id, renderer),
-        Content::Action(action) => render_action(action, id, renderer),
+        Content::Action(action) => render_action(action, id, renderer)?,
         #[cfg(feature = "i18n")]
         Content::Badge(badge) => badge::render_badge(badge, id, renderer),
         Content::Form(form) => render_form(form, renderer)?,

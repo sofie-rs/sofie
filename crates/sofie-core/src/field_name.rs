@@ -1,3 +1,7 @@
+/// A form posted without JavaScript carries in it the key engine.js otherwise sends as the
+/// `Idempotency-Key` header.
+pub const IDEMPOTENCY_KEY_FIELD: &str = "_idempotency_key";
+
 #[must_use]
 pub fn is_field_name(text: &str) -> bool {
     !text.is_empty()

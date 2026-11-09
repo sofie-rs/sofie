@@ -105,7 +105,7 @@ impl Template {
     }
 
     pub fn render(&self, data: &(impl Show + ?Sized)) -> Result<String, TemplateError> {
-        render_whole(self, data.show(), None, Language::plain())
+        render_whole(self, data.show(), None, Language::plain(), false)
     }
 
     pub fn render_submitted(
@@ -113,7 +113,7 @@ impl Template {
         data: &(impl Show + ?Sized),
         submitted: &Submitted<'_>,
     ) -> Result<String, TemplateError> {
-        render_whole(self, data.show(), Some(submitted), Language::plain())
+        render_whole(self, data.show(), Some(submitted), Language::plain(), false)
     }
 
     pub fn render_fragment(
@@ -121,7 +121,7 @@ impl Template {
         data: &(impl Show + ?Sized),
         id: &str,
     ) -> Result<String, RenderError> {
-        render_part(self, data.show(), id, Language::plain())
+        render_part(self, data.show(), id, Language::plain(), false)
     }
 
     /// Marked `hx-swap-oob`, so htmx places it whatever the request targeted.
@@ -152,10 +152,18 @@ pub(crate) fn render_whole<'a>(
     data: Shown<'a>,
     submitted: Option<&'a Submitted<'a>>,
     language: Language<'a>,
+    keyed_forms: bool,
 ) -> Result<String, TemplateError> {
     let capacity = template.document_capacity.load(Ordering::Relaxed);
-    let html = render::render_document(&template.ops, data, capacity, submitted, language)
-        .map_err(|error| template.defect(error))?;
+    let html = render::render_document(
+        &template.ops,
+        data,
+        capacity,
+        submitted,
+        language,
+        keyed_forms,
+    )
+    .map_err(|error| template.defect(error))?;
     template
         .document_capacity
         .store(html.len().min(MAXIMUM_CAPACITY_HINT), Ordering::Relaxed);
@@ -167,13 +175,14 @@ pub(crate) fn render_part<'a>(
     data: Shown<'a>,
     id: &'a str,
     language: Language<'a>,
+    keyed_forms: bool,
 ) -> Result<String, RenderError> {
     // Room for the cleared notice an htmx reply appends, so appending does not copy.
     let capacity = template
         .fragment_capacity
         .load(Ordering::Relaxed)
         .saturating_add(CLEARED_NOTICE.len());
-    let html = render::render_fragment(&template.ops, data, id, capacity, language)
+    let html = render::render_fragment(&template.ops, data, id, capacity, language, keyed_forms)
         .map_err(|error| RenderError::Template(template.defect(error)))?
         .ok_or_else(|| RenderError::FragmentNotFound { id: id.to_owned() })?;
     template

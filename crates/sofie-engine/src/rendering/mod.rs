@@ -28,6 +28,7 @@ use crate::{RenderError, Submitted, Template, TemplateError};
 pub struct Rendering<'t> {
     template: &'t Template,
     language: Language<'t>,
+    keyed_forms: bool,
 }
 
 impl<'t> Rendering<'t> {
@@ -36,7 +37,16 @@ impl<'t> Rendering<'t> {
         Self {
             template,
             language: Language::plain(),
+            keyed_forms: false,
         }
+    }
+
+    /// Each form carries a fresh idempotency key, so one posted without JavaScript reaches an
+    /// `.idempotent()` route as engine.js's header would.
+    #[must_use]
+    pub fn keyed_forms(mut self) -> Self {
+        self.keyed_forms = true;
+        self
     }
 
     #[cfg(feature = "i18n")]
@@ -82,7 +92,13 @@ impl<'t> Rendering<'t> {
     }
 
     pub fn render(&self, data: &(impl Show + ?Sized)) -> Result<String, TemplateError> {
-        render_whole(self.template, data.show(), None, self.language)
+        render_whole(
+            self.template,
+            data.show(),
+            None,
+            self.language,
+            self.keyed_forms,
+        )
     }
 
     pub fn render_submitted(
@@ -90,7 +106,13 @@ impl<'t> Rendering<'t> {
         data: &(impl Show + ?Sized),
         submitted: &Submitted<'_>,
     ) -> Result<String, TemplateError> {
-        render_whole(self.template, data.show(), Some(submitted), self.language)
+        render_whole(
+            self.template,
+            data.show(),
+            Some(submitted),
+            self.language,
+            self.keyed_forms,
+        )
     }
 
     pub fn render_fragment(
@@ -98,7 +120,13 @@ impl<'t> Rendering<'t> {
         data: &(impl Show + ?Sized),
         id: &str,
     ) -> Result<String, RenderError> {
-        render_part(self.template, data.show(), id, self.language)
+        render_part(
+            self.template,
+            data.show(),
+            id,
+            self.language,
+            self.keyed_forms,
+        )
     }
 
     pub fn render_out_of_band(

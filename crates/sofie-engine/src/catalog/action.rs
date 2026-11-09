@@ -1,7 +1,7 @@
 use super::props::Props;
 use super::target::Target;
 use crate::render::{Renderer, is_truthy};
-use crate::syntax::{Expression, LocatedError};
+use crate::syntax::{Expression, LocatedError, Position};
 
 #[derive(Debug)]
 pub(crate) struct Action {
@@ -11,6 +11,7 @@ pub(crate) struct Action {
     pub when: Option<Expression>,
     /// `with={{slot: slot.id}}`: posted as the route's input fields, in the order written.
     pub fields: Vec<PostedField>,
+    position: Position,
 }
 
 #[derive(Debug)]
@@ -26,6 +27,7 @@ pub(super) fn build_action(props: &mut Props) -> Result<Action, LocatedError> {
         target: Target::take(props)?,
         when: props.optional_value("when")?,
         fields: posted_fields(props)?,
+        position: props.position(),
     })
 }
 
@@ -53,17 +55,17 @@ pub(super) fn render_action<'a>(
     action: &'a Action,
     id: Option<&'a Expression>,
     renderer: &mut Renderer<'a>,
-) {
+) -> Result<(), LocatedError> {
     if let Some(when) = &action.when
         && !is_truthy(renderer.resolve(when))
     {
-        return;
+        return Ok(());
     }
     if action.fields.is_empty() {
         render_button(action, id, renderer);
-    } else {
-        render_form(action, id, renderer);
+        return Ok(());
     }
+    render_form(action, id, renderer)
 }
 
 fn render_button<'a>(action: &'a Action, id: Option<&'a Expression>, renderer: &mut Renderer<'a>) {
@@ -75,12 +77,17 @@ fn render_button<'a>(action: &'a Action, id: Option<&'a Expression>, renderer: &
 }
 
 /// A form, so its fields post as hidden inputs, with JavaScript or without.
-fn render_form<'a>(action: &'a Action, id: Option<&'a Expression>, renderer: &mut Renderer<'a>) {
+fn render_form<'a>(
+    action: &'a Action,
+    id: Option<&'a Expression>,
+    renderer: &mut Renderer<'a>,
+) -> Result<(), LocatedError> {
     renderer.push_markup("<form");
     renderer.write_id(id);
     renderer.push_markup(" method=\"post\"");
     renderer.write_url_attribute("action", &action.post);
     write_htmx_post(action, renderer);
+    renderer.write_idempotency_key(action.position)?;
     for field in &action.fields {
         renderer.push_markup("<input type=\"hidden\" name=\"");
         renderer.push_markup(&field.name);
@@ -91,6 +98,7 @@ fn render_form<'a>(action: &'a Action, id: Option<&'a Expression>, renderer: &mu
     renderer.push_markup("<button type=\"submit\">");
     renderer.write_text(&action.label);
     renderer.push_markup("</button></form>");
+    Ok(())
 }
 
 fn write_htmx_post<'a>(action: &'a Action, renderer: &mut Renderer<'a>) {

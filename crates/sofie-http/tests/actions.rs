@@ -83,7 +83,11 @@ async fn a_row_s_action_posts_its_fields_to_the_route_s_input() {
         .body(body.clone())
         .await;
 
-    assert_eq!(body, "slot=8");
+    let fields: Vec<&str> = body
+        .split('&')
+        .filter(|field| !field.starts_with("_idempotency_key="))
+        .collect();
+    assert_eq!(fields, ["slot=8"]);
     assert_eq!(booked.json(), json!({ "booked": 8 }));
 }
 

@@ -34,7 +34,7 @@ pub use display_zone::{DisplayZone, is_iana_identifier, wall_clock_instant};
 pub use environment::{BASE_URL, Variable, base_url, base_url_missing, environment_variable};
 pub use error::{Error, FieldError, Result};
 pub use error_status::ErrorStatus;
-pub use field_name::is_field_name;
+pub use field_name::{IDEMPOTENCY_KEY_FIELD, is_field_name};
 pub use fnv::Fnv1a64;
 pub use instant::Instant;
 pub use jiff::Timestamp;

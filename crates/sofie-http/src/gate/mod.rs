@@ -207,6 +207,8 @@ impl crate::screen::ScreenPage<'_> {
         let rendering = self.language.screen(self.template).gates(gates);
         #[cfg(not(feature = "i18n"))]
         let rendering = sofie_engine::rendering::Rendering::new(self.template).gates(gates);
+        #[cfg(feature = "idempotency")]
+        let rendering = rendering.keyed_forms();
         Gated {
             rendering,
             #[cfg(feature = "menu")]

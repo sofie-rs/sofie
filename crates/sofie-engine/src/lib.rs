@@ -36,7 +36,6 @@ mod page;
 mod parse;
 mod program;
 mod render;
-#[cfg(any(feature = "i18n", feature = "gates"))]
 pub mod rendering;
 #[cfg(any(feature = "analysis", feature = "gates"))]
 mod slots;

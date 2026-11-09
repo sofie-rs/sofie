@@ -173,6 +173,7 @@ pub(super) fn render_form<'a>(
         target.write(renderer);
     }
     renderer.push_markup(" hx-swap=\"outerHTML\">");
+    renderer.write_idempotency_key(form.position)?;
     let submitted = renderer.submitted_to(&form.post);
     for part in &form.parts {
         match part {

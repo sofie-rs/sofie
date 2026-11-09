@@ -39,8 +39,12 @@ pub(crate) struct ScreenPage<'a> {
 
 #[cfg(not(feature = "gates"))]
 impl ScreenPage<'_> {
-    fn rendering(&self) -> &Template {
-        self.template
+    fn rendering(&self) -> sofie_engine::rendering::Rendering<'_> {
+        let rendering = sofie_engine::rendering::Rendering::new(self.template);
+        #[cfg(feature = "idempotency")]
+        return rendering.keyed_forms();
+        #[cfg(not(feature = "idempotency"))]
+        rendering
     }
 }
 

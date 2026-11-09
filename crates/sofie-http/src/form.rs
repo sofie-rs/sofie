@@ -1,24 +1,39 @@
 use serde_json::{Map, Value};
-use sofie_core::Result;
+use sofie_core::{IDEMPOTENCY_KEY_FIELD, Result};
 
 use crate::dotted_name::insert;
 use crate::urlencoded::decode;
 
-/// A repeated name keeps its last value, as a checkbox after its hidden `false` needs.
+/// A repeated name keeps its last value, as a checkbox after its hidden `false` needs. The
+/// idempotency key is the request's, not an input field.
 pub(crate) fn parse(body: &[u8]) -> Result<Map<String, Value>> {
     let mut object = Map::new();
-    for pair in body.split(|byte| *byte == b'&') {
-        let (name, value) = match pair.iter().position(|byte| *byte == b'=') {
-            Some(index) => (&pair[..index], &pair[index + 1..]),
-            None => (pair, &[][..]),
-        };
+    for (name, value) in pairs(body) {
         let value = decode(value)?;
-        if value.is_empty() {
+        let name = decode(name)?;
+        if value.is_empty() || name == IDEMPOTENCY_KEY_FIELD {
             continue;
         }
-        insert(&mut object, &decode(name)?, value)?;
+        insert(&mut object, &name, value)?;
     }
     Ok(object)
+}
+
+/// The last value posted under `name`; `None` when it is missing or does not decode.
+#[cfg(feature = "idempotency")]
+pub(crate) fn posted(body: &[u8], name: &str) -> Option<String> {
+    pairs(body)
+        .filter(|(raw_name, _)| decode(raw_name).is_ok_and(|decoded| decoded == name))
+        .filter_map(|(_, raw_value)| decode(raw_value).ok())
+        .last()
+}
+
+fn pairs(body: &[u8]) -> impl Iterator<Item = (&[u8], &[u8])> {
+    body.split(|byte| *byte == b'&')
+        .map(|pair| match pair.iter().position(|byte| *byte == b'=') {
+            Some(index) => (&pair[..index], &pair[index + 1..]),
+            None => (pair, &[][..]),
+        })
 }
 
 #[cfg(test)]
@@ -37,6 +52,11 @@ mod tests {
             Err(Error::BadRequest(message)) => message,
             other => panic!("{body:?} was not refused: {other:?}"),
         }
+    }
+
+    #[test]
+    fn the_idempotency_key_is_no_input_field() {
+        assert_eq!(parsed("_idempotency_key=k1&note=a"), json!({ "note": "a" }));
     }
 
     #[test]

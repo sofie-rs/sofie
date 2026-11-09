@@ -1,6 +1,5 @@
 use std::net::IpAddr;
 
-use bytes::Bytes;
 use http::StatusCode;
 use sofie_auth::digest;
 use sofie_core::Result;
@@ -8,6 +7,7 @@ use sofie_db::{Context, Db, Keyed, KeyedWork, Reply, Run, Work};
 
 use crate::admission::{Admission, Visit};
 use crate::answer::{self, Response};
+use crate::pipeline::RequestBody;
 use crate::throttle::Requester;
 use crate::{Area, RequestContext};
 
@@ -33,25 +33,41 @@ impl Admission {
         &self,
         visit: Visit<'_>,
         pattern: &str,
-        body: &Bytes,
+        received: &RequestBody,
     ) -> Result<Option<Work>, Box<Response>> {
         #[cfg(feature = "webhooks")]
         if let Some(verify) = &self.rules.verify {
-            return crate::webhook::delivered_work(verify.as_ref(), visit, pattern, body).map(Some);
+            return crate::webhook::delivered_work(
+                verify.as_ref(),
+                visit,
+                pattern,
+                &received.fingerprint,
+            )
+            .map(Some);
         }
         if !self.rules.idempotent {
             return Ok(None);
         }
-        requested_work(visit, pattern, body).map(Some)
+        requested_work(visit, pattern, received).map(Some)
     }
 }
 
-fn requested_work(visit: Visit<'_>, pattern: &str, body: &Bytes) -> Result<Work, Box<Response>> {
+fn requested_work(
+    visit: Visit<'_>,
+    pattern: &str,
+    received: &RequestBody,
+) -> Result<Work, Box<Response>> {
     let request = visit.asked.request;
     let key = request
         .headers
         .get(IDEMPOTENCY_KEY)
         .and_then(|key| key.to_str().ok())
+        .or_else(|| {
+            received
+                .form_key
+                .as_deref()
+                .filter(|key| key.bytes().all(|byte| byte.is_ascii_graphic()))
+        })
         .filter(|key| (1..=MAX_KEY_LENGTH).contains(&key.len()))
         .ok_or_else(|| {
             Box::new(answer::refusal(
@@ -72,7 +88,7 @@ fn requested_work(visit: Visit<'_>, pattern: &str, body: &Bytes) -> Result<Work,
     let query = request.uri.query().unwrap_or_default();
     Ok(Work::new(
         key,
-        digest(&[path.as_bytes(), query.as_bytes(), body]),
+        digest(&[path.as_bytes(), query.as_bytes(), &received.fingerprint]),
     ))
 }
 
@@ -142,8 +158,9 @@ mod tests {
             #[cfg(feature = "signed-links")]
             keys: &sofie_auth::SigningKeys::generate().unwrap(),
         };
-        let body = Bytes::new();
-        requested_work(visit, "/orders/{order}/cancel", &body).unwrap_or_else(|_| panic!("keyed"))
+        let received = RequestBody::plain(bytes::Bytes::new(), &request.headers);
+        requested_work(visit, "/orders/{order}/cancel", &received)
+            .unwrap_or_else(|_| panic!("keyed"))
     }
 
     fn keyed(client: &str, principal: Option<sofie_core::Uuid>) -> String {

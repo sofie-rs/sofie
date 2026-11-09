@@ -360,9 +360,7 @@ impl Pipeline {
         refuse(crate::step::refusal(&self.steps, &target.admission.area.steps, visit).await)?;
         let received = self.received(asked, target, body).await?;
         #[cfg(feature = "idempotency")]
-        let work = target
-            .admission
-            .work(visit, &target.pattern, &received.fingerprint)?;
+        let work = target.admission.work(visit, &target.pattern, &received)?;
         let request = asked.request;
         #[cfg(feature = "remote-contracts")]
         let acting = found.session.acting();
@@ -471,15 +469,23 @@ pub(crate) struct RequestBody {
     /// What a retry sends again, which a stored file's key, expiry and seal are not.
     #[cfg(feature = "idempotency")]
     pub(crate) fingerprint: Bytes,
+    /// Posted by a form sent without JavaScript, which cannot set the header.
+    #[cfg(feature = "idempotency")]
+    pub(crate) form_key: Option<String>,
 }
 
 impl RequestBody {
     pub(crate) fn plain(body: Bytes, headers: &http::HeaderMap) -> Self {
+        let encoding = Encoding::of(headers);
         Self {
+            #[cfg(feature = "idempotency")]
+            form_key: (encoding == Encoding::Form)
+                .then(|| crate::form::posted(&body, sofie_core::IDEMPOTENCY_KEY_FIELD))
+                .flatten(),
             #[cfg(feature = "idempotency")]
             fingerprint: body.clone(),
             body,
-            encoding: Encoding::of(headers),
+            encoding,
             #[cfg(feature = "uploads")]
             stored: crate::uploads::Stored::default(),
         }

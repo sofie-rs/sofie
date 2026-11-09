@@ -24,6 +24,10 @@ impl Props {
         }
     }
 
+    pub(super) fn position(&self) -> Position {
+        self.position
+    }
+
     pub(super) fn take(&mut self, name: &str) -> Option<Attribute> {
         self.check_declared(name, false);
         self.take_declared(name)

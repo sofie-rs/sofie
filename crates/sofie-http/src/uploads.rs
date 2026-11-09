@@ -290,6 +290,8 @@ pub(crate) async fn read(
                 body: encoded(&form.fields)?,
                 #[cfg(feature = "idempotency")]
                 fingerprint: encoded(&as_sent(&form.fields))?,
+                #[cfg(feature = "idempotency")]
+                form_key: form.idempotency_key,
                 encoding: Encoding::Json,
                 stored: form.stored,
             })
@@ -407,6 +409,8 @@ struct Form<'s, B = Incoming> {
     storage: Option<&'s Storage>,
     file_limit: usize,
     fields: Map<String, Value>,
+    #[cfg(feature = "idempotency")]
+    idempotency_key: Option<String>,
     stored: Stored,
     deadline: &'s Deadline,
     paused: Option<Paused<'s>>,
@@ -430,6 +434,8 @@ where
             storage,
             file_limit,
             fields: Map::new(),
+            #[cfg(feature = "idempotency")]
+            idempotency_key: None,
             stored: Stored {
                 storage: storage.cloned(),
                 keys: Vec::new(),
@@ -485,7 +491,12 @@ where
         let length = value.len();
         let value = String::from_utf8(value)
             .map_err(|_| Error::BadRequest("the form is not UTF-8".to_owned()))?;
-        if !value.is_empty() {
+        if name == sofie_core::IDEMPOTENCY_KEY_FIELD {
+            #[cfg(feature = "idempotency")]
+            {
+                self.idempotency_key = Some(value);
+            }
+        } else if !value.is_empty() {
             crate::dotted_name::insert(&mut self.fields, name, value)?;
         }
         Ok(length)

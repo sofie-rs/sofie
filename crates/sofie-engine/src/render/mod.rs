@@ -16,7 +16,7 @@ pub(crate) use self::value::{
 use crate::catalog::{self, Submitted};
 use crate::escape::push_url;
 use crate::language::Language;
-use crate::syntax::{Conditional, Expression, LocatedError, Loop, Op};
+use crate::syntax::{Conditional, Expression, LocatedError, Loop, Op, Position};
 
 pub(crate) fn render_document<'a>(
     ops: &'a [Op],
@@ -24,9 +24,11 @@ pub(crate) fn render_document<'a>(
     capacity: usize,
     submitted: Option<&'a Submitted<'a>>,
     language: Language<'a>,
+    keyed_forms: bool,
 ) -> Result<String, LocatedError> {
     let mut renderer = Renderer::new(data, capacity, Pass::Writing, language);
     renderer.submitted = submitted;
+    renderer.keyed_forms = keyed_forms;
     renderer.render_ops(ops)?;
     Ok(renderer.out)
 }
@@ -38,11 +40,13 @@ pub(crate) fn render_fragment<'a>(
     id: &'a str,
     capacity: usize,
     language: Language<'a>,
+    keyed_forms: bool,
 ) -> Result<Option<String>, LocatedError> {
     if id.is_empty() {
         return Ok(None);
     }
     let mut renderer = Renderer::new(data, capacity, Pass::Seeking(id), language);
+    renderer.keyed_forms = keyed_forms;
     renderer.render_ops(ops)?;
     Ok((renderer.pass == Pass::Done).then_some(renderer.out))
 }
@@ -60,6 +64,7 @@ pub(crate) struct Renderer<'a> {
     /// For values that must be checked before they are escaped.
     scratch: String,
     submitted: Option<&'a Submitted<'a>>,
+    keyed_forms: bool,
     pass: Pass<'a>,
     pub(crate) language: Language<'a>,
 }
@@ -71,6 +76,7 @@ impl<'a> Renderer<'a> {
             out: String::with_capacity(capacity),
             scratch: String::new(),
             submitted: None,
+            keyed_forms: false,
             pass,
             language,
         }
@@ -184,6 +190,25 @@ impl<'a> Renderer<'a> {
 
     pub(crate) fn push_markup(&mut self, markup: &str) {
         self.out.push_str(markup);
+    }
+
+    /// Drawn per render, so a form shown again after a refusal posts as a new request.
+    pub(crate) fn write_idempotency_key(&mut self, position: Position) -> Result<(), LocatedError> {
+        if !self.keyed_forms {
+            return Ok(());
+        }
+        let key = sofie_core::Uuid::new_v4().map_err(|error| {
+            LocatedError::new(
+                position,
+                format!("drawing a form's idempotency key: {error}"),
+            )
+        })?;
+        self.out.push_str("<input type=\"hidden\" name=\"");
+        self.out.push_str(sofie_core::IDEMPOTENCY_KEY_FIELD);
+        self.out.push_str("\" value=\"");
+        self.out.push_str(&key.to_string());
+        self.out.push_str("\">");
+        Ok(())
     }
 
     /// Authored text is written as is; anything else is data, escaped.

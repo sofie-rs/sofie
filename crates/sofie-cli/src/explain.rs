@@ -16,6 +16,7 @@ use crate::inputs::{Field, Kind, valid_object};
 use crate::routes_command::{feature, handler_path, modifiers, owner_scope, shown_path};
 use crate::tasks_command::task_arguments;
 
+mod impact;
 mod packages;
 
 #[must_use]
@@ -61,7 +62,11 @@ pub fn explain(app: &App, name: &str) -> Vec<String> {
                 .read_models
                 .iter()
                 .filter(|model| model.name == name)
-                .map(|model| read_model(module, model, &sites)),
+                .map(|model| {
+                    let mut lines = vec![read_model(module, model, &sites)];
+                    lines.extend(impact::read_model(app, module, model, &sites));
+                    lines.join("\n")
+                }),
         );
         sections.extend(
             module
@@ -69,11 +74,18 @@ pub fn explain(app: &App, name: &str) -> Vec<String> {
                 .aggregates
                 .iter()
                 .filter(|aggregate| aggregate.name == name)
-                .map(|aggregate| aggregate_section(module, aggregate)),
+                .map(|aggregate| {
+                    let mut lines = vec![aggregate_section(module, aggregate)];
+                    lines.extend(impact::aggregate(app, module, aggregate, &sites));
+                    lines.join("\n")
+                }),
         );
         sections.extend(screen(module, name, &sites).map(|summary| {
             let mut lines = vec![summary];
             lines.extend(screen_data(app, module, name, &sites));
+            if let Some((area, file)) = screen_file(module, name) {
+                lines.extend(impact::screen(area, &file_stem(file), &sites));
+            }
             lines.join("\n")
         }));
         sections.extend(flag(module, name, &sites));
@@ -119,6 +131,7 @@ fn route(app: &App, site: &RouteSite) -> String {
     for screen in shown_screens(site) {
         lines.push(screen_line(site, &screen));
     }
+    lines.extend(impact::route(app, site));
     lines.join("\n")
 }
 
@@ -1468,6 +1481,75 @@ mod tests {
             ),
             "{explained}"
         );
+    }
+
+    #[test]
+    fn an_aggregate_a_screen_and_a_route_name_what_a_change_to_them_touches() {
+        let mut order = module("order", "shop/modules/order");
+        order.code.aggregates = vec![sofie_model::testing::aggregate(
+            "Order",
+            Vec::new(),
+            "shop/modules/order/src/order.rs",
+        )];
+        order.code.read_models = vec![sofie_model::ReadModel {
+            name: "OrderRow".to_owned(),
+            from: Some("Order".to_owned()),
+            fields: Vec::new(),
+            file: PathBuf::from("shop/modules/order/src/order.rs"),
+            line: 20,
+        }];
+        let mut orders = route(Method::Get, "/orders", "pages::orders", 3);
+        orders.screen = Some("orders".to_owned());
+        let mut cancel = route(Method::Post, "/orders/{order}/cancel", "actions::cancel", 4);
+        cancel.then = Some(sofie_model::Then::Screen {
+            screen: "orders".to_owned(),
+            fragment: "rows".to_owned(),
+        });
+        order.areas.push(area(&order, "web", vec![orders, cancel]));
+        order.areas[0].screens = vec![PathBuf::from("shop/modules/order/web/orders.html")];
+        let mut page = function("pages::orders", "shop/modules/order/src/pages.rs", 5);
+        page.output = Some(type_name("Result<Vec<OrderRow>>"));
+        order.code.functions = vec![
+            page,
+            function("actions::cancel", "shop/modules/order/src/actions.rs", 5),
+        ];
+        let tests = sofie_model::testing::TemporaryDirectory::new("sofie-explain-impact");
+        tests.write(
+            "orders.rs",
+            "#[test]\nfn placed() { let _ = std::any::type_name::<Order>(); }\n",
+        );
+        let mut shop = app("shop", vec![order]);
+        shop.app.tests_and_examples =
+            vec![sofie_model::Source::read(&tests.path("orders.rs")).unwrap()];
+
+        let aggregate = explain(&shop, "Order").join("\n");
+        let screen = explain(&shop, "order/web/orders").join("\n");
+        let route = explain(&shop, "order.web.cancel").join("\n");
+
+        let touched = |explained: &str| -> Vec<String> {
+            explained
+                .split_once("  change touches:\n")
+                .map(|(_, rest)| rest.lines().map(|line| line.trim().to_owned()).collect())
+                .unwrap_or_default()
+        };
+        assert_eq!(
+            touched(&aggregate),
+            [
+                "read model OrderRow".to_owned(),
+                "route order.web.orders".to_owned(),
+                "screen order/web/orders".to_owned(),
+                "migration: a new file under shop/modules/order/migrations for a changed column"
+                    .to_owned(),
+                format!("test {}", tests.path("orders.rs").display()),
+            ],
+            "{aggregate}"
+        );
+        assert_eq!(
+            touched(&screen),
+            ["action order.web.cancel (refreshes `#rows`)"],
+            "{screen}"
+        );
+        assert!(!route.contains("change touches"), "{route}");
     }
 
     #[test]

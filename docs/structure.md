@@ -1787,7 +1787,12 @@ it, and `sofie feature` changes the app's features:
   body it takes, made from the fixtures `sofie fuzz` sends, or, without
   one, the field a `#[derive(Value)]` argument reads, and the query
   parameters its `Query<Q>` or `Listing<T, Q>` reads. Flows join it when they
-  are built.
+  are built. An aggregate, read model, screen or route ends with what a change
+  to it touches: the read models of an aggregate, the routes taking or
+  answering it and the screens they show, the contract lookup and the crates
+  depending on that contract when it is exposed, the migration a changed
+  column needs, the actions refreshing a screen, a route's contract builder,
+  and the test files naming the item.
 - **`sofie feature add|remove NAME [ROOT]`** (MCP `feature`, with `dry_run`)
   turns a feature of the `sofie` facade on or off for the app: it checks NAME
   against the features `cargo metadata` lists for `sofie-framework`, edits

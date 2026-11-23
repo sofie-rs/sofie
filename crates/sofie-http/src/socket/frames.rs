@@ -3,8 +3,8 @@
 use std::io;
 
 use bytes::Bytes;
-use http::HeaderMap;
 use http::header::{CONNECTION, SEC_WEBSOCKET_KEY, SEC_WEBSOCKET_VERSION, UPGRADE};
+use http::{HeaderMap, Method};
 use sofie_core::encoding::base64;
 use tokio::io::{AsyncRead, AsyncReadExt};
 
@@ -20,25 +20,42 @@ const CLOSE: u8 = 0x8;
 const PING: u8 = 0x9;
 const PONG: u8 = 0xA;
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum HandshakeError {
     NotAnUpgrade,
     /// Answered `426` naming the version spoken.
     UnsupportedVersion,
 }
 
-pub(crate) fn accept(headers: &HeaderMap) -> Result<String, HandshakeError> {
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) enum Handshake {
+    /// HTTP/1.1, answered `101` with this `Sec-WebSocket-Accept`.
+    Upgrade(String),
+    /// HTTP/2's extended CONNECT (RFC 8441), answered `200`; it carries no key.
+    Connect,
+}
+
+pub(crate) fn handshake(method: &Method, headers: &HeaderMap) -> Result<Handshake, HandshakeError> {
+    if method == Method::CONNECT {
+        return speaks_version_13(headers).map(|()| Handshake::Connect);
+    }
+    accept(headers).map(Handshake::Upgrade)
+}
+
+fn speaks_version_13(headers: &HeaderMap) -> Result<(), HandshakeError> {
+    match headers.get(SEC_WEBSOCKET_VERSION) {
+        Some(version) if version == "13" => Ok(()),
+        _ => Err(HandshakeError::UnsupportedVersion),
+    }
+}
+
+fn accept(headers: &HeaderMap) -> Result<String, HandshakeError> {
     let upgrades =
         has_token(headers, &UPGRADE, "websocket") && has_token(headers, &CONNECTION, "upgrade");
     if !upgrades {
         return Err(HandshakeError::NotAnUpgrade);
     }
-    if headers
-        .get(SEC_WEBSOCKET_VERSION)
-        .is_none_or(|version| version != "13")
-    {
-        return Err(HandshakeError::UnsupportedVersion);
-    }
+    speaks_version_13(headers)?;
     let key = headers
         .get(SEC_WEBSOCKET_KEY)
         .and_then(|key| key.to_str().ok())
@@ -267,7 +284,7 @@ mod tests {
         Reader::new(bytes.as_slice()).next().await
     }
 
-    fn handshake(key: &str) -> HeaderMap {
+    fn upgrade_headers(key: &str) -> HeaderMap {
         let mut headers = HeaderMap::new();
         headers.insert(UPGRADE, HeaderValue::from_static("websocket"));
         headers.insert(CONNECTION, HeaderValue::from_static("keep-alive, Upgrade"));
@@ -279,21 +296,36 @@ mod tests {
     #[test]
     fn the_accept_key_is_the_rfc_6455_example() {
         assert_eq!(
-            accept(&handshake("dGhlIHNhbXBsZSBub25jZQ==")),
+            accept(&upgrade_headers("dGhlIHNhbXBsZSBub25jZQ==")),
             Ok("s3pPLMBiTxaQ9kYGzzhZRbK+xOo=".to_owned())
+        );
+    }
+
+    #[test]
+    fn an_http2_connect_needs_only_version_13() {
+        let mut headers = HeaderMap::new();
+        headers.insert(SEC_WEBSOCKET_VERSION, HeaderValue::from_static("13"));
+
+        assert_eq!(
+            handshake(&Method::CONNECT, &headers),
+            Ok(Handshake::Connect)
+        );
+        assert_eq!(
+            handshake(&Method::CONNECT, &HeaderMap::new()),
+            Err(HandshakeError::UnsupportedVersion)
         );
     }
 
     #[test]
     fn a_handshake_without_a_sixteen_byte_key_or_version_13_is_refused() {
         assert_eq!(
-            accept(&handshake("c2hvcnQ=")),
+            accept(&upgrade_headers("c2hvcnQ=")),
             Err(HandshakeError::NotAnUpgrade)
         );
-        let mut old = handshake("dGhlIHNhbXBsZSBub25jZQ==");
+        let mut old = upgrade_headers("dGhlIHNhbXBsZSBub25jZQ==");
         old.insert(SEC_WEBSOCKET_VERSION, HeaderValue::from_static("8"));
         assert_eq!(accept(&old), Err(HandshakeError::UnsupportedVersion));
-        let mut plain = handshake("dGhlIHNhbXBsZSBub25jZQ==");
+        let mut plain = upgrade_headers("dGhlIHNhbXBsZSBub25jZQ==");
         plain.remove(UPGRADE);
         assert_eq!(accept(&plain), Err(HandshakeError::NotAnUpgrade));
     }

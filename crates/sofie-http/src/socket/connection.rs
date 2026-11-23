@@ -44,6 +44,7 @@ pub(crate) struct Link {
     pub(crate) session: RequestSession,
     pub(crate) closing: watch::Receiver<bool>,
     pub(crate) _held: Held,
+    pub(crate) _connection: Option<super::Hold>,
 }
 
 pub(crate) async fn run<S>(io: S, link: Link)

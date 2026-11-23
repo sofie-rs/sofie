@@ -9,7 +9,7 @@ use sofie_core::{Cast, ColumnReader, Result, SqlValue, Uuid};
 use sofie_db::{Aggregate, Db, Field, Id, Meta, Outcome, Read, ReadOnly, Reply, Select};
 use sofie_http::{Admitter, App, Area, Principal, Routes, Session, SignInRight, Web};
 use sofie_testing::{FakeDriver, TestServer};
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio::net::TcpStream;
 
 const MEMBER: Uuid = Uuid::from_u128(0x0190_a7d2_0000_7000_8000_0000_0000_0001);
@@ -151,8 +151,8 @@ async fn write_note(server: &TestServer, cookie: &str) {
     assert_eq!(written.status, StatusCode::OK, "{}", written.body);
 }
 
-struct Client {
-    socket: TcpStream,
+struct Client<S = TcpStream> {
+    socket: S,
     head: String,
 }
 
@@ -187,7 +187,9 @@ impl Client {
         assert!(client.head.starts_with("HTTP/1.1 101"), "{}", client.head);
         client
     }
+}
 
+impl<S: AsyncRead + AsyncWrite + Unpin> Client<S> {
     async fn send(&mut self, message: &Value) {
         let payload = message.to_string().into_bytes();
         let mask = [0x11, 0x22, 0x33, 0x44];
@@ -403,4 +405,81 @@ async fn stopping_the_server_closes_open_sockets() {
 
     assert!(matches!(stopped, Ok(Ok(()))), "{stopped:?}");
     assert_eq!(client.closed_with().await, Some(1001));
+}
+
+/// Over HTTP/2 a socket is a stream of the page's connection (RFC 8441), opened by CONNECT.
+#[tokio::test]
+async fn a_socket_opens_over_http2_by_extended_connect() {
+    use hyper_util::rt::{TokioExecutor, TokioIo};
+
+    let server = start().await;
+    let member = signed_in(&server, "/sign-in").await;
+    let address = server.origin().trim_start_matches("http://").to_owned();
+    let tcp = TcpStream::connect(&address).await.unwrap();
+    let (mut sender, connection) =
+        hyper::client::conn::http2::handshake(TokioExecutor::new(), TokioIo::new(tcp))
+            .await
+            .unwrap();
+    tokio::spawn(connection);
+    let mut connect = http::Request::builder()
+        .method(http::Method::CONNECT)
+        .uri(format!("http://{address}/_sofie/socket"))
+        .header("sec-websocket-version", "13")
+        .header("origin", server.origin())
+        .header("cookie", &member)
+        .body(http_body_util::Empty::<bytes::Bytes>::new())
+        .unwrap();
+    connect
+        .extensions_mut()
+        .insert(hyper::ext::Protocol::from_static("websocket"));
+
+    let response = sender.send_request(connect).await.unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let upgraded = hyper::upgrade::on(response).await.unwrap();
+    let mut client = Client {
+        socket: TokioIo::new(upgraded),
+        head: String::new(),
+    };
+    client
+        .send(&json!({"id": 1, "method": "GET", "path": "/members/notes"}))
+        .await;
+    let first = client.answer().await.unwrap();
+    write_note(&server, &member).await;
+    let again = client.answer().await.unwrap();
+
+    assert_eq!(
+        (first["id"].clone(), first["status"].clone()),
+        (json!(1), json!(200))
+    );
+    assert_eq!(again["status"], 200, "{again}");
+}
+
+/// Once upgraded, an HTTP/1.1 connection serves nothing more, but its socket keeps its place.
+#[tokio::test]
+async fn an_open_socket_keeps_its_connection_s_place_under_the_cap() {
+    let one = std::num::NonZeroUsize::new(1).unwrap();
+    let app = App::new(Db::new(FakeDriver::default()))
+        .serving(|serving| serving.max_connections(one))
+        .area("notes", web_routes)
+        .area("notes", member_routes);
+    let server = TestServer::start(app).await;
+    let origin = server.origin();
+    let client = Client::open(
+        &server,
+        &format!("Sec-WebSocket-Key: {KEY}\r\nOrigin: {origin}\r\n"),
+    )
+    .await;
+    assert!(client.head.starts_with("HTTP/1.1 101"), "{}", client.head);
+
+    let while_open =
+        tokio::time::timeout(Duration::from_millis(300), server.get("/members/notes")).await;
+    drop(client);
+    let after_closing =
+        tokio::time::timeout(Duration::from_secs(2), server.get("/members/notes")).await;
+
+    assert!(
+        while_open.is_err(),
+        "a second connection was served while the socket held the only place"
+    );
+    assert!(after_closing.is_ok());
 }

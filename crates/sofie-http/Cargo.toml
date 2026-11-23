@@ -167,6 +167,8 @@ sofie-engine = { workspace = true, optional = true, features = ["compile"] }
 # So `tests/clients.rs`, `etag.rs`, `cors.rs`, `live.rs`, `middleware.rs`, `session_cache.rs`, `socket.rs`,
 # `tls.rs` and `uploads.rs` run in every test run; the tests parse their screens.
 sofie-http = { path = ".", default-features = false, features = ["clients", "cors", "csv", "etag", "live", "parse", "session-list", "socket", "steps", "tls", "uploads"] }
+# An HTTP/2 client opening a socket by extended CONNECT in `tests/socket.rs`.
+hyper = { workspace = true, features = ["client"] }
 rustls.workspace = true
 sofie-storage = { path = "../sofie-storage", features = ["local"] }
 sofie-telemetry = { path = "../sofie-telemetry", features = ["capture", "product-events"] }

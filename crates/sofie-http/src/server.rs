@@ -239,6 +239,8 @@ fn connection_builder() -> Builder<TokioExecutor> {
         .max_concurrent_streams(MAX_CONCURRENT_STREAMS)
         .max_pending_accept_reset_streams(MAX_PENDING_RESETS)
         .max_local_error_reset_streams(MAX_ERROR_RESETS);
+    #[cfg(feature = "socket")]
+    builder.http2().enable_connect_protocol();
     builder
 }
 
@@ -277,7 +279,18 @@ impl Connections {
             );
         };
         let pipeline = Arc::clone(&self.pipeline);
-        let service = service_fn(move |request| {
+        let held = (permit, slot);
+        #[cfg(feature = "socket")]
+        let held = crate::socket::Hold::new(held);
+        #[cfg(feature = "socket")]
+        let connection_hold = held.clone();
+        let service = service_fn(move |request: Request<Incoming>| {
+            #[cfg(feature = "socket")]
+            let request = {
+                let mut request = request;
+                request.extensions_mut().insert(connection_hold.clone());
+                request
+            };
             let pipeline = Arc::clone(&pipeline);
             #[cfg(feature = "storage")]
             return async move {
@@ -292,7 +305,7 @@ impl Connections {
                 Ok::<_, Infallible>(crate::pipeline::handle(&pipeline, request, peer).await)
             }
         });
-        self.spawn((stream, peer), service, (permit, slot), None);
+        self.spawn((stream, peer), service, held, None);
     }
 
     fn refused(&self) {

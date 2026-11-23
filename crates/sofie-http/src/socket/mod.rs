@@ -15,8 +15,9 @@ use http::header::{
     CONNECTION, ORIGIN, RETRY_AFTER, SEC_WEBSOCKET_ACCEPT, SEC_WEBSOCKET_VERSION, UPGRADE,
 };
 use http::request::Parts;
-use http::{HeaderValue, Method, StatusCode, Version};
+use http::{HeaderValue, Method, StatusCode};
 use hyper::body::Incoming;
+use hyper::ext::Protocol;
 use hyper::upgrade::OnUpgrade;
 use hyper_util::rt::TokioIo;
 use tokio::sync::watch;
@@ -29,7 +30,7 @@ use crate::pipeline::Pipeline;
 use crate::throttle::Requester;
 
 use connection::Link;
-use frames::HandshakeError;
+use frames::{Handshake, HandshakeError};
 
 pub(crate) const PATH: &str = "/_sofie/socket";
 const RETRY: &str = "5";
@@ -55,7 +56,27 @@ impl Sockets {
 }
 
 pub(crate) fn is_opening(request: &http::Request<Incoming>) -> bool {
-    request.method() == Method::GET && request.uri().path() == PATH
+    let is_extended_connect = request.method() == Method::CONNECT
+        && request
+            .extensions()
+            .get::<Protocol>()
+            .is_some_and(|protocol| protocol.as_str().eq_ignore_ascii_case("websocket"));
+    request.uri().path() == PATH && (request.method() == Method::GET || is_extended_connect)
+}
+
+/// The connection's place under the server's caps, kept by its sockets: an HTTP/1.1
+/// connection is done serving once upgraded, but the socket still holds it.
+#[derive(Clone)]
+pub(crate) struct Hold {
+    _held: Arc<dyn Send + Sync>,
+}
+
+impl Hold {
+    pub(crate) fn new(held: impl Send + Sync + 'static) -> Self {
+        Self {
+            _held: Arc::new(held),
+        }
+    }
 }
 
 pub(crate) async fn open(
@@ -78,26 +99,15 @@ fn opened(
     peer: SocketAddr,
 ) -> Result<Response, Box<Response>> {
     let refuse = |status, text| Box::new(answer::response(status, Some(TEXT), text));
-    let accept = frames::accept(&request.headers).map_err(|error| match error {
-        HandshakeError::NotAnUpgrade => {
-            refuse(StatusCode::BAD_REQUEST, "Not a WebSocket handshake.")
-        }
-        HandshakeError::UnsupportedVersion => {
-            let mut refused = refuse(StatusCode::UPGRADE_REQUIRED, "Speak WebSocket version 13.");
-            refused
-                .headers_mut()
-                .insert(SEC_WEBSOCKET_VERSION, HeaderValue::from_static("13"));
-            refused
-        }
-    })?;
+    let handshake =
+        frames::handshake(&request.method, &request.headers).map_err(refused_handshake)?;
     if is_cross_site(request, &pipeline.sessions.cookies) {
         return Err(refuse(StatusCode::FORBIDDEN, "Refused."));
     }
     let upgrading = request
         .extensions
         .remove::<OnUpgrade>()
-        .filter(|_| request.version == Version::HTTP_11)
-        .ok_or_else(|| refuse(StatusCode::BAD_REQUEST, "A socket opens over HTTP/1.1."))?;
+        .ok_or_else(|| refuse(StatusCode::BAD_REQUEST, "Not a WebSocket handshake."))?;
     let now = pipeline.db.clock().now().timestamp();
     let session = pipeline.sessions.open(&request.headers, now);
     let holder = Requester::of(session.principal(), pipeline.client(request, peer).0);
@@ -107,12 +117,6 @@ fn opened(
             .insert(RETRY_AFTER, HeaderValue::from_static(RETRY));
         busy
     })?;
-    let accept = HeaderValue::from_str(&accept).map_err(|_| {
-        refuse(
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "The handshake could not be answered.",
-        )
-    })?;
     let link = Link {
         pipeline: Arc::clone(pipeline),
         peer,
@@ -120,13 +124,52 @@ fn opened(
         session,
         closing: pipeline.sockets.closing.subscribe(),
         _held: held,
+        _connection: request.extensions.remove::<Hold>(),
     };
+    let switching = accepted(handshake)?;
     tokio::spawn(async move {
         match upgrading.await {
             Ok(upgraded) => connection::run(TokioIo::new(upgraded), link).await,
             Err(error) => tracing::debug!(error = %error, "a socket's upgrade did not complete"),
         }
     });
+    Ok(switching)
+}
+
+fn refused_handshake(error: HandshakeError) -> Box<Response> {
+    let refused = match error {
+        HandshakeError::NotAnUpgrade => answer::response(
+            StatusCode::BAD_REQUEST,
+            Some(TEXT),
+            "Not a WebSocket handshake.",
+        ),
+        HandshakeError::UnsupportedVersion => {
+            let mut refused = answer::response(
+                StatusCode::UPGRADE_REQUIRED,
+                Some(TEXT),
+                "Speak WebSocket version 13.",
+            );
+            refused
+                .headers_mut()
+                .insert(SEC_WEBSOCKET_VERSION, HeaderValue::from_static("13"));
+            refused
+        }
+    };
+    Box::new(refused)
+}
+
+fn accepted(handshake: Handshake) -> Result<Response, Box<Response>> {
+    let Handshake::Upgrade(accept) = handshake else {
+        return Ok(answer::response(StatusCode::OK, None, Bytes::new()));
+    };
+    let accept = HeaderValue::try_from(accept).map_err(|_| {
+        let text = "The handshake could not be answered.";
+        Box::new(answer::response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Some(TEXT),
+            text,
+        ))
+    })?;
     let mut switching = answer::response(StatusCode::SWITCHING_PROTOCOLS, None, Bytes::new());
     let headers = switching.headers_mut();
     headers.insert(UPGRADE, HeaderValue::from_static("websocket"));

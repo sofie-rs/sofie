@@ -349,6 +349,12 @@ impl Pipeline {
             None => guard::unauthenticated(target.audience, request, caller),
         };
         let response = session.finish(response, &self.sessions, now, caller);
+        #[cfg(feature = "replica")]
+        let response = if sofie_db::has_replica(&self.db) {
+            session.wrote_marked(response, &self.sessions.cookies, caller)
+        } else {
+            response
+        };
         #[cfg(feature = "shield")]
         let response = crate::shield::tag(response, session.principal());
         Ok((response, session.principal()))

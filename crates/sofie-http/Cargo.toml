@@ -117,6 +117,8 @@ jobs = ["sofie-db/jobs"]
 # rendering; such answers are `private, no-cache` instead of `no-store`.
 # Off with `development`, whose templates change on disk without a read.
 etag = ["sofie-db/etag"]
+# GETs read from the database's replica, unless the client wrote in the last seconds.
+replica = ["sofie-db/replica"]
 # A split app serving its contracts, lookups and event feed to the apps it
 # left (`Served::serve`), and every handler acting for its principal in the
 # contract calls it makes.

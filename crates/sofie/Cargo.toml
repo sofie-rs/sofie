@@ -161,7 +161,12 @@ remote-contracts = [
 # Invalidated when an aggregate it depends on is written; shared with `SOFIE_CACHE_STORE`.
 cache = ["dep:sofie-cache", "sofie-cache/memory", "sofie-postgres?/cache"]
 cache-database = ["cache", "sofie-cache/database"]
-cache-redis = ["cache", "sofie-cache/redis"]
+cache-redis = ["cache", "redis", "sofie-cache/redis"]
+# GETs read from `DATABASE_REPLICA_URL`, a Postgres read replica, unless the client wrote in the
+# last seconds or the read is answered again on change (live screens, sockets, screen cache).
+replica = ["sofie-db/replica", "sofie-http/replica"]
+# One Redis from `SOFIE_REDIS_URL`, shared by the cache and taken by handlers and jobs as `Redis`.
+redis = ["dep:sofie-redis"]
 jobs = ["sofie-db/jobs", "sofie-http/jobs"]
 # `LocalJobs`: jobs at a wall-clock time in an IANA zone, once, daily or weekly.
 local-time = ["jobs", "time", "sofie-db/local-time"]
@@ -208,6 +213,7 @@ sofie-macros.workspace = true
 sofie-mail = { workspace = true, optional = true }
 sofie-notify = { workspace = true, optional = true }
 sofie-postgres = { workspace = true, optional = true }
+sofie-redis = { workspace = true, optional = true }
 sofie-sqlite = { workspace = true, optional = true }
 sofie-storage = { workspace = true, optional = true }
 sofie-telemetry.workspace = true
@@ -239,6 +245,8 @@ sofie = { package = "sofie-framework", path = "../sofie", features = [
     "measure",
     "metrics",
     "percentage",
+    "redis",
+    "replica",
     "permissions",
     "image-variants",
     "remote-contracts",

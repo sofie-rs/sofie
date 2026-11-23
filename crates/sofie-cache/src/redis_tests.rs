@@ -2,28 +2,30 @@ use std::path::PathBuf;
 use std::process::{Child, Command as Process, Stdio};
 use std::sync::Arc;
 
-use rustls::pki_types::{CertificateDer, PrivateKeyDer, PrivatePkcs8KeyDer};
-use rustls::{RootCertStore, ServerConfig};
 use sofie_db::Db;
 use sofie_postgres::Postgres;
 use sofie_testing::TestDatabase;
-use tokio_rustls::TlsAcceptor;
 
-use super::fake::FakeRedis;
-use super::*;
+use std::time::Duration;
+
+use sofie_redis::fake::FakeRedis;
+use sofie_redis::{Command, Redis, RedisUrl};
+use tokio::time::timeout;
+
+use crate::redis::RedisStore;
+use crate::shared::{SharedStore, Stored};
 use crate::{Cache, Key, Store};
-
-const ROOT: &[u8] = include_bytes!("../../../sofie-client/tests/certificates/root.der");
-const SERVER_CERTIFICATE: &[u8] =
-    include_bytes!("../../../sofie-client/tests/certificates/server.der");
-const SERVER_KEY: &[u8] = include_bytes!("../../../sofie-client/tests/certificates/server.key.der");
 
 fn url(port: u16, rest: &str) -> RedisUrl {
     RedisUrl::parse(&format!("redis://{rest}127.0.0.1:{port}")).unwrap()
 }
 
-async fn client(fake: &FakeRedis) -> Client {
-    Client::connect(url(fake.port, "")).await.unwrap()
+async fn redis(fake: &FakeRedis) -> Redis {
+    Redis::connect(url(fake.port, "")).await.unwrap()
+}
+
+async fn client(fake: &FakeRedis) -> RedisStore {
+    RedisStore(redis(fake).await)
 }
 
 fn stored(value: &str, tags: &[&str], expires_in: Duration) -> Stored {
@@ -92,7 +94,7 @@ async fn writing_under_a_tag_prunes_members_whose_entries_expired() {
         .argument("sofie:tags:t")
         .argument("1")
         .argument("old");
-    client.call(&[old]).await.unwrap();
+    client.0.call(&[old]).await.unwrap();
 
     client
         .set("new", &stored("1", &["t"], Duration::from_secs(3600)))
@@ -155,76 +157,14 @@ async fn an_entry_and_its_tags_are_written_in_one_transaction() {
 }
 
 #[tokio::test]
-async fn every_connection_signs_in_and_selects_its_database() {
-    let fake = FakeRedis::start(Some("p@ss"), None).await;
-    let refused = Client::connect(url(fake.port, ":wrong@")).await;
-    let Err(error) = refused else {
-        panic!("a wrong password was accepted");
-    };
-    assert!(error.to_string().contains("WRONGPASS"), "{error}");
-    assert!(!error.to_string().contains("wrong"), "{error}");
-
-    let address = format!("redis://app:p%40ss@127.0.0.1:{}/3", fake.port);
-    let client = Client::connect(RedisUrl::parse(&address).unwrap())
-        .await
-        .unwrap();
-    client.publish("anyone", "x").await.unwrap();
-
-    assert_eq!(fake.selected(), vec!["3".to_owned()]);
-}
-
-#[tokio::test]
-async fn a_connection_redis_closed_is_replaced_by_a_new_one() {
-    let fake = FakeRedis::start(None, None).await;
-    let client = client(&fake).await;
-
-    fake.close_connections();
-    tokio::time::sleep(Duration::from_millis(20)).await;
-    client.publish("anyone", "x").await.unwrap();
-
-    assert_eq!(fake.connections(), 2);
-}
-
-#[tokio::test]
-async fn an_unreachable_redis_is_dialled_again_only_after_a_backoff() {
-    let fake = FakeRedis::start(None, None).await;
-    let client = client(&fake).await;
-    fake.stop();
-    tokio::time::sleep(Duration::from_millis(20)).await;
-
-    let first = client.publish("anyone", "x").await.unwrap_err().to_string();
-    let second = client.publish("anyone", "x").await.unwrap_err().to_string();
-
-    assert!(first.contains("connecting to Redis"), "{first}");
-    assert!(second.contains("connecting again in"), "{second}");
-}
-
-#[tokio::test]
-async fn a_subscriber_receives_what_another_connection_publishes() {
-    let fake = FakeRedis::start(None, None).await;
-    let client = client(&fake).await;
-    let mut subscriber = client.subscribe("sofie_cache").await.unwrap();
-
-    client
-        .publish("sofie_cache", "{\"from\":\"a\"}")
-        .await
-        .unwrap();
-
-    let received = timeout(Duration::from_secs(2), subscriber.next())
-        .await
-        .unwrap();
-    assert_eq!(received.unwrap(), vec!["{\"from\":\"a\"}".to_owned()]);
-}
-
-#[tokio::test]
 async fn a_drop_longer_than_a_database_notification_reaches_peers_whole() {
     let fake = FakeRedis::start(None, None).await;
-    let mut subscriber = client(&fake)
+    let mut subscriber = redis(&fake)
         .await
         .subscribe(crate::peers::CHANNEL)
         .await
         .unwrap();
-    let peers = crate::peers::Peers::Redis(Arc::new(client(&fake).await));
+    let peers = crate::peers::Peers::Redis(redis(&fake).await);
     let dropped = crate::peers::Dropped {
         from: "a".to_owned(),
         tags: (0..200)
@@ -242,41 +182,12 @@ async fn a_drop_longer_than_a_database_notification_reaches_peers_whole() {
     assert_eq!(received.tags, dropped.tags);
 }
 
-#[tokio::test]
-async fn rediss_speaks_tls_and_checks_the_server_s_certificate() {
-    let provider = Arc::new(rustls::crypto::ring::default_provider());
-    let key = PrivateKeyDer::Pkcs8(PrivatePkcs8KeyDer::from(SERVER_KEY.to_vec()));
-    let config = ServerConfig::builder_with_provider(provider)
-        .with_safe_default_protocol_versions()
-        .unwrap()
-        .with_no_client_auth()
-        .with_single_cert(vec![CertificateDer::from(SERVER_CERTIFICATE.to_vec())], key)
-        .unwrap();
-    let fake = FakeRedis::start(None, Some(TlsAcceptor::from(Arc::new(config)))).await;
-    let address = RedisUrl::parse(&format!("rediss://localhost:{}", fake.port)).unwrap();
-    let mut roots = RootCertStore::empty();
-    roots.add(CertificateDer::from(ROOT.to_vec())).unwrap();
-
-    let untrusted = Client::connect(address.clone()).await;
-    let client = Client::reaching(Target::trusting(address, roots))
-        .await
-        .unwrap();
-    client
-        .set("k", &stored("v", &[], Duration::from_secs(5)))
-        .await
-        .unwrap();
-
-    assert!(untrusted.is_err());
-    assert_eq!(client.get("k").await.unwrap().unwrap().value.as_ref(), "v");
-}
-
 const TOTAL: Key<u32> = crate::key!("total");
 
 async fn instance(database: &TestDatabase, port: u16) -> (Db, Cache) {
     let db = Db::new(Postgres::connect(database.url()).unwrap());
-    let cache = Cache::start(&db, Store::Redis(url(port, "")))
-        .await
-        .unwrap();
+    Redis::connect(url(port, "")).await.unwrap().install(&db);
+    let cache = Cache::start(&db, Store::Redis).await.unwrap();
     (db, cache)
 }
 
@@ -345,8 +256,8 @@ async fn a_real_redis_server_answers_like_the_fake() {
     );
     let mut connected = None;
     for _ in 0..50 {
-        if let Ok(client) = Client::connect(url(port, "")).await {
-            connected = Some(client);
+        if let Ok(redis) = Redis::connect(url(port, "")).await {
+            connected = Some(RedisStore(redis));
             break;
         }
         tokio::time::sleep(Duration::from_millis(50)).await;

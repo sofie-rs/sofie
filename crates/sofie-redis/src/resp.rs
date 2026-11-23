@@ -6,14 +6,14 @@ use std::fmt::Write as _;
 use bytes::{Buf, BufMut, BytesMut};
 use sofie_core::{Error, Result};
 
-/// Past it a reply is refused rather than buffered: a cached value is far smaller.
+/// Past it a reply is refused rather than buffered.
 pub(crate) const MAX_REPLY_LENGTH: usize = 64 * 1024 * 1024;
-/// Replies the cache reads nest at most twice; a deeper one, or a chain of attributes, could only
+/// Replies nest a few levels at most; a deeper one, or a chain of attributes, could only
 /// exhaust the stack.
 const MAX_DEPTH: usize = 16;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) enum Reply {
+pub enum Reply {
     Status(String),
     Error(String),
     Integer(i64),
@@ -24,14 +24,16 @@ pub(crate) enum Reply {
 }
 
 impl Reply {
-    pub(crate) fn into_items(self) -> Option<Vec<Reply>> {
+    #[must_use]
+    pub fn into_items(self) -> Option<Vec<Reply>> {
         match self {
             Self::Array(Some(items)) | Self::Push(items) => Some(items),
             _ => None,
         }
     }
 
-    pub(crate) fn into_bytes(self) -> Option<Vec<u8>> {
+    #[must_use]
+    pub fn into_bytes(self) -> Option<Vec<u8>> {
         match self {
             Self::Bulk(Some(bytes)) => Some(bytes),
             Self::Status(text) => Some(text.into_bytes()),
@@ -40,19 +42,20 @@ impl Reply {
     }
 }
 
-pub(crate) struct Command {
+pub struct Command {
     arguments: Vec<Vec<u8>>,
 }
 
 impl Command {
-    pub(crate) fn new(name: &str) -> Self {
+    #[must_use]
+    pub fn new(name: &str) -> Self {
         Self {
             arguments: vec![name.as_bytes().to_vec()],
         }
     }
 
     #[must_use]
-    pub(crate) fn argument(mut self, argument: impl Into<Vec<u8>>) -> Self {
+    pub fn argument(mut self, argument: impl Into<Vec<u8>>) -> Self {
         self.arguments.push(argument.into());
         self
     }

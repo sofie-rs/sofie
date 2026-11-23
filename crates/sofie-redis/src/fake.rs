@@ -36,14 +36,14 @@ struct Shared {
     closing: broadcast::Sender<()>,
 }
 
-pub(crate) struct FakeRedis {
-    pub(crate) port: u16,
+pub struct FakeRedis {
+    pub port: u16,
     shared: Arc<Shared>,
     accepting: JoinHandle<()>,
 }
 
 impl FakeRedis {
-    pub(crate) async fn start(password: Option<&str>, tls: Option<TlsAcceptor>) -> Self {
+    pub async fn start(password: Option<&str>, tls: Option<TlsAcceptor>) -> Self {
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let port = listener.local_addr().unwrap().port();
         let shared = Arc::new(Shared {
@@ -78,23 +78,28 @@ impl FakeRedis {
         }
     }
 
-    pub(crate) fn connections(&self) -> usize {
+    #[must_use]
+    pub fn connections(&self) -> usize {
         self.shared.connections.load(Ordering::SeqCst)
     }
 
-    pub(crate) fn selected(&self) -> Vec<String> {
+    #[must_use]
+    pub fn selected(&self) -> Vec<String> {
         self.data().selected.clone()
     }
 
-    pub(crate) fn transactions(&self) -> Vec<Vec<String>> {
+    #[must_use]
+    pub fn transactions(&self) -> Vec<Vec<String>> {
         self.data().transactions.clone()
     }
 
-    pub(crate) fn holds(&self, key: &str) -> bool {
+    #[must_use]
+    pub fn holds(&self, key: &str) -> bool {
         self.data().values.contains_key(key.as_bytes())
     }
 
-    pub(crate) fn members(&self, key: &str) -> Vec<String> {
+    #[must_use]
+    pub fn members(&self, key: &str) -> Vec<String> {
         let data = self.data();
         let Some((Value::Sorted(members), _)) = data.values.get(key.as_bytes()) else {
             return Vec::new();
@@ -107,19 +112,19 @@ impl FakeRedis {
         members
     }
 
-    pub(crate) fn refuse_after(&self, commands: usize) {
+    pub fn refuse_after(&self, commands: usize) {
         self.shared.answering.store(commands, Ordering::SeqCst);
     }
 
-    pub(crate) fn answer_all(&self) {
+    pub fn answer_all(&self) {
         self.refuse_after(usize::MAX);
     }
 
-    pub(crate) fn close_connections(&self) {
+    pub fn close_connections(&self) {
         let _ = self.shared.closing.send(());
     }
 
-    pub(crate) fn stop(&self) {
+    pub fn stop(&self) {
         self.accepting.abort();
         self.close_connections();
     }

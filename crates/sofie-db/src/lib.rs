@@ -64,6 +64,8 @@ mod read;
 mod read_versions;
 #[cfg(feature = "remote-contracts")]
 pub mod remote;
+#[cfg(feature = "replica")]
+mod replica;
 mod reply;
 #[cfg(any(
     feature = "flags",
@@ -135,6 +137,8 @@ pub use read_versions::{read_cached, read_untracked, reads_so_far, track_reads};
 pub const fn read_untracked() {}
 #[cfg(not(feature = "etag"))]
 pub const fn read_cached(_value: &str) {}
+#[cfg(feature = "replica")]
+pub use replica::{has_replica, on_replica, with_replica};
 pub use reply::{Reply, ReplyData, Showing};
 pub use rows::{Decoding, column_types, query_decoded, query_values, row_values};
 pub use schema_check::{AggregateTable, Catalog, CatalogColumn, Mismatch, MismatchKind};

@@ -8,8 +8,8 @@ use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio::net::TcpStream;
 use tokio_rustls::TlsConnector;
 
-use super::resp::{self, Command, Reply};
-use super::url::RedisUrl;
+use crate::resp::{self, Command, Reply};
+use crate::url::RedisUrl;
 
 trait Stream: AsyncRead + AsyncWrite + Unpin + Send {}
 

@@ -2,11 +2,10 @@ use std::sync::{Arc, Mutex, Weak};
 
 use serde::Serialize;
 use serde::de::DeserializeOwned;
-use sofie_core::{Error, Result, unpoisoned};
+use sofie_core::{Backoff, Error, Result, unpoisoned};
 use sofie_db::{ChangedRecord, CommitHook, Context, Db, Resolve};
 
 use crate::Entry;
-use crate::backoff::Backoff;
 use crate::flight::Flights;
 use crate::invalidations::{Invalidations, Pending};
 use crate::key::{Key, aggregate_tag, any_record_tag, record_tag};
@@ -124,13 +123,10 @@ struct Parts {
 
 impl Parts {
     #[cfg_attr(
-        not(any(feature = "memory", feature = "database")),
+        not(any(feature = "memory", feature = "database", feature = "redis")),
         expect(unused_variables)
     )]
-    #[cfg_attr(
-        not(any(feature = "database", feature = "redis")),
-        expect(clippy::unused_async_trait_impl)
-    )]
+    #[cfg_attr(not(feature = "database"), expect(clippy::unused_async_trait_impl))]
     async fn of(db: &Db, store: Store) -> Result<Self> {
         #[cfg(feature = "memory")]
         let peers = Arc::new(match sofie_db::cache_driver(db).dialect().engine() {
@@ -150,12 +146,16 @@ impl Parts {
                 peers,
             }),
             #[cfg(feature = "redis")]
-            Store::Redis(url) => {
-                let client = Arc::new(crate::redis::Client::connect(url).await?);
+            Store::Redis => {
+                let redis = sofie_redis::Redis::installed(db).ok_or_else(|| {
+                    Error::internal_message(
+                        "SOFIE_CACHE_STORE is `redis`, but no Redis is connected; set SOFIE_REDIS_URL",
+                    )
+                })?;
                 Ok(Self {
                     #[cfg(feature = "memory")]
-                    peers: Arc::new(crate::peers::Peers::Redis(Arc::clone(&client))),
-                    shared: Some(client as Arc<dyn SharedStore>),
+                    peers: Arc::new(crate::peers::Peers::Redis(redis.clone())),
+                    shared: Some(Arc::new(crate::redis::RedisStore(redis)) as Arc<dyn SharedStore>),
                 })
             }
         }

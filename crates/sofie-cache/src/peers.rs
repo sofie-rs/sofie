@@ -1,16 +1,14 @@
-//! Other instances' memory tiers dropping what this one dropped, through the
-//! database's notifications or Redis's pub/sub.
+//! Other instances' memory tiers dropping what this one dropped.
 
 use std::collections::BTreeSet;
 use std::sync::{Arc, Mutex, Weak};
 use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
-use sofie_core::{Error, Result, SqlValue, unpoisoned};
+use sofie_core::{Backoff, Error, Result, SqlValue, unpoisoned};
 use sofie_db::{Db, Notifications, Step};
 use tokio::sync::mpsc;
 
-use crate::backoff::Backoff;
 use crate::cache::State;
 use crate::key::widened_tag;
 
@@ -80,7 +78,7 @@ pub(crate) enum Peers {
     /// SQLite serves one instance, so no other memory tier holds what this one drops.
     Alone,
     #[cfg(feature = "redis")]
-    Redis(Arc<crate::redis::Client>),
+    Redis(sofie_redis::Redis),
 }
 
 impl Peers {
@@ -112,8 +110,8 @@ impl Peers {
             }
             Self::Alone => Ok(()),
             #[cfg(feature = "redis")]
-            Self::Redis(client) => {
-                client
+            Self::Redis(redis) => {
+                redis
                     .publish(CHANNEL, &dropped.payload(LONGEST_MESSAGE))
                     .await
             }
@@ -130,7 +128,10 @@ impl Peers {
             },
             Self::Alone => Err(Error::internal_message("a lone instance hears no other")),
             #[cfg(feature = "redis")]
-            Self::Redis(client) => client.subscribe(CHANNEL).await,
+            Self::Redis(redis) => {
+                let subscription = redis.subscribe(CHANNEL).await?;
+                Ok(Box::new(crate::redis::Subscribed(subscription)))
+            }
         }
     }
 }

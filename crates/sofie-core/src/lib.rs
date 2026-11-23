@@ -1,3 +1,4 @@
+mod backoff;
 pub mod case;
 mod clock;
 mod constraint;
@@ -27,6 +28,7 @@ mod uuid;
 pub mod value;
 pub mod variants;
 
+pub use backoff::Backoff;
 pub use clock::Clock;
 pub use constraint::{Constraint, FieldRules, Measured};
 pub use display::misleads_display;

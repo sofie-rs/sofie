@@ -6,6 +6,7 @@ use sofie_core::{DisplayZone, Error, Result, environment_variable};
 use sofie_db::PoolSettings;
 
 const DATABASE_URL: &str = "DATABASE_URL";
+const REPLICA_URL: &str = "DATABASE_REPLICA_URL";
 const ADDRESS: &str = "SOFIE_ADDRESS";
 pub(crate) const TRUSTED_PROXIES: &str = "SOFIE_TRUSTED_PROXIES";
 pub(crate) const REQUEST_ID_HEADER: &str = "SOFIE_REQUEST_ID_HEADER";
@@ -23,6 +24,8 @@ const DEFAULT_ADDRESS: &str = "127.0.0.1:8080";
 
 pub(crate) struct Settings {
     pub(crate) database_url: String,
+    #[cfg(feature = "replica")]
+    pub(crate) replica_url: Option<String>,
     pub(crate) address: SocketAddr,
     /// Off unless set to `on`: which process migrates, and when, is the
     /// deployment's choice.
@@ -42,6 +45,12 @@ impl Settings {
     fn read(text: impl Fn(&str) -> Result<Option<String>>) -> Result<Self> {
         let database_url = text(DATABASE_URL)?
             .ok_or_else(|| Error::internal_message(format!("{DATABASE_URL} is not set")))?;
+        #[cfg(not(feature = "replica"))]
+        if text(REPLICA_URL)?.is_some() {
+            return Err(Error::internal_message(format!(
+                "{REPLICA_URL} is set, but the app reads no replica; enable sofie's `replica` feature"
+            )));
+        }
         let address = text(ADDRESS)?.unwrap_or_else(|| DEFAULT_ADDRESS.to_owned());
         let address = address.parse().map_err(|error| {
             Error::internal(
@@ -72,6 +81,8 @@ impl Settings {
         }
         Ok(Self {
             database_url,
+            #[cfg(feature = "replica")]
+            replica_url: text(REPLICA_URL)?,
             address,
             migrate,
             runtime_threads,
@@ -205,6 +216,31 @@ mod tests {
             .err()
             .unwrap();
         assert!(error.to_string().starts_with(TRUSTED_PROXIES), "{error}");
+    }
+
+    #[cfg(feature = "replica")]
+    #[test]
+    fn a_replica_is_read_when_set() {
+        let database = (DATABASE_URL, "postgres://db.test/shop");
+        assert_eq!(read(&[database]).unwrap().replica_url, None);
+
+        let replica = (REPLICA_URL, "postgres://replica.test/shop");
+        let settings = read(&[database, replica]).unwrap();
+        assert_eq!(settings.replica_url.as_deref(), Some(replica.1));
+    }
+
+    #[cfg(not(feature = "replica"))]
+    #[test]
+    fn a_replica_is_refused_without_its_feature() {
+        let database = (DATABASE_URL, "postgres://db.test/shop");
+        let replica = (REPLICA_URL, "postgres://replica.test/shop");
+
+        let error = read(&[database, replica]).err().unwrap().to_string();
+
+        assert!(
+            error.starts_with(REPLICA_URL) && error.contains("`replica`"),
+            "{error}"
+        );
     }
 
     #[test]

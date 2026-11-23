@@ -12,27 +12,25 @@ homepage.workspace = true
 # Also in front of the database or Redis, kept coherent across instances.
 memory = []
 database = []
-redis = ["dep:bytes", "dep:rustls", "dep:tokio-rustls", "dep:webpki-roots"]
+redis = ["dep:sofie-redis"]
 metrics = ["dep:sofie-telemetry", "sofie-telemetry/metrics"]
 
 [dependencies]
-bytes = { workspace = true, optional = true }
 sofie-core.workspace = true
 sofie-db = { workspace = true, features = ["cache"] }
+sofie-redis = { workspace = true, optional = true }
 sofie-telemetry = { workspace = true, optional = true }
-rustls = { workspace = true, optional = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
 tokio = { workspace = true, features = ["io-util", "net", "sync", "time"] }
-tokio-rustls = { workspace = true, optional = true }
 tracing.workspace = true
-webpki-roots = { workspace = true, optional = true }
 
 [dev-dependencies]
 sofie-cache = { path = ".", features = ["database", "memory", "metrics", "redis"] }
 # Its counting driver must pass the cache's notifications on.
 sofie-db = { path = "../sofie-db", features = ["etag", "metrics"] }
 sofie-postgres = { path = "../sofie-postgres", default-features = false, features = ["cache"] }
+sofie-redis = { path = "../sofie-redis", features = ["testing"] }
 sofie-sqlite = { path = "../sofie-sqlite" }
 sofie-testing = { path = "../sofie-testing" }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread", "test-util"] }

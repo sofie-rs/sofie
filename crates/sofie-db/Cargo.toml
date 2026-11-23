@@ -62,6 +62,8 @@ etag = []
 # Committed changes told to open screens (`Db::changes`), here and through
 # the database's notifications, and the tables a task read (`track_topics`).
 live = []
+# `Db::with_replica`: reads a request may take from a read replica (`Db::on_replica`).
+replica = []
 # The shield's blocks shared between instances (`SharedBlocks`).
 shield = []
 # What a cache needs of the database: hooks run with the records each

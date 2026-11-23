@@ -24,6 +24,8 @@ pub use sofie_macros::*;
 pub use sofie_notify as notify;
 #[cfg(feature = "postgres")]
 pub use sofie_postgres as postgres;
+#[cfg(feature = "redis")]
+pub use sofie_redis as redis;
 #[cfg(feature = "sqlite")]
 pub use sofie_sqlite as sqlite;
 #[cfg(feature = "storage")]
@@ -53,6 +55,7 @@ mod jobs;
 mod local_time;
 #[cfg(feature = "mail")]
 pub mod mail;
+mod redis_settings;
 #[cfg(feature = "remote-contracts")]
 pub mod remote;
 #[cfg(feature = "product-reports")]
@@ -275,6 +278,13 @@ fn on_runtime(settings: &Settings, work: impl AsyncFnOnce(Db) -> Result<()>) -> 
             let outcome = async {
                 settings::warn_on_old_signing_keys()?;
                 let db = database::connect(&settings.database_url, settings.pool)?;
+                #[cfg(feature = "replica")]
+                let db = match &settings.replica_url {
+                    Some(url) => {
+                        database::with_replica(db, &settings.database_url, url, settings.pool)?
+                    }
+                    None => db,
+                };
                 work(db).await
             }
             .await;
@@ -297,12 +307,17 @@ struct Packages {
     product_events: sofie_db::ProductEvents,
     #[cfg(feature = "product-reports")]
     product_events_kept: std::time::Duration,
+    #[cfg(feature = "redis")]
+    redis: Option<sofie_redis::Redis>,
     #[cfg(feature = "search-meilisearch")]
     search: Option<search_settings::Search>,
 }
 
 impl Packages {
-    #[cfg_attr(not(feature = "cache"), expect(clippy::unused_async_trait_impl))]
+    #[cfg_attr(
+        not(any(feature = "cache", feature = "redis")),
+        expect(clippy::unused_async_trait_impl)
+    )]
     #[cfg_attr(
         not(feature = "search-meilisearch"),
         expect(
@@ -311,8 +326,17 @@ impl Packages {
         )
     )]
     async fn start(db: &Db, migrations: &[Migrations]) -> Result<Self> {
-        #[cfg(not(feature = "cache"))]
+        #[cfg(not(any(feature = "cache", feature = "redis")))]
         let _ = db;
+        #[cfg(not(feature = "redis"))]
+        redis_settings::refuse_unbuilt(&sofie_core::environment_variable)?;
+        // Before the cache, which may keep its entries there.
+        #[cfg(feature = "redis")]
+        let redis = redis_settings::connected(&sofie_core::environment_variable).await?;
+        #[cfg(feature = "redis")]
+        if let Some(redis) = &redis {
+            redis.install(db);
+        }
         #[cfg(not(feature = "search-meilisearch"))]
         search_settings::refuse_unbuilt(&sofie_core::environment_variable)?;
         #[cfg(feature = "search-meilisearch")]
@@ -338,6 +362,8 @@ impl Packages {
             product_events: sofie_db::ProductEvents::keep(db)?,
             #[cfg(feature = "product-reports")]
             product_events_kept: reports::kept()?,
+            #[cfg(feature = "redis")]
+            redis,
             #[cfg(feature = "search-meilisearch")]
             search,
         })
@@ -371,6 +397,10 @@ impl Packages {
         ));
         #[cfg(feature = "billing")]
         sofie_billing::configure(&worker_db, self.billing.clone());
+        #[cfg(feature = "redis")]
+        if let Some(redis) = &self.redis {
+            redis.install(&worker_db);
+        }
         // Jobs take it as `Dep<Storage>`, such as one making an upload's image variants.
         #[cfg(feature = "storage")]
         sofie_db::provide(

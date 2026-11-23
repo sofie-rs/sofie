@@ -1,8 +1,6 @@
 use sofie_core::{Error, Result, environment_variable};
 
 const STORE: &str = "SOFIE_CACHE_STORE";
-#[cfg(feature = "redis")]
-const REDIS_URL: &str = "SOFIE_REDIS_URL";
 
 /// Where entries live: in each instance's memory, or shared, with memory in front when
 /// sofie-cache's `memory` feature is on.
@@ -12,10 +10,10 @@ pub enum Store {
     Memory,
     #[cfg(feature = "database")]
     Database,
-    /// Keys are named by crate and key, not by app: apps or environments sharing one Redis each
-    /// need a database of their own (`redis://host/2`).
+    /// Keys are named by crate and key, not by app: apps sharing one Redis each need a database
+    /// of their own (`redis://host/2`).
     #[cfg(feature = "redis")]
-    Redis(crate::RedisUrl),
+    Redis,
 }
 
 const BUILT: &[&str] = &[
@@ -28,7 +26,6 @@ const BUILT: &[&str] = &[
 ];
 
 impl Store {
-    /// `SOFIE_CACHE_STORE`, `memory` when unset; `redis` reads `SOFIE_REDIS_URL`.
     pub fn from_environment() -> Result<Self> {
         Self::read(environment_variable)
     }
@@ -41,14 +38,7 @@ impl Store {
             #[cfg(feature = "database")]
             Some("database") => Ok(Self::Database),
             #[cfg(feature = "redis")]
-            Some("redis") => {
-                let url = lookup(REDIS_URL)?.ok_or_else(|| {
-                    Error::internal_message(format!(
-                        "{STORE} is `redis`, but {REDIS_URL} is not set"
-                    ))
-                })?;
-                crate::RedisUrl::parse(&url).map(Self::Redis)
-            }
+            Some("redis") => Ok(Self::Redis),
             other => Err(Error::internal_message(format!(
                 "{STORE} `{}` names no store this app was built with; it has: {}",
                 other.unwrap_or_default(),
@@ -75,20 +65,6 @@ mod tests {
     fn memory_is_the_store_when_none_is_named() {
         assert_eq!(read(&[]).unwrap(), Store::Memory);
         assert_eq!(read(&[(STORE, "database")]).unwrap(), Store::Database);
-    }
-
-    #[test]
-    fn redis_needs_its_url_and_never_repeats_it_in_an_error() {
-        let missing = read(&[(STORE, "redis")]).unwrap_err().to_string();
-        assert!(missing.contains(REDIS_URL), "{missing}");
-
-        let malformed = read(&[(STORE, "redis"), (REDIS_URL, "http://user:hunter2@host")])
-            .unwrap_err()
-            .to_string();
-        assert!(!malformed.contains("hunter2"), "{malformed}");
-
-        let chosen = read(&[(STORE, "redis"), (REDIS_URL, "redis://cache:6380/2")]).unwrap();
-        assert!(matches!(chosen, Store::Redis(_)));
     }
 
     #[test]

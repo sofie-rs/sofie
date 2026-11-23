@@ -39,9 +39,10 @@ Never logged or printed; set them only in the environment.
 | Key | Read by | Description |
 | --- | --- | --- |
 | `DATABASE_URL` | the framework | The app's database, and every module's that sets none of its own. |
+| `DATABASE_REPLICA_URL` | the framework | With the `replica` feature: a Postgres read replica of `DATABASE_URL`, which GETs read unless the client wrote in the last 5 seconds or the GET is answered again on change; none when unset. |
 | `SOFIE_SIGNING_KEYS` | the framework | Comma-separated base64 keys of 32 bytes sealing sessions and signing links; the first seals. Read as `SOFIE_SESSION_KEYS` too, with a warning. |
 | `SOFIE_METRICS_TOKEN` | the framework | With the `metrics` feature: the bearer token, at least 32 characters, that `/metrics` asks for; without it `/metrics` does not exist. |
-| `SOFIE_REDIS_URL` | the framework | With `SOFIE_CACHE_STORE=redis`: `redis://[user:password@]host[:port][/database]`, or `rediss://` for TLS. |
+| `SOFIE_REDIS_URL` | the framework | With the `redis` feature: the app's Redis, which the cache keeps entries in with `SOFIE_CACHE_STORE=redis` and handlers and jobs take as `Redis`: `redis://[user:password@]host[:port][/database]`, or `rediss://` for TLS; none when unset. |
 | `SOFIE_SEARCH_MEILISEARCH_API_KEY` | the framework | With `SOFIE_SEARCH=meilisearch`: the key Meilisearch asks for, allowed to search and to write documents and settings; none when unset. |
 | `SOFIE_STORAGE_S3_SECRET_ACCESS_KEY` | the framework | With `SOFIE_STORAGE=s3`: the access key's secret. |
 | `SOFIE_BILLING_API_KEY` | the framework | With `SOFIE_BILLING_PROVIDER`: the provider's API key. |

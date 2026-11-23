@@ -10,9 +10,9 @@ use crate::{Driver, Outcome, Reach, Read, Schema, Step};
 #[derive(Clone)]
 pub struct Db {
     pub(crate) driver: Arc<dyn Driver>,
-    clock: Clock,
-    arrivals: Arc<Arrivals>,
-    keys: Option<Arc<SigningKeys>>,
+    pub(crate) clock: Clock,
+    pub(crate) arrivals: Arc<Arrivals>,
+    pub(crate) keys: Option<Arc<SigningKeys>>,
     #[cfg(feature = "contracts")]
     pub(crate) provided: Arc<crate::contracts::Provided>,
     #[cfg(feature = "cache")]
@@ -21,6 +21,8 @@ pub struct Db {
     pub(crate) changes: Arc<crate::live::Changes>,
     #[cfg(feature = "search-engine")]
     pub(crate) search: Arc<std::sync::OnceLock<crate::search::Installed>>,
+    #[cfg(feature = "replica")]
+    pub(crate) replica: Option<Arc<dyn Driver>>,
 }
 
 impl Db {
@@ -41,6 +43,8 @@ impl Db {
             commit_hooks: Arc::default(),
             #[cfg(feature = "search-engine")]
             search: Arc::default(),
+            #[cfg(feature = "replica")]
+            replica: None,
         }
     }
 
@@ -130,5 +134,51 @@ impl Db {
     ) -> Result<()> {
         let span = tracing::info_span!("commit", db.statements = statements);
         self.driver.transaction(steps).instrument(span).await
+    }
+}
+
+#[cfg(all(test, feature = "replica", feature = "live"))]
+mod tests {
+    use sofie_core::SqlValue;
+
+    use super::*;
+    use crate::{BoxFuture, Dialect, RowSink, Step};
+
+    struct Unused;
+
+    impl Driver for Unused {
+        fn dialect(&self) -> &dyn Dialect {
+            &crate::aggregate::tests::NUMBERED
+        }
+
+        fn query<'a>(
+            &'a self,
+            _sql: &'a str,
+            _params: &'a [SqlValue],
+            _rows: &'a mut dyn RowSink,
+        ) -> BoxFuture<'a, Result<()>> {
+            unimplemented!("choosing a driver reads nothing")
+        }
+
+        fn transaction(&self, _steps: Vec<Step>) -> BoxFuture<'_, Result<()>> {
+            unimplemented!("choosing a driver writes nothing")
+        }
+    }
+
+    fn same_driver(left: &Db, right: &Db) -> bool {
+        std::ptr::addr_eq(Arc::as_ptr(&left.driver), Arc::as_ptr(&right.driver))
+    }
+
+    #[tokio::test]
+    async fn a_read_tracked_to_be_answered_again_stays_on_the_primary() {
+        let db = crate::with_replica(Db::new(Unused), Unused);
+
+        let replica = crate::on_replica(&db);
+        let (tracked, _) = crate::track_topics(async { crate::on_replica(&db) }).await;
+
+        assert!(!same_driver(&replica, &db) && !crate::has_replica(&replica));
+        assert!(same_driver(&tracked, &db));
+        let alone = Db::new(Unused);
+        assert!(same_driver(&crate::on_replica(&alone), &alone));
     }
 }

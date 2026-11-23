@@ -1210,21 +1210,18 @@ dependencies = [
 name = "sofie-cache"
 version = "0.4.0"
 dependencies = [
- "bytes",
- "rustls",
  "serde",
  "serde_json",
  "sofie-cache",
  "sofie-core",
  "sofie-db",
  "sofie-postgres",
+ "sofie-redis",
  "sofie-sqlite",
  "sofie-telemetry",
  "sofie-testing",
  "tokio",
- "tokio-rustls",
  "tracing",
- "webpki-roots",
 ]
 
 [[package]]
@@ -1368,6 +1365,7 @@ dependencies = [
  "sofie-mail",
  "sofie-notify",
  "sofie-postgres",
+ "sofie-redis",
  "sofie-sqlite",
  "sofie-storage",
  "sofie-telemetry",
@@ -1521,6 +1519,20 @@ dependencies = [
  "tokio-postgres",
  "tokio-rustls",
  "tracing",
+ "webpki-roots",
+]
+
+[[package]]
+name = "sofie-redis"
+version = "0.4.0"
+dependencies = [
+ "bytes",
+ "rustls",
+ "sofie-core",
+ "sofie-db",
+ "sofie-sqlite",
+ "tokio",
+ "tokio-rustls",
  "webpki-roots",
 ]
 

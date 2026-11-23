@@ -16,11 +16,16 @@ pub struct CookieNames {
     toolbar: Arc<str>,
     #[cfg(feature = "flows")]
     flow: Arc<str>,
+    #[cfg(feature = "replica")]
+    primary: Arc<str>,
 }
 
 const SESSION_ATTRIBUTES: &str = "Path=/; Secure; HttpOnly; SameSite=Lax";
 #[cfg(feature = "flows")]
 const FLOW_SECONDS: i64 = 600;
+/// Longer than a healthy replica lags, so a client reads back what it just wrote.
+#[cfg(feature = "replica")]
+const PRIMARY_SECONDS: i64 = 5;
 
 impl CookieNames {
     /// The names `Serving::named` gave the app's cookies.
@@ -40,6 +45,8 @@ impl CookieNames {
             toolbar: format!("__Host-{app}-toolbar").into(),
             #[cfg(feature = "flows")]
             flow: format!("__Host-{app}-flow").into(),
+            #[cfg(feature = "replica")]
+            primary: format!("__Host-{app}-primary").into(),
         })
     }
 
@@ -81,6 +88,18 @@ impl CookieNames {
     #[cfg(feature = "flows")]
     pub(crate) fn begun_flow(&self, value: &str) -> Result<HeaderValue> {
         set(&self.flow, value, FLOW_SECONDS)
+    }
+}
+
+#[cfg(feature = "replica")]
+impl CookieNames {
+    /// Set on a write's answer, so the client's next reads skip the replica.
+    pub(crate) fn wrote(&self) -> Result<HeaderValue> {
+        set(&self.primary, "1", PRIMARY_SECONDS)
+    }
+
+    pub(crate) fn wrote_recently(&self, headers: &HeaderMap) -> bool {
+        named(headers, &self.primary).is_some()
     }
 }
 

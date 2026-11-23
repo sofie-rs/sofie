@@ -370,6 +370,8 @@ impl Sessions {
             is_dead,
             #[cfg(all(feature = "toolbar", debug_assertions))]
             toolbar,
+            #[cfg(feature = "replica")]
+            wrote_recently: self.cookies.wrote_recently(headers),
             ..RequestSession::default()
         }
     }
@@ -425,6 +427,9 @@ pub(crate) struct RequestSession {
     /// Its principal, when acting as one, has replaced the signed-in one.
     #[cfg(all(feature = "toolbar", debug_assertions))]
     pub(crate) toolbar: crate::toolbar::Overrides,
+    /// Its reads then go to the primary, as the replica may not hold that write yet.
+    #[cfg(feature = "replica")]
+    wrote_recently: bool,
 }
 
 impl RequestSession {
@@ -439,11 +444,19 @@ impl RequestSession {
     }
 
     #[cfg(feature = "engine")]
+    /// What a write answers with is loaded after its commit.
     pub(crate) fn for_loader(&self) -> Self {
         Self {
             changes: Arc::default(),
+            #[cfg(feature = "replica")]
+            wrote_recently: true,
             ..self.clone()
         }
+    }
+
+    #[cfg(feature = "replica")]
+    pub(crate) fn wrote_recently(&self) -> bool {
+        self.wrote_recently
     }
 
     #[cfg(feature = "client-headers")]
@@ -591,6 +604,27 @@ impl RequestSession {
                 response
             }
             Ok(None) => response,
+            Err(error) => answer::failure(error, caller),
+        }
+    }
+
+    /// A bearer client sends no cookie back, so it reads the replica at once.
+    #[cfg(feature = "replica")]
+    pub(crate) fn wrote_marked(
+        &self,
+        mut response: Response,
+        cookies: &CookieNames,
+        caller: Caller<'_>,
+    ) -> Response {
+        let committed = unpoisoned::lock(&self.changes).committed;
+        if self.is_bearer() || !committed {
+            return response;
+        }
+        match cookies.wrote() {
+            Ok(cookie) => {
+                response.headers_mut().append(SET_COOKIE, cookie);
+                response
+            }
             Err(error) => answer::failure(error, caller),
         }
     }

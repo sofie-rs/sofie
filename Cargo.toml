@@ -43,6 +43,7 @@ sofie-mail = { version = "0.4.0", path = "crates/sofie-mail" }
 sofie-notify = { version = "0.4.0", path = "crates/sofie-notify" }
 sofie-model = { version = "0.4.0", path = "crates/sofie-model" }
 sofie-postgres = { version = "0.4.0", path = "crates/sofie-postgres", default-features = false }
+sofie-redis = { version = "0.4.0", path = "crates/sofie-redis" }
 sofie-sqlite = { version = "0.4.0", path = "crates/sofie-sqlite" }
 sofie-storage = { version = "0.4.0", path = "crates/sofie-storage" }
 sofie-telemetry = { version = "0.4.0", path = "crates/sofie-telemetry" }

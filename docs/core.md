@@ -36,10 +36,12 @@ implementation, not a rewrite.
 | Data | Each module's tables, in its own schema (a Postgres schema; on SQLite, tables named after the module) |
 | Events, jobs, schedules | One `sofie.messages` table: once a worker is published, a commit writes, in one statement, one job per listener its process heard for each event it raises (unique on event and listener, each due when its event was), and nothing for an event no listener hears; an event committed before then is queued itself and fanned out to the process's listeners by the first worker hearing it, running inline as their lone listener only when the process has one and it is that worker's, its outcome and the event's deletion committed together, becoming the listener's job only if it fails; a job runs once per claim. Claimed with `FOR UPDATE SKIP LOCKED` under a lease whose attempt count fences late finishes, a fixed number in flight (`SOFIE_WORKER_BATCH`, 2), all polled on the worker's task, another claimed as soon as one finishes; a job's outcome and the deletion of its row commit together, so its effect happens once. Leases run on the database's clock and are renewed every third of the lease while the job runs; a job runs at most four minutes, below the five-minute lease, and a panicking job fails like any other. A fault, conflict or unavailability is retried with backoff; `NotFound`, `Moved`, `BadRequest`, `Invalid` and `Rule` are dead at once. A message that runs out of attempts stays, dead, out of claiming, and one whose worker died during its last attempt is claimed once more only to be buried. Schedules run at most once a second and at least once in 1000 years. Woken by `LISTEN/NOTIFY`, with a poll fallback whenever listening fails. One worker loop, in `sofie-db`, serves all three |
 | Single-runner schedules | `sofie.schedules`: firing a due schedule and enqueuing its job is one atomic statement, so one instance runs it; no lock is held. The statement answers the schedule's next time, and a worker does not ask again before then |
-| Cache (`cache`, opt-in) | sofie-cache: in process by default; `sofie.cache`, an unlogged table, with `cache-database`; Redis with `cache-redis`. Entries depending on an aggregate are dropped after each commit writing it; other instances' memory copies are dropped through `pg_notify('sofie_cache', …)`, one per 5 ms burst of commits with their drops merged, or Redis pub/sub |
+| Cache (`cache`, opt-in) | sofie-cache: in process by default; `sofie.cache`, an unlogged table, with `cache-database`; the app's Redis (sofie-redis, `SOFIE_REDIS_URL`) with `cache-redis`. Entries depending on an aggregate are dropped after each commit writing it; other instances' memory copies are dropped through `pg_notify('sofie_cache', …)`, one per 5 ms burst of commits with their drops merged, or Redis pub/sub |
 | Live screens across instances (`live`) | `pg_notify('sofie_live', …)` after each commit naming the changed tables and owners; each instance listens and tells its open screens' streams and sockets' watches (`socket`) |
 | Sessions | Signed, encrypted cookies naming a session id. With sofie-identity (its `sessions` is on by default) each sign-in is an `account_session` row checked on every request, so signing out, "sign out everywhere else", a password reset, closing the account, ending an impersonation and removing a membership end the session for every copy of its cookie. The check is served from an in-process cache per app instance (100 000 entries, a minute each) that each commit to `account_session` invalidates by account, here at once and on other instances through `pg_notify('sofie_live', …)`; losing that listener empties it until listening holds again. An hourly job deletes rows unseen for longer than a cookie can live (`SessionClaims::ABSOLUTE_LIFETIME`, public so stores can drop records no cookie can outlive, plus an hour). Turned off, sessions live only in their cookies. They also travel between split apps unchanged |
 | Feature flags, settings | Two small tables, cached in process, invalidated like the cache |
+| Read replica (`replica`, opt-in) | `DATABASE_REPLICA_URL`, a Postgres replica: a GET's reads go there (`sofie_db::on_replica`), unless its client wrote in the last 5 seconds (the `__Host-<app>-primary` cookie a committed write answers with) or the read is answered again on change (live screens, socket watches, the screen cache), which read the primary. Every write, job and migration uses the primary |
+| Redis (`redis`, opt-in) | sofie-redis: one pool from `SOFIE_REDIS_URL`, connected at start and installed on the app's and the worker's databases, shared by the cache and taken by handlers and jobs as `Redis` |
 
 A worker publishes what it hears once built (`worker::publish_heard`,
 called by `run`, `drain`, the web role and `task`), merged into its
@@ -83,8 +85,13 @@ it with 409, and a unique index stays the backstop; a listener only projects. A 
 a listener trips is retried like any fault, since a find-or-create that
 lost a race passes on its retry, and is buried once its attempts run out.
 
-No Redis, no broker, no search engine in the core. Each can be added later as
-a plugin behind a gateway.
+No Redis, no broker, no search engine in the core. Redis is an opt-in crate
+(`sofie-redis`); the others can be added later as a plugin behind a gateway.
+
+One process writes one primary database: every module's tables, the messages
+and the framework's tables are in `DATABASE_URL`, so a commit across modules is
+one transaction with one outbox. A module's own database applies after `sofie
+split` (docs/decisions.md item 55).
 
 ## Crates
 
@@ -106,7 +113,8 @@ sofie-core                              value model, errors, ids, clock, encodin
         ├── sofie-sqlite                the seam's SQLite implementation, built into the binary
         ├── sofie-client                the only way out: outgoing HTTP for gateways and contracts
         ├── sofie-flags                 flags and settings
-        ├── sofie-cache                 opt-in: cache over memory, the database or Redis
+        ├── sofie-redis                 opt-in: the app's one Redis pool, its own RESP client
+        ├── sofie-cache                 opt-in: cache over memory, the database or Redis (sofie-redis)
         ├── sofie-mail                  opt-in: mail rendered by sofie-engine, sent by a job
         │                               (sofie-http optional, for unsubscribes and provider webhooks)
         └── sofie-http                  server on hyper, router, areas, guards, sessions, security
@@ -136,7 +144,8 @@ sofie-cli                               sofie new, gen, check, fix, docs, openap
 | `sofie-engine` | Template renderer and the loader of compiled templates, the parser behind `parse`, the component catalog, the embedded htmx and client, island mounting | A JSON-only API: `sofie-http`'s `engine` feature (on by default, and turned on by `sofie`'s) brings in screens, htmx notices and form bodies |
 | `sofie-telemetry` | The `tracing` setup, log masking, metrics; OTLP export behind a feature | Nobody, but the exporter is optional |
 | `sofie-flags` | Feature flags: `Feature` and `Variants` constants, rules in `sofie.flags`, held in process and refreshed on their own `sofie_flags` notification, which saving a flag or setting commits with (or every 30 s), `Features` per request, `gated` jobs; runtime settings in `sofie.settings`, held in the same snapshot and read through `sofie::RuntimeSettings` | An app without flags: it is behind `sofie`'s `feature-flags` |
-| `sofie-cache` | `Cache` with typed `Key`s, explicit expiry, single-flight `get_or_compute` and drops by aggregate change, over a bounded memory tier, `sofie.cache` (feature `database`) or Redis through its own RESP client (feature `redis`) | Every app that caches nothing: it is behind `sofie`'s `cache`, `cache-database`, `cache-redis` |
+| `sofie-cache` | `Cache` with typed `Key`s, explicit expiry, single-flight `get_or_compute` and drops by aggregate change, over a bounded memory tier, `sofie.cache` (feature `database`) or the app's Redis (feature `redis`) | Every app that caches nothing: it is behind `sofie`'s `cache`, `cache-database`, `cache-redis` |
+| `sofie-redis` | `Redis`: a pool of 16 connections over its own RESP2/RESP3 client (`AUTH`, `SELECT`, TLS for `rediss://`, timeouts, backoff), `get`/`set` with a required expiry/`delete`, any command through `call` and `transaction`, pub/sub; resolved as a handler argument once installed on the database; `fake::FakeRedis` behind `testing` | Every app without Redis: it is behind `sofie`'s `redis` (and `cache-redis`) |
 | `sofie-storage` | `Storage` over a `Store`: files under generated `StorageKey`s, streamed in and out, signed download links; a local directory (feature `local`) or an S3-compatible bucket signed with SigV4 through sofie-client (feature `s3`) | Every app that keeps no files: it is behind `sofie`'s `storage`, `storage-s3`, `uploads` |
 | `sofie-sqlite` | The database seam for SQLite: one file, statements on one connection, `BEGIN IMMEDIATE` transactions, polling instead of `LISTEN` | Every app on Postgres: it is behind `sofie`'s `sqlite` |
 | `sofie-mail` | Mail rendered from templates and sent by a job over SMTP, to the log or a test's outbox | Every app that sends no mail: it is behind `sofie`'s `mail` |
@@ -810,7 +819,8 @@ in a job a domain event triggers.
 
 Because no GET writes, every GET may be answered from the rows it read: with
 `etag` each one is tagged and revalidated (see docs/structure.md), and a GET
-could be routed to a read replica, since nothing it does needs the primary.
+is routed to the read replica with `replica` (see the table above), since nothing it does needs
+the primary.
 
 ### Routes: built at boot, named by the wiring
 
@@ -1633,7 +1643,8 @@ at a time (`sofie_core::random`), one system call for many ids.
 
 ### Config
 
-The process's own settings, `DATABASE_URL` and `SOFIE_ADDRESS` (default
+The process's own settings, `DATABASE_URL` (with `DATABASE_REPLICA_URL`
+under the `replica` feature), `SOFIE_REDIS_URL` under `redis`, and `SOFIE_ADDRESS` (default
 `127.0.0.1:8080`), `SOFIE_TRUSTED_PROXIES` (none by default) and `SOFIE_REQUEST_ID_HEADER`
 (`x-request-id` by default), read only with the `trusted-proxies` feature (on by default), `SOFIE_MIGRATE`
 (`on` migrates at start; off by default), with `SOFIE_SIGNING_KEYS` for
@@ -1710,7 +1721,7 @@ fields of its adapter's `Settings`, needed when it is the only vendor.
 The framework's own keys in the app's `.env.example`, all optional unless
 noted, with the feature that reads them:
 
-- Always: `DATABASE_URL` (required), `SOFIE_SIGNING_KEYS` (required),
+- Always: `DATABASE_URL` (required), `DATABASE_REPLICA_URL` (replica), `SOFIE_SIGNING_KEYS` (required),
   `SOFIE_ENVIRONMENT` (required when the app has flags), `SOFIE_BASE_URL`
   (where the app is reached; `SOFIE_MAIL_BASE_URL`, `SOFIE_BILLING_BASE_URL`,
   `SOFIE_OAUTH_BASE_URL` and `SOFIE_CONTENT_BASE_URL` override it for their
@@ -1723,7 +1734,7 @@ noted, with the feature that reads them:
   `SOFIE_BROWSER_SAMPLE` (browser-telemetry), `SOFIE_PRODUCT_EVENTS_KEEP_DAYS`
   (product-reports, 400 days by default), `SOFIE_RUNTIME_THREADS`,
   `SOFIE_DB_POOL_SIZE`, `SOFIE_DB_POOL_WAIT_MS`, `SOFIE_WORKER_BATCH`,
-  `SOFIE_WORKER_POOL_SIZE`, `SOFIE_CACHE_STORE`, `SOFIE_REDIS_URL` (cache),
+  `SOFIE_WORKER_POOL_SIZE`, `SOFIE_CACHE_STORE` (cache), `SOFIE_REDIS_URL` (redis),
   `SOFIE_SEARCH` (`database` or `meilisearch`; another value, or
   `meilisearch` without the search-meilisearch feature, is refused at start),
   `SOFIE_SEARCH_MEILISEARCH_URL`, `_API_KEY`, `_PRIVATE` (search-meilisearch), `SOFIE_STORAGE`, `SOFIE_STORAGE_ROOT`,

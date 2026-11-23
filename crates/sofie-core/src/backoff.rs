@@ -4,7 +4,7 @@ const FIRST: Duration = Duration::from_millis(100);
 const LONGEST: Duration = Duration::from_secs(10);
 
 /// Doubles the wait after each failure in a row, so an unreachable server is not hammered.
-pub(crate) struct Backoff {
+pub struct Backoff {
     delay: Duration,
 }
 
@@ -15,13 +15,13 @@ impl Default for Backoff {
 }
 
 impl Backoff {
-    pub(crate) fn failed(&mut self) -> Duration {
+    pub fn failed(&mut self) -> Duration {
         let wait = self.delay;
         self.delay = (self.delay * 2).min(LONGEST);
         wait
     }
 
-    pub(crate) fn succeeded(&mut self) {
+    pub fn succeeded(&mut self) {
         self.delay = FIRST;
     }
 }

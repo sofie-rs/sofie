@@ -136,14 +136,12 @@ impl std::fmt::Write for EscapingPart<'_> {
 }
 
 impl<T: Serialize + DeserializeOwned> Expiring<'_, T> {
-    /// Dropped when any record of `A` is written.
     #[must_use]
     pub fn depends_on<A: Aggregate>(mut self) -> Self {
         self.tags.push(aggregate_tag(A::MODULE, A::NAME));
         self
     }
 
-    /// Dropped when that record is written.
     #[must_use]
     pub fn depends_on_record<A: Aggregate>(mut self, id: Id<A>) -> Self {
         self.tags.push(record_tag(A::MODULE, A::NAME, id.uuid()));

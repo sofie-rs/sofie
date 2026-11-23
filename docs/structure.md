@@ -681,6 +681,27 @@ pub async fn cancel_order(mut order: Order, reason: CancelReason) -> Result<Orde
 - **Postgres, or SQLite for one instance.** Every database-specific feature is
   behind the [database seam](core.md#the-database-seam); application code never
   names the driver.
+- **One primary database per app.** Every module's records, its messages and
+  the framework's tables live in `DATABASE_URL`, so one commit across modules
+  stays one transaction with one outbox. A module's own `ORDER_DATABASE_URL`
+  applies after `sofie split` gives it an app of its own (see [Module
+  declaration and configuration](#module-declaration-and-configuration);
+  docs/decisions.md item 55).
+- **A read replica** (opt-in, `sofie`'s `replica` feature): with
+  `DATABASE_REPLICA_URL` set, a GET's, a screen's and an island's reads go
+  to that Postgres replica, with the primary's pool settings; commits,
+  actions, jobs, the worker, migrations and every write stay on the primary.
+  A committed write answers with `__Host-<app>-primary` (`Max-Age=5`, as the
+  session cookie's attributes), and while the browser sends it back that
+  client's GETs read the primary, so it sees what it just wrote; what a
+  write itself answers with is loaded from the primary. A read answered
+  again on change (a `.live(…)` route, a socket's watched GET, a `.cached(…)`
+  screen) reads the primary too, as a replica lagging behind the
+  notification would answer with the rows from before it and nothing would
+  tell the screen again. A bearer client sends no cookie, so its next GET
+  may read the replica before it holds the write. SQLite has no replica;
+  `DATABASE_REPLICA_URL` with SQLite, or without the feature, stops the
+  start.
 
 ## Messages and contracts
 
@@ -1435,12 +1456,51 @@ the app (`sofie check`, `feature-flag`).
   sofie-check reads (`Date::today`). `<app> flags settled` still prints the
   stored states (`order.split_payments on 120`) for an operator.
 
+## Redis
+
+Opt-in, in `sofie-redis`, behind the `sofie` facade's `redis` feature
+(`cache-redis` turns it on). `sofie::run` reads `SOFIE_REDIS_URL`
+(`redis://[[user]:password@]host[:port][/database]`, or `rediss://` for TLS
+over the public roots) once, connects before anything else starts, so an
+unreachable or malformed URL stops the start, and installs the connection on
+the app's and the worker's databases. The cache keeps its entries there with
+`SOFIE_CACHE_STORE=redis`; handlers and jobs take it as an argument, in a GET
+too:
+
+```rust
+use sofie::redis::{Command, Redis};
+
+async fn count_visit(redis: Redis) -> Result<()> {
+    redis.set("visits:last", "home", Duration::from_secs(86_400)).await?; // every value expires
+    let last = redis.get("visits:last").await?;                           // bytes, or None
+    redis.call(&[Command::new("INCR").argument("visits:total")]).await?;  // any other command
+    Ok(())
+}
+```
+
+- **The client** is the framework's own RESP2/RESP3 one, no `redis` crate: a
+  pool of 16 connections, `AUTH` and `SELECT` on each, 3 s to connect and 2 s
+  per call, an idle connection Redis closed replaced once, backoff after a
+  failed connect. `call` pipelines commands on one connection, `transaction`
+  wraps them in `MULTI`/`EXEC`; an error reply fails the call naming the
+  command, never its arguments, and no error repeats the URL's password.
+- **Pub/sub.** `publish` and `subscribe` (a connection of its own, pinged
+  when quiet for 30 s) suffix the channel with the database number, so apps
+  kept apart by database do not hear each other.
+- **Unset** `SOFIE_REDIS_URL` connects nothing, and a `Redis` argument fails
+  naming the key. Set without the `redis` feature, the start is refused.
+- **Tests** use `sofie_redis::fake::FakeRedis` (feature `testing`), a RESP2
+  server on a local socket, and `Redis::install(app.db())`.
+- Only the cache shares it today: the shield's shared blocks and live
+  screens' fan-out stay on Postgres, where they already work without another
+  server; a SQLite app runs one process, which shares nothing.
+
 ## Cache
 
 Opt-in, in `sofie-cache`, behind the `sofie` facade's `cache` (memory),
 `cache-database` and `cache-redis` features; `sofie::run` starts it from
-`SOFIE_CACHE_STORE` (`memory` when unset, `database`, `redis` with
-`SOFIE_REDIS_URL`) and handlers take `Cache` as an argument.
+`SOFIE_CACHE_STORE` (`memory` when unset, `database`, `redis` in the app's
+Redis, see [Redis](#redis)) and handlers take `Cache` as an argument.
 
 ```rust
 const TOTALS: Key<Totals> = sofie::cache::key!("totals"); // under the declaring module
@@ -1478,9 +1538,9 @@ async fn totals(cache: Cache, read: Read) -> Result<Totals> {
   `Cache::start` returns, and drop everything when a subscription is
   renewed. `database` keeps `sofie.cache`, an unlogged
   table created when the cache starts (migrations run in every app, the
-  cache does not), pruned each minute. `redis` speaks RESP2/RESP3 itself:
-  a pool of 16, `AUTH`, `SELECT`, TLS for `rediss://`, timeouts, backoff
-  after a failed connect, tag sets (`sofie:tags:<tag>`, sorted by expiry)
+  cache does not), pruned each minute. `redis` uses the app's one
+  `sofie_redis::Redis` (installed on the database before the cache starts;
+  `SOFIE_CACHE_STORE=redis` without it stops the start): tag sets (`sofie:tags:<tag>`, sorted by expiry)
   written with their entry in one `MULTI` that prunes expired members,
   dropped in chunks of 512, each read and then deleted with its members
   in one `MULTI`, no `SCAN`. Store calls are `cache` spans and `sofie.cache.duration`; lookups
@@ -2256,6 +2316,9 @@ pub async fn expire_unpaid(read: Read, config: Config<OrderConfig>) -> Result<Ve
   key, with no code change. Before a split, an own `ORDER_DATABASE_URL` or
   `ORDER_QUEUE_URL` that differs from `DATABASE_URL` stops the start with an
   error saying it applies after `sofie split`; setting it equal is allowed.
+  One process never routes a module to a database of its own: a commit or a
+  listener crossing modules would then span two transactions and two outboxes
+  (docs/decisions.md item 55).
 - **Declared once.** The struct, deriving `sofie::Config`, is the only list of
   keys; `sofie::config` loads it behind the `sofie` feature `config`. The derive
   only describes the struct (each field's key, whether it is optional, its

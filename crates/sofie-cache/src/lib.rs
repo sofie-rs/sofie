@@ -1,4 +1,3 @@
-mod backoff;
 mod cache;
 #[cfg(feature = "database")]
 mod database;
@@ -12,6 +11,8 @@ mod memory;
 mod peers;
 #[cfg(feature = "redis")]
 mod redis;
+#[cfg(all(test, feature = "redis"))]
+mod redis_tests;
 mod settings;
 mod shared;
 mod telemetry;
@@ -19,6 +20,4 @@ mod telemetry;
 pub use cache::Cache;
 pub use entry::{Entry, Expiring, MAX_EXPIRY};
 pub use key::Key;
-#[cfg(feature = "redis")]
-pub use redis::RedisUrl;
 pub use settings::Store;

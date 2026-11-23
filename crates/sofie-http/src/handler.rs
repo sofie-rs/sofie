@@ -62,6 +62,12 @@ pub(crate) fn loader_endpoint<A: Area, Args, F: Loader<A, Args>>(loader: F) -> E
     Arc::new(move |db, matched| {
         let run = Arc::clone(&run);
         instrumented(name, matched.route, async move {
+            #[cfg(feature = "replica")]
+            let db = if matched.session.wrote_recently() {
+                db
+            } else {
+                sofie_db::on_replica(&db)
+            };
             let mut context = ReadContext::<A>::new(db, matched);
             run(&mut context).await?.into_reply()
         })

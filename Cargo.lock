@@ -1638,6 +1638,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "sofie-webhooks"
+version = "0.4.0"
+dependencies = [
+ "ring",
+ "serde",
+ "serde_json",
+ "sofie-client",
+ "sofie-framework",
+ "sofie-testing",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "stringprep"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"

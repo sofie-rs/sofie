@@ -1456,6 +1456,63 @@ the app (`sofie check`, `feature-flag`).
   sofie-check reads (`Date::today`). `<app> flags settled` still prints the
   stored states (`order.split_payments on 120`) for an operator.
 
+## Outgoing webhooks
+
+sofie-webhooks lets the owners of records, the principals of one area, hear
+the app's events at their own servers, as payment and SaaS providers offer.
+The app depends on the crate (`sofie gen` then lists `sofie_webhooks::MODULE`
+in `MODULES`), names the events the area offers and mounts the routes:
+
+```rust
+// order-contract
+pub const ORDER_PLACED: WebhookEvent = WebhookEvent::new("order.placed", "You placed an order.");
+
+impl WebhookArea for Customer {
+    const WEBHOOK_EVENTS: &'static [WebhookEvent] = &[ORDER_PLACED];
+}
+
+// the app: `.area::<Customer>("sofie_webhooks", sofie_webhooks::routes::<Customer>)`
+
+// a handler, job or listener
+#[on]
+pub async fn announce(event: OrderPlaced, read: Read, webhooks: Webhooks) -> Result<Queued> {
+    let order = Order::find(&read, Id::from_uuid(event.order)).await?;
+    webhooks.send(order.customer(), &ORDER_PLACED, &json!({ "order": event.order }))
+}
+```
+
+- **Endpoints.** An owner registers an `https` URL, the events it hears
+  (names the area offers, or `*` for all) and a description, at most 20
+  endpoints each; the answer carries the secret (`whsec_…`), shown only then
+  and on rotation, and stored sealed with the app's signing keys. Routes under
+  the area: `GET /webhooks/events`, `GET`/`POST /webhooks`, `PATCH`/`DELETE
+  /webhooks/{webhook_endpoint}` (`enabled: false` turns one off), `POST
+  …/secret` (rotate; the previous secret also signs for 24 hours), `POST
+  …/test` (a `webhook.test` delivery), `GET /webhooks/deliveries?endpoint=…`
+  (the last 100) and `POST /webhooks/deliveries/{webhook_delivery}/resend`;
+  sending ones are throttled to 10 a minute. The area's scope keeps each owner
+  to its own endpoints and deliveries.
+- **Sending.** `Webhooks::send` queues a fan-out job with the handler's
+  commit, so an event goes out only for what was written. The body is
+  `{"type", "timestamp", "data"}`, at most 256 KiB. The job makes one
+  delivery per endpoint of the owner's subscribed to the event, each its own
+  job, so a failing receiver retries only its own.
+- **Delivering.** Each attempt posts the same body with `webhook-id` (the
+  delivery's id, the same on every attempt, so a receiver drops a repeat),
+  `webhook-timestamp` and `webhook-signature` (`v1,<HMAC-SHA256>` of
+  `id.timestamp.body`, both secrets during a rotation), as the Standard
+  Webhooks specification spells them, so receivers verify with its libraries.
+  It leaves through sofie-client's untrusted requests: public HTTPS hosts
+  only, no redirects, so an owner's URL cannot reach the app's own network.
+  A 2xx delivers; another status or no answer is tried again after 5 s, 5 min,
+  30 min, 2 h, 5 h, 10 h and 10 h (eight attempts over about 27 hours); a URL
+  refused before sending is given up at once. A delivery's attempts, last
+  status or error and times stay readable for 30 days, and the owner may
+  resend one. An endpoint that fails its last attempt after five days without
+  a success is turned off (`disabled_reason: failing`) and logged.
+- **Tests** provide their own receiver: `sofie::db::provide::<dyn
+  WebhookSender>(app.db(), receiver)`.
+
 ## Redis
 
 Opt-in, in `sofie-redis`, behind the `sofie` facade's `redis` feature

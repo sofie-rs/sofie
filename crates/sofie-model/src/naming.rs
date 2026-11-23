@@ -14,6 +14,7 @@ const WEB_AREA_TYPE: &str = "sofie::http::Web";
 pub const IDENTITY_PACKAGE: &str = "sofie-identity";
 pub const TENANCY_PACKAGE: &str = "sofie-tenancy";
 pub const CONTENT_PACKAGE: &str = "sofie-content";
+pub const WEBHOOKS_PACKAGE: &str = "sofie-webhooks";
 pub const BILLING_PACKAGE: &str = "sofie-billing";
 pub const IDENTITY_AREA: &str = WEB_AREA;
 

@@ -14,8 +14,8 @@ use std::path::Path;
 use proc_macro2::{Literal, TokenStream};
 use quote::quote;
 use sofie_model::naming::{
-    CONTENT_PACKAGE, IDENTITY_PACKAGE, RouteSite, TENANCY_PACKAGE, crate_name, file_stem, job_name,
-    relative_path, screen_key, task_name,
+    CONTENT_PACKAGE, IDENTITY_PACKAGE, RouteSite, TENANCY_PACKAGE, WEBHOOKS_PACKAGE, crate_name,
+    file_stem, job_name, relative_path, screen_key, task_name,
 };
 use sofie_model::{
     Aggregate, App, AreaContribution, Cadence, ContractTrait, Listener, MANIFEST_CONSTANT, Module,
@@ -68,6 +68,7 @@ struct Wiring<'app> {
     identity: Option<TokenStream>,
     content: Option<TokenStream>,
     tenancy: Option<TokenStream>,
+    webhooks: Option<TokenStream>,
     /// The module's `PLANS`, which sofie-billing is installed with.
     plans: Option<TokenStream>,
     languages: Option<&'app AppLanguages>,
@@ -99,6 +100,9 @@ impl<'app> Wiring<'app> {
             tenancy: app
                 .depends_on(TENANCY_PACKAGE)
                 .then(|| path(&crate_name(TENANCY_PACKAGE))),
+            webhooks: app
+                .depends_on(WEBHOOKS_PACKAGE)
+                .then(|| path(&crate_name(WEBHOOKS_PACKAGE))),
             plans: app
                 .modules
                 .iter()
@@ -138,7 +142,11 @@ impl<'app> Wiring<'app> {
             quote!(#identity::module(&[#(#members),*]))
         });
         let billing = self.plans.iter().map(|_| quote!(sofie::billing::MODULE));
-        let packages = self.content.iter().chain(&self.tenancy);
+        let packages = self
+            .content
+            .iter()
+            .chain(&self.tenancy)
+            .chain(&self.webhooks);
         let packages = identity
             .chain(billing)
             .chain(packages.map(|package| quote!(#package::MODULE)));

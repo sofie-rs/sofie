@@ -50,6 +50,7 @@ sofie-telemetry = { version = "0.4.0", path = "crates/sofie-telemetry" }
 sofie-tenancy = { version = "0.4.0", path = "crates/sofie-tenancy" }
 sofie-testing = { version = "0.4.0", path = "crates/sofie-testing" }
 sofie-values = { version = "0.4.0", path = "crates/sofie-values" }
+sofie-webhooks = { version = "0.4.0", path = "crates/sofie-webhooks" }
 
 # Argon2id in the PHC string format; salts come from our own random source, so no `getrandom`.
 argon2 = { version = "0.6.0", default-features = false, features = ["alloc", "password-hash"] }

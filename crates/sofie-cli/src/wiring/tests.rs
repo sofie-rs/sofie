@@ -726,3 +726,16 @@ fn lists_the_tenancy_module_when_the_app_depends_on_them() {
         "{text}"
     );
 }
+
+#[test]
+fn lists_the_webhooks_module_when_the_app_depends_on_it() {
+    let mut app = app("shop", Vec::new());
+    app.app.dependencies.push(dependency("sofie-webhooks"));
+
+    let text = formatted(&app);
+
+    assert!(
+        text.contains("pub static MODULES: &[Module] = &[sofie_webhooks::MODULE];"),
+        "{text}"
+    );
+}

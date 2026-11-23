@@ -125,6 +125,7 @@ sofie                                   facade: re-exports, features choose the 
   ├── sofie-identity                    opt-in module: accounts, memberships, passwords, sign-up, in and out
   ├── sofie-content                     opt-in module: markdown pages, slugs, publishing, link previews, sitemap
   │     └── sofie-tenancy               opt-in module: organizations owning records, members, roles, invitations
+  ├── sofie-webhooks                    opt-in module: owners' endpoints, signed event deliveries, retries (uses sofie-client)
   └── sofie-testing                     the test harness; sofie-identity's `testing` feature builds on it
 sofie-check ── sofie-core, sofie-engine, sofie-model   the rules `sofie check` and an app's build script run
 sofie-cli                               sofie new, gen, check, fix, docs, openapi, typescript, explain, build
@@ -152,6 +153,7 @@ sofie-cli                               sofie new, gen, check, fix, docs, openap
 | `sofie` | Re-exports everything an app uses, with features: `default = ["engine", "postgres", "postgres-tls", "trusted-proxies"]` | — |
 | `sofie-identity` | A module on the facade: accounts, memberships per area, `Password` and `PasswordHash` (Argon2id in the PHC string format; older PBKDF2 hashes still verify and are rehashed at sign-in), sign-up, in and out; it checks membership itself before signing in, and creates it in the sign-up commit. `remove_membership` removes one and ends the account's sessions in that area, and the impersonations it started, in the same commit. Signing up answers alike for a new and a taken address and signs nobody in. Its `testing` feature adds `TestMember` (`TestPrincipal::<A>::member(&app)`) and `signed_up`, which sign up and then in | An app with its own identity |
 | `sofie-tenancy` | A module on the facade and sofie-identity: organizations as owners (an organization area is an `OrganizationArea`, whose principal is `Organization` and which names its `HOME`), members with an owner, admin or member role, invitations mailed as signed links, and with `billing` members held to the plan's seats | Every app without organizations |
+| `sofie-webhooks` | A module on the facade: each owner's webhook endpoints (an `https` URL, the events of its area's `WebhookArea::WEBHOOK_EVENTS` it subscribes to or `*`, a sealed secret), `Webhooks::send(owner, &event, &data)` queued with the commit, one delivery per subscribed endpoint signed as Standard Webhooks and retried for about a day, its JSON routes (`routes::<A>`, listed in `ROUTES`) | Every app that tells no other system of its events |
 | `sofie-content` | A module on the facade: markdown pages with slugs (previous ones answered with a 301), publishing, search, link-preview tags and a sitemap | Every app without written pages |
 | `sofie-cli` | The `sofie` command | Not in any binary |
 

@@ -13,7 +13,7 @@ use crate::messages::Found;
 use crate::metadata::{Package, Packages};
 use crate::naming::{
     BILLING_PACKAGE, CONTENT_PACKAGE, GEN_MODULE, IDENTITY_AREA, IDENTITY_PACKAGE, TENANCY_PACKAGE,
-    contract_package, crate_name, file_stem, screen_key, snake_case,
+    WEBHOOKS_PACKAGE, contract_package, crate_name, file_stem, screen_key, snake_case,
 };
 use crate::package_routes::{read_module_mounts, read_mounts, read_route_tables};
 use crate::provisions::{RootExports, provisions};
@@ -378,7 +378,7 @@ fn read_routed_packages(
     packages: &Packages,
 ) -> Result<Vec<RoutedPackage>, ModelError> {
     let mut routed = Vec::new();
-    for package in [TENANCY_PACKAGE, CONTENT_PACKAGE] {
+    for package in [TENANCY_PACKAGE, CONTENT_PACKAGE, WEBHOOKS_PACKAGE] {
         if !app.krate.depends_on(package) {
             continue;
         }

@@ -1082,8 +1082,7 @@ mod tests {
         ] {
             let error = Exceptions::parse(Path::new("migration-allow.toml"), text)
                 .err()
-                .map(|error| error.message)
-                .unwrap_or_default();
+                .map_or_default(|error| error.message);
             assert!(error.contains(expected), "{text}: {error}");
         }
     }

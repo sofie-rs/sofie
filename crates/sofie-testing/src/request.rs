@@ -225,8 +225,7 @@ impl TestResponse {
 
     fn cause(&self) -> String {
         self.internal_error()
-            .map(|error| format!("\ncaused by: {error}"))
-            .unwrap_or_default()
+            .map_or_default(|error| format!("\ncaused by: {error}"))
     }
 
     #[must_use]

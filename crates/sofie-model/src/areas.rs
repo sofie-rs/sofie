@@ -48,9 +48,7 @@ pub(crate) fn area_definition(
         type_path,
         prefix: literal_constant(implementation, "PREFIX"),
         client,
-        principal: associated_type(implementation, "Principal")
-            .map(segments)
-            .unwrap_or_default(),
+        principal: associated_type(implementation, "Principal").map_or_default(segments),
         implements_member_area: false,
         opens_sign_up: false,
         file: file.to_path_buf(),

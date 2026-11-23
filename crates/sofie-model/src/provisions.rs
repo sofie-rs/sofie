@@ -59,7 +59,7 @@ pub(crate) struct RootExports {
 
 impl RootExports {
     pub(crate) fn of(root: Option<&syn::File>) -> Self {
-        let items = root.map(|root| root.items.as_slice()).unwrap_or_default();
+        let items = root.map_or_default(|root| root.items.as_slice());
         let mut exports = Self {
             named: BTreeMap::new(),
             globs: Vec::new(),

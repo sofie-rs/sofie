@@ -35,7 +35,7 @@ pub(crate) fn render(shown: Shown<'_>) -> Result<String> {
             &mut csv,
             names
                 .iter()
-                .map(|name| fields.get(name).map(cell).unwrap_or_default()),
+                .map(|name| fields.get(name).map_or_default(cell)),
         );
     }
     Ok(csv)

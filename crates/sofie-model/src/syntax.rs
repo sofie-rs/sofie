@@ -212,8 +212,7 @@ pub(crate) fn macro_expressions(call: &Macro) -> Vec<Expr> {
         return list.into_iter().collect();
     }
     call.parse_body_with(Punctuated::<Expr, Token![;]>::parse_terminated)
-        .map(|repeated| repeated.into_iter().collect())
-        .unwrap_or_default()
+        .map_or_default(|repeated| repeated.into_iter().collect())
 }
 
 pub(crate) fn string_literal(expression: &Expr) -> Option<String> {

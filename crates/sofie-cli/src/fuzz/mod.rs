@@ -225,8 +225,7 @@ impl Run {
         };
         let trees = trace_id
             .as_deref()
-            .map(|trace_id| wait_for_trees(&self.local.log, trace_id))
-            .unwrap_or_default();
+            .map_or_default(|trace_id| wait_for_trees(&self.local.log, trace_id));
         let finding = Finding {
             route: target.name.clone(),
             method: target.method.name(),

@@ -426,9 +426,7 @@ fn input_field(field: &FieldDeclaration, enums: &[EnumDeclaration]) -> String {
     } else {
         "required"
     };
-    let shape = json_shape(&read.kind)
-        .map(|shape| format!(", as {shape}"))
-        .unwrap_or_default();
+    let shape = json_shape(&read.kind).map_or_default(|shape| format!(", as {shape}"));
     format!("{}: {ty}, {presence}{shape}", field.name)
 }
 
@@ -1529,8 +1527,9 @@ mod tests {
         let touched = |explained: &str| -> Vec<String> {
             explained
                 .split_once("  change touches:\n")
-                .map(|(_, rest)| rest.lines().map(|line| line.trim().to_owned()).collect())
-                .unwrap_or_default()
+                .map_or_default(|(_, rest)| {
+                    rest.lines().map(|line| line.trim().to_owned()).collect()
+                })
         };
         assert_eq!(
             touched(&aggregate),

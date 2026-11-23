@@ -38,7 +38,7 @@ pub(crate) fn render_wiring(
     forms: &[DescribedForm],
 ) -> String {
     let wiring = Wiring::of(app, languages, forms);
-    let optional = |item: Option<&TokenStream>| item.map(ToString::to_string).unwrap_or_default();
+    let optional = |item: Option<&TokenStream>| item.map_or_default(ToString::to_string);
     let items = [
         wiring.imports().to_string(),
         wiring.modules_table().to_string(),

@@ -105,7 +105,7 @@ impl Telemetry {
                 }
                 None => ControlFlow::Continue(()),
             });
-        let evaluated = nearest.map(|evaluated| evaluated()).unwrap_or_default();
+        let evaluated = nearest.map_or_default(|evaluated| evaluated());
         if !evaluated.is_empty() {
             fields.set("feature_flags", FieldValue::Text(evaluated));
         }

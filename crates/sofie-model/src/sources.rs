@@ -351,7 +351,7 @@ pub(crate) fn file_name(module: &ItemMod) -> String {
 }
 
 pub(crate) fn parent(file: &Path) -> PathBuf {
-    file.parent().map(Path::to_path_buf).unwrap_or_default()
+    file.parent().map_or_default(Path::to_path_buf)
 }
 
 /// Resolves `..` lexically, so a `#[path]` file compares equal to

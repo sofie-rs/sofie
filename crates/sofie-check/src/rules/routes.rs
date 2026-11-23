@@ -49,8 +49,7 @@ fn unrouted_areas(modules: &[Module]) -> Vec<Finding> {
         .map(|folder| {
             let area = folder
                 .file_name()
-                .map(|name| name.to_string_lossy().into_owned())
-                .unwrap_or_default();
+                .map_or_default(|name| name.to_string_lossy().into_owned());
             Finding {
                 rule: Rule::UndeclaredRoutes,
                 file: folder.join("routes.rs"),

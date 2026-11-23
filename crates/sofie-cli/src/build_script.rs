@@ -15,7 +15,6 @@ use crate::islands::{IslandMode, build_islands, has_islands, island_sources};
 use crate::source_edits::{read, write};
 use crate::wiring::{embedded_mails, embedded_screens};
 
-#[must_use]
 pub fn check_in_build_script(root: &Path) -> ExitCode {
     for path in watched_paths(root) {
         println!("cargo::rerun-if-changed={}", path.display());

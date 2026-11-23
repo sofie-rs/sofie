@@ -150,7 +150,7 @@ impl<T: Present> Present for Option<T> {
     const SEARCH: Search = T::SEARCH;
 
     fn csv(&self) -> String {
-        self.as_ref().map(Present::csv).unwrap_or_default()
+        self.as_ref().map_or_default(Present::csv)
     }
 
     #[cfg(feature = "web")]

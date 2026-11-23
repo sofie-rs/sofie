@@ -114,7 +114,7 @@ impl FlagGate {
 }
 
 pub(super) fn record(features: Option<&Features>) {
-    let evaluated = features.map(Features::evaluated).unwrap_or_default();
+    let evaluated = features.map_or_default(Features::evaluated);
     if !evaluated.is_empty() {
         tracing::Span::current().record("feature_flags", evaluated);
     }

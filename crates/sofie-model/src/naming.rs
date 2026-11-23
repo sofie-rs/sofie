@@ -229,8 +229,7 @@ pub(crate) fn is_plain_name(name: &str) -> bool {
 #[must_use]
 pub fn file_stem(file: &Path) -> String {
     file.file_stem()
-        .map(|stem| stem.to_string_lossy().into_owned())
-        .unwrap_or_default()
+        .map_or_default(|stem| stem.to_string_lossy().into_owned())
 }
 
 impl AreaContribution {

@@ -53,7 +53,7 @@ impl Translations {
         preferred: Option<&Locale>,
         accept_language: Option<&str>,
     ) -> Language<'_> {
-        let accepted = accept_language.map(negotiate::accepted).unwrap_or_default();
+        let accepted = accept_language.map_or_default(negotiate::accepted);
         let index = preferred
             .into_iter()
             .chain(&accepted)

@@ -71,8 +71,7 @@ fn endpoint_entry(endpoint: &Endpoint) -> String {
     let query = endpoint
         .query
         .as_ref()
-        .map(|query| format!("\n    query: {};", query.name))
-        .unwrap_or_default();
+        .map_or_default(|query| format!("\n    query: {};", query.name));
     let mut text = String::new();
     if let Some(summary) = &endpoint.summary {
         let _ = writeln!(text, "  /** {} */", summary.replace("*/", "* /"));

@@ -351,7 +351,7 @@ impl Directory for LocalDirectory {
             .where_(Member::NAME.eq(name.to_owned()))
             .first(&self.0.read())
             .await?;
-        Ok(member.map(|member| member.city).unwrap_or_default())
+        Ok(member.map_or_default(|member| member.city))
     }
 }
 

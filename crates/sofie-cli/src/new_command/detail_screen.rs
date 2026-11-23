@@ -28,8 +28,7 @@ pub(super) fn screen_source(screen: &DetailScreen) -> String {
     let mut body = String::new();
     let page_title = screen
         .title
-        .map(|title| format!("<title>{title}</title>\n"))
-        .unwrap_or_default();
+        .map_or_default(|title| format!("<title>{title}</title>\n"));
     let heading = screen
         .title
         .map_or_else(|| sofie_engine::humanize(screen.screen), str::to_owned);
@@ -241,8 +240,7 @@ fn names_plural_of(record_path: &str, list_path: &str) -> bool {
         format!("{parameter}es"),
         parameter
             .strip_suffix('y')
-            .map(|stem| format!("{stem}ies"))
-            .unwrap_or_default(),
+            .map_or_default(|stem| format!("{stem}ies")),
     ];
     plurals.iter().any(|plural| plural == listed)
 }

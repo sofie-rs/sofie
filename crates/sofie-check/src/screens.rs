@@ -71,8 +71,7 @@ fn read_components(modules: &[Module]) -> (Components, Vec<(PathBuf, String)>) {
     for file in modules.iter().flat_map(|module| &module.components) {
         let name = file
             .file_stem()
-            .map(|stem| stem.to_string_lossy().into_owned())
-            .unwrap_or_default();
+            .map_or_default(|stem| stem.to_string_lossy().into_owned());
         let added = fs::read_to_string(file)
             .map_err(|error| format!("the component cannot be read: {error}"))
             .and_then(|source| components.add(&name, source).map_err(|error| error.message));

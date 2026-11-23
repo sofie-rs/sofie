@@ -54,14 +54,10 @@ impl Safety {
     )]
     fn may_block(&self, address: IpAddr) -> bool {
         let address = address.to_canonical();
-        if address.is_unspecified() || address.is_loopback() {
-            return false;
-        }
+        let shared = address.is_unspecified() || address.is_loopback();
         #[cfg(feature = "trusted-proxies")]
-        if self.proxies.is_trusted(address) {
-            return false;
-        }
-        true
+        let shared = shared || self.proxies.is_trusted(address);
+        !shared
     }
 }
 

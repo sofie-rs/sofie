@@ -580,8 +580,7 @@ fn source_of(package: &str, origin: &Origin) -> String {
 fn checkout_path(package: &str) -> String {
     let crates = Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
-        .map(Path::to_path_buf)
-        .unwrap_or_default();
+        .map_or_default(Path::to_path_buf);
     let directory = if package == "sofie-framework" {
         "sofie"
     } else {

@@ -132,14 +132,13 @@ impl Targets {
                 .route
                 .function(&code)
                 .and_then(|function| code.input_of(function))
-                .map(|input| {
+                .map_or_default(|input| {
                     input
                         .fields
                         .iter()
                         .map(|field| Field::declared(field, &code.enums))
                         .collect()
-                })
-                .unwrap_or_default();
+                });
             self.targets.push(Target {
                 name: served.name.clone(),
                 module: IDENTITY.to_owned(),

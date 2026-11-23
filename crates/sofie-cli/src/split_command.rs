@@ -457,7 +457,7 @@ fn move_module(journal: &mut Journal, plan: &SplitPlan) -> Result<(), GenError> 
 }
 
 fn manifest_parent(manifest: &Path) -> PathBuf {
-    manifest.parent().map(Path::to_path_buf).unwrap_or_default()
+    manifest.parent().map_or_default(Path::to_path_buf)
 }
 
 fn manifest_directory(from: &Path, to: &Path, manifest: &Path) -> PathBuf {

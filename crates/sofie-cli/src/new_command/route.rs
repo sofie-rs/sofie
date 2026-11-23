@@ -417,8 +417,7 @@ fn stub(handler: &Handler) -> String {
             let fields = handler
                 .read
                 .as_ref()
-                .map(ReadFields::declarations)
-                .unwrap_or_default();
+                .map_or_default(ReadFields::declarations);
             format!(
                 "#[derive(ReadModel)]\n#[read(from = {from})]\npub struct {model} {{\n{fields}}}\n\n\
                  pub async fn {name}({binding}: {model}) -> Result<{model}> {{\n    Ok({binding})\n}}\n"

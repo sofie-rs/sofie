@@ -143,8 +143,7 @@ fn gate_of(function: &ItemFn, file: &Path, module_path: &[String]) -> Option<Fea
         .find(|attribute| is_attribute(attribute, "feature"))?;
     let feature = attribute
         .parse_args::<syn::Path>()
-        .map(|path| segments(&path))
-        .unwrap_or_default();
+        .map_or_default(|path| segments(&path));
     Some(FeatureGate {
         function: [module_path, &[function.sig.ident.to_string()]].concat(),
         feature,

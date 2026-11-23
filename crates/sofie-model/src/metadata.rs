@@ -190,10 +190,7 @@ fn package_of(
     let listed_manifest = canonical(Path::new(
         package["manifest_path"].as_str().ok_or_else(incomplete)?,
     ))?;
-    let directory = listed_manifest
-        .parent()
-        .map(Path::to_path_buf)
-        .unwrap_or_default();
+    let directory = listed_manifest.parent().map_or_default(Path::to_path_buf);
     let names = |key: &str| -> Vec<String> {
         package["metadata"]["sofie"][key]
             .as_array()

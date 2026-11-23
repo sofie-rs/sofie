@@ -168,8 +168,7 @@ impl AppLanguages {
         self.files
             .iter()
             .find(|file| file.module == module && file.language == SOURCE_LANGUAGE)
-            .map(|file| file.path.clone())
-            .unwrap_or_default()
+            .map_or_default(|file| file.path.clone())
     }
 
     /// What `sofie gen` writes as a contract's `keys`: the module's own, in its source language.
@@ -234,8 +233,7 @@ impl AppLanguages {
             .iter()
             .find(|file| file.language == language)
             .or_else(|| self.files.first())
-            .map(|file| file.path.with_file_name(format!("{language}.toml")))
-            .unwrap_or_default()
+            .map_or_default(|file| file.path.with_file_name(format!("{language}.toml")))
     }
 
     /// Built once for the screens and once for mail, as `Screens::translate` takes them whole.
@@ -293,8 +291,7 @@ fn tone_variant(tone: Option<&str>) -> String {
     let mut letters = tone.unwrap_or("neutral").chars();
     letters
         .next()
-        .map(|first| first.to_uppercase().chain(letters).collect())
-        .unwrap_or_default()
+        .map_or_default(|first| first.to_uppercase().chain(letters).collect())
 }
 
 /// Their `enum.*` keys are shared, so two modules' enums of one name would mix.

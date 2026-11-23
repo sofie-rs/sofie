@@ -114,9 +114,8 @@ fn valid_call(requests: &Requests, site: &RouteSite, area: &KnownArea, facts: &m
     };
     let handler = handler(site);
     let called = format!("{request}{}.await", requests.body_of(site));
-    let shown = answered_model(requests, site)
-        .map(|model| shown_fields(requests, site, model))
-        .unwrap_or_default();
+    let shown =
+        answered_model(requests, site).map_or_default(|model| shown_fields(requests, site, model));
     let checked = if shown.is_empty() {
         format!("{called}.assert_ok();")
     } else {

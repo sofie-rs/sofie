@@ -322,7 +322,7 @@ fn read_contract(directory: &Path, packages: &Packages) -> Result<Contract, Mode
         krate: Some(contract),
         areas,
         declares_gen: root.is_some_and(declares_gen_module),
-        exports: root.map(gen_exports).unwrap_or_default(),
+        exports: root.map_or_default(gen_exports),
         events: tree.found.events,
         traits: tree.found.contract_traits,
         sensitive_values: tree.found.code.telemetry.sensitive_values,

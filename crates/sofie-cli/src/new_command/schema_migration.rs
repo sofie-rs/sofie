@@ -473,8 +473,7 @@ fn create_index(
     let columns: Vec<String> = index.columns.iter().map(|column| quoted(column)).collect();
     let only_where = index
         .only_where
-        .map(|column| format!(" WHERE {}", quoted(column)))
-        .unwrap_or_default();
+        .map_or_default(|column| format!(" WHERE {}", quoted(column)));
     format!(
         "CREATE {unique}INDEX {concurrently}{} ON {} ({}){only_where};\n",
         quoted(&format!("{table}_{}", index.suffix)),

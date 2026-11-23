@@ -19,7 +19,7 @@ pub enum ModuleDeclaration {
 
 pub fn module_declaration(root: &Path, path: &[&str]) -> Result<ModuleDeclaration, ModelError> {
     let mut file = root.to_path_buf();
-    let mut module_dir = file.parent().map(Path::to_path_buf).unwrap_or_default();
+    let mut module_dir = file.parent().map_or_default(Path::to_path_buf);
     let mut remaining = path;
     loop {
         let syntax = read_file(&file)?;

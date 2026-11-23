@@ -220,7 +220,7 @@ impl Client {
             Ok(Err(error)) => Err(error),
             Err(_) => Err(Error::Unavailable(format!(
                 "Redis did not answer {} within {} ms",
-                commands.first().map(Command::name).unwrap_or_default(),
+                commands.first().map_or_default(Command::name),
                 COMMAND_TIMEOUT.as_millis()
             ))),
         }

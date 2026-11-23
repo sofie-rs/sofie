@@ -191,10 +191,7 @@ fn a_markdown_reads_its_text_from_data_only() {
         r#"<Markdown text='Say "hi" & bye' />"#,
     ] {
         let parsed = sofie_engine::Template::parse("content/web/text", source);
-        let error = parsed
-            .err()
-            .map(|error| error.to_string())
-            .unwrap_or_default();
+        let error = parsed.err().map_or_default(|error| error.to_string());
         assert!(error.contains("`text` on `Markdown`"), "{source}: {error}");
     }
 }

@@ -54,6 +54,11 @@ impl<'app> TestCaller<'app> {
         }
     }
 
+    #[cfg(feature = "socket")]
+    pub async fn socket(&self) -> crate::TestSocket {
+        self.app.server.socket(Some(&self.session)).await
+    }
+
     pub fn get(&self, path: &str) -> TestRequest {
         self.app.get(path).session(&self.session)
     }

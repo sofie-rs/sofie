@@ -83,6 +83,12 @@ impl TestServer {
         )
     }
 
+    /// Signed in when `session` is given, as a page's socket carries its cookie.
+    #[cfg(feature = "socket")]
+    pub async fn socket(&self, session: Option<&TestSession>) -> crate::TestSocket {
+        crate::TestSocket::connect(&self.base, session).await
+    }
+
     pub async fn stop(mut self) -> Result<()> {
         self.signal_stop();
         let served = self.served.take().expect("a server is stopped once");

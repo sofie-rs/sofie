@@ -16,6 +16,8 @@ flags = ["dep:sofie-flags"]
 contracts = ["sofie-db/contracts"]
 # `TestApp::mails`: what the app's mail jobs sent, through a fake transport.
 mail = ["dep:sofie-mail", "sofie/mail"]
+# `TestApp::socket` and `TestCaller::socket`: a browser's socket to the app.
+socket = ["sofie/socket", "tokio/io-util"]
 # Notify's jobs on the test worker, without web push keys; an app turning on `sofie/notify` gets them too.
 notify = ["mail", "sofie/notify"]
 

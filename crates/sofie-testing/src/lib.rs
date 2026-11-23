@@ -10,6 +10,8 @@ mod mails;
 mod messages;
 mod request;
 mod server;
+#[cfg(feature = "socket")]
+mod socket;
 mod start;
 mod wiring;
 
@@ -32,6 +34,8 @@ pub use mails::sent_mails;
 pub use messages::{assert_raised, drain_failing, raised};
 pub use request::{TestRequest, TestResponse, TestSession};
 pub use server::TestServer;
+#[cfg(feature = "socket")]
+pub use socket::TestSocket;
 pub use sofie_macros::test_app;
 pub use start::start;
 #[cfg(feature = "flags")]

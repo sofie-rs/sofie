@@ -162,6 +162,8 @@ pub(crate) struct RouteRules {
     /// Queues a `#[job]` instead of running it, which an owned area cannot.
     #[cfg(feature = "jobs")]
     pub(crate) queues: bool,
+    #[cfg(all(feature = "csv", feature = "listing"))]
+    pub(crate) exports: Option<std::sync::Arc<str>>,
 }
 
 /// Handlers are plain `async fn`s whose arguments all resolve in `A`; a GET's in its `ReadContext`.
@@ -321,6 +323,14 @@ impl<A: Area> PageRoute<'_, A> {
     /// Answers the loader's [`Text`] as `media` instead of JSON, such as a `/sitemap.xml`.
     pub fn document(&mut self, media: Media) -> &mut Self {
         self.route.view = View::Document(media);
+        self
+    }
+
+    /// The `.document(Media::Csv)` route at `path` in this area exports this list: a
+    /// `Listing` links to it with the page's filters and sort, and a `Table` shows the link.
+    #[cfg(all(feature = "csv", feature = "listing"))]
+    pub fn exports(&mut self, path: &str) -> &mut Self {
+        self.route.rules.exports = Some(format!("{}{path}", A::PREFIX).into());
         self
     }
 }

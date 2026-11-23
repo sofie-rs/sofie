@@ -3,9 +3,10 @@
 use std::borrow::Cow;
 
 use serde_json::{Map, Value, json};
+use sofie_core::encoding::percent;
 use sofie_core::listing::{
-    CONTROLS, DEFAULT_SIZE, ERRORS, FILTER, HAS_NEXT, ITEMS, PAGE, QUERY, REFUSAL_ARGUMENTS,
-    REFUSAL_KEY, REFUSAL_MESSAGE, SIZE, SORT,
+    CONTROLS, DEFAULT_SIZE, ERRORS, EXPORT, FILTER, HAS_NEXT, ITEMS, PAGE, QUERY,
+    REFUSAL_ARGUMENTS, REFUSAL_KEY, REFUSAL_MESSAGE, SIZE, SORT,
 };
 use sofie_core::show::Fields;
 use sofie_core::{Error, FieldError, Result, Show, Shown};
@@ -40,6 +41,7 @@ pub struct Listing<T: Source, Q = ()> {
     parameters: Option<Q>,
     asked_parameters: Map<String, Value>,
     refused_parameters: Vec<FieldError>,
+    export: Option<String>,
 }
 
 struct Filter {
@@ -127,19 +129,24 @@ impl<T: Source, Q> Listing<T, Q> {
         } else {
             Paginated::new(Vec::new(), self.page, false)
         };
+        let filter: Map<String, Value> = self
+            .filters
+            .into_iter()
+            .map(|filter| (filter.key, filter.value))
+            .chain(self.search.map(|words| (SEARCH.to_owned(), words)))
+            .map(|(key, value)| (key, Value::String(value)))
+            .collect();
+        let export = self
+            .export
+            .map(|path| export_link(path, self.sort.as_deref(), &filter, &self.asked_parameters));
         Ok(Listed {
             page,
             controls: controls::<T>(),
             sort: self.sort,
-            filter: self
-                .filters
-                .into_iter()
-                .map(|filter| (filter.key, filter.value))
-                .chain(self.search.map(|words| (SEARCH.to_owned(), words)))
-                .map(|(key, value)| (key, Value::String(value)))
-                .collect(),
+            filter,
             query: self.asked_parameters,
             errors: Refused(refused.into_iter().map(RefusedFilter::from).collect()),
+            export,
         })
     }
 }
@@ -187,14 +194,26 @@ impl<A: Area, M, T: Source, Q: Input + FieldNames + Send> Resolve<RequestContext
             .cloned()
             .collect();
         let prefers_json = context.matched.prefers_json;
+        let export = exported_path(&context.matched);
         std::future::ready(
             asked::<T, Q>(context.query().unwrap_or_default()).map(|mut listing| {
                 listing.parents = parents;
                 listing.prefers_json = prefers_json;
+                listing.export = export;
                 listing
             }),
         )
     }
+}
+
+#[cfg(feature = "csv")]
+fn exported_path(matched: &crate::context::Matched) -> Option<String> {
+    crate::pattern::fill(matched.exports.as_deref()?, &matched.parameters)
+}
+
+#[cfg(not(feature = "csv"))]
+fn exported_path(_: &crate::context::Matched) -> Option<String> {
+    None
 }
 
 fn asked<T: Source, Q: Input + FieldNames>(query: &str) -> Result<Listing<T, Q>> {
@@ -249,6 +268,7 @@ fn asked<T: Source, Q: Input + FieldNames>(query: &str) -> Result<Listing<T, Q>>
         parameters,
         asked_parameters,
         refused_parameters,
+        export: None,
     })
 }
 
@@ -363,6 +383,30 @@ pub struct Listed<T> {
     filter: Map<String, Value>,
     query: Map<String, Value>,
     errors: Refused,
+    export: Option<String>,
+}
+
+/// Every row, so the page and its size are left out; ordered as the page's own links.
+fn export_link(
+    path: String,
+    sort: Option<&str>,
+    filter: &Map<String, Value>,
+    query: &Map<String, Value>,
+) -> String {
+    let mut link = path;
+    let asked = sort.map(|sort| (SORT, sort)).into_iter().chain(
+        query
+            .iter()
+            .chain(filter)
+            .filter_map(|(name, value)| Some((name.as_str(), value.as_str()?))),
+    );
+    for (index, (name, value)) in asked.enumerate() {
+        link.push(if index == 0 { '?' } else { '&' });
+        percent::push_encoded(&mut link, name, percent::is_unreserved);
+        link.push('=');
+        percent::push_encoded(&mut link, value, percent::is_unreserved);
+    }
+    link
 }
 
 /// Shown with each message's key and arguments, so a page writes it in the viewer's language.
@@ -449,6 +493,14 @@ impl Fields for RefusalArguments {
     }
 }
 
+impl<T> Listed<T> {
+    /// The route's `.exports(…)` link, with this page's filters and sort.
+    #[must_use]
+    pub fn export(&self) -> Option<&str> {
+        self.export.as_deref()
+    }
+}
+
 impl<T: ReplyData> Listed<T> {
     #[must_use]
     pub fn items(&self) -> &[T] {
@@ -476,13 +528,14 @@ impl<T: ReplyData> Listed<T> {
             QUERY: self.query,
             CONTROLS: self.controls,
             ERRORS: self.errors.records(),
+            EXPORT: self.export,
         }))
     }
 }
 
 /// Ordered as [`Listed::json`]'s object holds its keys.
-const LISTED_NAMES: [&str; 9] = [
-    CONTROLS, ERRORS, FILTER, HAS_NEXT, ITEMS, PAGE, QUERY, SIZE, SORT,
+const LISTED_NAMES: [&str; 10] = [
+    CONTROLS, ERRORS, EXPORT, FILTER, HAS_NEXT, ITEMS, PAGE, QUERY, SIZE, SORT,
 ];
 
 impl<T: Show> Fields for Listed<T> {
@@ -497,6 +550,7 @@ impl<T: Show> Fields for Listed<T> {
             FILTER => Some(Shown::Record(&self.filter)),
             QUERY => Some(Shown::Record(&self.query)),
             SORT => Some(self.sort.show()),
+            EXPORT => Some(self.export.show()),
             _ => self.page.get(name),
         }
     }
@@ -641,6 +695,21 @@ mod tests {
     }
 
     #[test]
+    fn an_export_links_every_row_sorted_and_filtered_as_the_page() {
+        let filter = Map::from_iter([("note.contains".to_owned(), Value::from("a b"))]);
+        let query = Map::from_iter([("near".to_owned(), Value::from("Ulm&Mitte"))]);
+
+        assert_eq!(
+            export_link("/bookings.csv".to_owned(), Some("-at"), &filter, &query),
+            "/bookings.csv?sort=-at&near=Ulm%26Mitte&note.contains=a%20b"
+        );
+        assert_eq!(
+            export_link("/bookings.csv".to_owned(), None, &Map::new(), &Map::new()),
+            "/bookings.csv"
+        );
+    }
+
+    #[test]
     fn a_list_names_an_enum_s_variants_and_an_instant_for_its_filter_form() {
         assert_eq!(
             Value::Object(controls::<Booking>()),
@@ -748,6 +817,7 @@ mod tests {
             filter: Map::from_iter([("note".to_owned(), Value::from("a"))]),
             query: Map::new(),
             errors: Refused(Vec::new()),
+            export: None,
         };
 
         let reply = listed.reply().unwrap();
@@ -771,6 +841,7 @@ mod tests {
                 "query": {},
                 "controls": controls::<Booking>(),
                 "errors": {},
+                "export": null,
             })
         );
     }
@@ -1071,6 +1142,7 @@ mod tests {
             filter: Map::new(),
             query: Map::new(),
             errors: Refused(Vec::new()),
+            export: None,
         };
 
         let names: Vec<&str> = (0..).map_while(|index| listed.name(index)).collect();

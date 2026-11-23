@@ -74,6 +74,8 @@ pub(crate) fn route_table(
         if let View::Redirect(location) | View::RedirectOrFollow(location) = &route.view {
             require_local(route, location)?;
         }
+        #[cfg(all(feature = "csv", feature = "listing"))]
+        require_export(route, routes)?;
         let target = Target {
             endpoint: Arc::clone(&route.endpoint),
             view: route.view.clone(),
@@ -185,6 +187,36 @@ fn require_local(route: &Route, path: &str) -> Result<()> {
             "sends browsers to `{path}`, which is not a path of this app; write it as `/path`"
         ),
     ))
+}
+
+/// A GET listing of the same area exports, through a CSV route its own parameters fill.
+#[cfg(all(feature = "csv", feature = "listing"))]
+fn require_export(route: &Route, routes: &[Route]) -> Result<()> {
+    let Some(export) = route.rules.exports.as_deref() else {
+        return Ok(());
+    };
+    let exporting = routes.iter().find(|candidate| {
+        candidate.method == Method::GET
+            && candidate.path == export
+            && candidate.audience.name == route.audience.name
+    });
+    let problem = match exporting {
+        None => format!("exports to {export}, but no GET route of its area is at that path"),
+        Some(candidate) if !matches!(candidate.view, View::Document(crate::Media::Csv)) => {
+            format!("exports to {export}, which does not answer `.document(Media::Csv)`")
+        }
+        Some(_) => {
+            let available = pattern::parameter_names(&route.path);
+            let Some(missing) = pattern::parameter_names(export)
+                .into_iter()
+                .find(|name| !available.contains(name))
+            else {
+                return Ok(());
+            };
+            format!("exports to {export}, whose `{{{missing}}}` it does not have")
+        }
+    };
+    Err(route_error(route, problem))
 }
 
 fn route_error(route: &Route, problem: impl std::fmt::Display) -> Error {

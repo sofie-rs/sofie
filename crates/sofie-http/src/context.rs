@@ -33,6 +33,8 @@ pub(crate) struct Matched {
     /// A list's refused filter is then a 422; a page shows it beside the filter.
     #[cfg(feature = "listing")]
     pub(crate) prefers_json: bool,
+    #[cfg(all(feature = "csv", feature = "listing"))]
+    pub(crate) exports: Option<std::sync::Arc<str>>,
 }
 
 // Kept off the per-area `RequestContext`, so each app compiles the body parse once.

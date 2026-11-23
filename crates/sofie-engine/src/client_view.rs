@@ -15,8 +15,9 @@ use crate::message::Recorded;
 use crate::syntax::{Expression, Op};
 use crate::walk::{Visit, walk};
 
-const ENGINE_KEYS: [&str; 5] = [
+const ENGINE_KEYS: [&str; 6] = [
     "table.empty",
+    "table.export",
     "table.filter",
     "table.search",
     "table.previous",

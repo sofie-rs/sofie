@@ -4,8 +4,8 @@ use std::borrow::Cow;
 
 use sofie_core::encoding::percent;
 use sofie_core::listing::{
-    CONTROLS, DEFAULT_SIZE, ERRORS, FILTER, HAS_NEXT, ITEMS, PAGE, QUERY, REFUSAL_ARGUMENTS,
-    REFUSAL_KEY, REFUSAL_MESSAGE, SIZE, SORT,
+    CONTROLS, DEFAULT_SIZE, ERRORS, EXPORT, FILTER, HAS_NEXT, ITEMS, PAGE, QUERY,
+    REFUSAL_ARGUMENTS, REFUSAL_KEY, REFUSAL_MESSAGE, SIZE, SORT,
 };
 use sofie_core::show::Fields;
 use sofie_core::{Instant, Shown};
@@ -82,6 +82,7 @@ pub(super) struct Listed<'a> {
     /// Per field, the control its filter takes: `values` to choose from, or an input `type`.
     controls: Option<&'a dyn Fields>,
     errors: Option<&'a dyn Fields>,
+    export: Option<&'a str>,
 }
 
 pub(super) fn listed<'a>(table: &'a Table, renderer: &Renderer<'a>) -> Option<Listed<'a>> {
@@ -105,6 +106,7 @@ impl<'a> Listed<'a> {
             query: fields_of(field(QUERY)),
             controls: fields_of(field(CONTROLS)),
             errors: fields_of(field(ERRORS)),
+            export: str_of(field(EXPORT)),
         })
     }
 
@@ -162,8 +164,22 @@ pub(super) fn render_listing<'a>(
     render_body(table, listed.items, renderer)?;
     renderer.push_markup("</table>");
     render_pager(listed, &target, renderer);
+    render_export(listed, renderer);
     renderer.push_markup("</div>");
     Ok(())
+}
+
+fn render_export(listed: &Listed<'_>, renderer: &mut Renderer<'_>) {
+    let Some(export) = listed.export else {
+        return;
+    };
+    let text = renderer.language.text("table.export", "Export CSV");
+    let out = renderer.output();
+    out.push_str("<a class=\"sofie-export\" href=\"");
+    push_escaped(out, export);
+    out.push_str("\" download>");
+    push_escaped(out, text);
+    out.push_str("</a>");
 }
 
 /// A bound id that is no plain id targets nothing rather than a wider selector.

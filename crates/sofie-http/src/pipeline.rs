@@ -393,10 +393,7 @@ impl Pipeline {
         let preferred_language = found.session.language();
         let matched = Matched {
             parameters: found.parameters,
-            query: request
-                .uri
-                .query()
-                .map(|query| handler_query(query, target).to_owned()),
+            query: handler_query(&request.uri, target),
             body: Some(received.body),
             encoding: received.encoding,
             session: found.session,
@@ -417,6 +414,8 @@ impl Pipeline {
             #[cfg(feature = "listing")]
             prefers_json: asked.caller == Caller::Json
                 || matches!(target.view, crate::routes::View::Json),
+            #[cfg(all(feature = "csv", feature = "listing"))]
+            exports: target.admission.rules.exports.clone(),
         };
         #[cfg(all(feature = "toolbar", debug_assertions))]
         let clocked = crate::toolbar::clocked(&self.db, &matched.session);
@@ -558,12 +557,13 @@ pub(crate) fn timed_out(caller: Caller<'_>) -> Response {
 }
 
 #[cfg_attr(not(feature = "signed-links"), expect(unused_variables))]
-fn handler_query<'q>(query: &'q str, target: &Target) -> &'q str {
+fn handler_query(uri: &http::Uri, target: &Target) -> Option<String> {
+    let query = uri.query()?;
     #[cfg(feature = "signed-links")]
     if target.admission.rules.signed {
-        return crate::signed::unsigned_query(query);
+        return Some(crate::signed::unsigned_query(query).to_owned());
     }
-    query
+    Some(query.to_owned())
 }
 
 fn refuse(refusal: Option<Response>) -> Result<(), Box<Response>> {

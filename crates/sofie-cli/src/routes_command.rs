@@ -124,6 +124,7 @@ pub(crate) fn modifiers(route: &Route) -> Vec<String> {
                 Modifier::Entitled(entitlement) => Some(format!("entitled({entitlement})")),
                 Modifier::Document(media) => Some(format!("document({media})")),
                 Modifier::FileLimit(bytes) => Some(format!("file_limit({bytes})")),
+                Modifier::Exports(path) => Some(format!("exports({path})")),
                 Modifier::Feature(_) => None,
             }),
     );

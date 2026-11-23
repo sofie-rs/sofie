@@ -1069,6 +1069,13 @@ a file control. CSRF and the session apply as to any form post.
   body's CSV, each row as `I` reads a form post; a refused row refuses the
   import, its errors named `<row>.<field>`, so a returned `Vec` of records
   commits all rows or none. The body is held to the route's `.body_limit(…)`.
+  A listing names its export with `.exports("/orders.csv")` (with
+  `listing`): a `Listing` then answers `export`, that path filled from the
+  request's own parameters and carrying its sort, filters and query but not
+  its page, and a `Table` over it shows an "Export CSV" link (`table.export`).
+  The app refuses to serve, and `sofie check`'s `export-route` reports, an
+  export that is no `.document(Media::Csv)` GET of the same area or names a
+  parameter the listing's path lacks.
 - **Retention** (`retention`). A scheduled job takes `Prune` and calls
   `prune.before(A::CREATED_AT, cutoff)`, on any ordered column, a nullable
   one keeping its null rows: deleted 1000 at a time, so no

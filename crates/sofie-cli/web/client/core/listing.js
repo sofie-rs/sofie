@@ -22,8 +22,14 @@ export function listed(props) {
     query: page?.query && typeof page.query === "object" && !Array.isArray(page.query) ? page.query : {},
     controls: page?.controls && typeof page.controls === "object" && !Array.isArray(page.controls) ? page.controls : {},
     errors: page?.errors && typeof page.errors === "object" && !Array.isArray(page.errors) ? page.errors : {},
+    exported: isLocalPath(page?.export) ? page.export : null,
     listing,
   };
+}
+
+// The server answers a path of this app; anything else would send the download elsewhere.
+function isLocalPath(value) {
+  return typeof value === "string" && value.startsWith("/") && !value.startsWith("//");
 }
 
 // The first page is left out, so a new order or filter starts there.
@@ -51,6 +57,9 @@ export function listingTable(props, state, hasRow, view) {
     filters(props, state, view),
     h("table", null, sortedHeader(props, state, hasRow, view), body(props, state.items, hasRow, view)),
     pager(state, view),
+    state.exported === null
+      ? null
+      : h("a", { class: "sofie-export", href: state.exported, download: "" }, S.message(view, "table.export", "Export CSV")),
   );
 }
 

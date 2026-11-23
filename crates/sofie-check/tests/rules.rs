@@ -8,9 +8,9 @@ use sofie_model::testing::{
 };
 use sofie_model::{
     Aggregate, App, Cadence, ContractMethod, ContractTrait, Dependency, EnumDeclaration,
-    FieldDeclaration, Function, Gateway, GatewayAdapter, Identity, Job, Listener, Method, Module,
-    ModuleConfig, RawSql, ReadModel, RemoteModule, Route, Schedule, ScreenOverride, ScreenRender,
-    Source, Then, Tier, WallClock,
+    FieldDeclaration, Function, Gateway, GatewayAdapter, Identity, Job, Listener, Method, Modifier,
+    Module, ModuleConfig, RawSql, ReadModel, RemoteModule, Route, Schedule, ScreenOverride,
+    ScreenRender, Source, Then, Tier, WallClock,
 };
 use support::{Fixture, manifest_dependencies};
 
@@ -474,6 +474,46 @@ fn refreshing_element(path: &str, screen: &str, fragment: &str, line: usize) -> 
         }),
         ..route(Method::Post, path, &action_named_after(path), line)
     }
+}
+
+fn with_modifier(mut route: Route, modifier: Modifier) -> Route {
+    route.modifiers.push(modifier);
+    route
+}
+
+#[test]
+fn an_export_names_a_csv_route_of_its_area() {
+    let routes = vec![
+        with_modifier(
+            screen("/orders", "orders", "queries::list_orders", 1),
+            Modifier::Exports("/orders.csv".to_owned()),
+        ),
+        with_modifier(
+            route(Method::Get, "/orders.csv", "queries::export_orders", 2),
+            Modifier::Document("Media::Csv".to_owned()),
+        ),
+        with_modifier(
+            screen("/orders/all", "all", "queries::all_orders", 3),
+            Modifier::Exports("/orders/missing.csv".to_owned()),
+        ),
+        with_modifier(
+            screen("/orders/old", "all", "queries::old_orders", 4),
+            Modifier::Exports("/orders/all".to_owned()),
+        ),
+    ];
+    let fixture = Fixture::new();
+    let module =
+        fixture.module_with_screens(routes, &[("orders", ORDERS_TABLE), ("all", ORDERS_TABLE)]);
+
+    let findings = check(&fixture.app(vec![module]));
+
+    assert_eq!(
+        rule_lines(&findings)
+            .into_iter()
+            .filter(|(rule, _)| *rule == "export-route")
+            .collect::<Vec<_>>(),
+        [("export-route", 3), ("export-route", 4)]
+    );
 }
 
 const ORDERS_SCREEN: &str = "<Section title=\"Orders\">\n\

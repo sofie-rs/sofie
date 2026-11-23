@@ -333,6 +333,7 @@ fn apply_modifier(route: &mut Route, call: &ExprMethodCall, outermost: bool) -> 
         "live" | "cached" => route.screen.is_some(),
         "idempotent" | "file_limit" => action,
         "document" => route.method == Method::Get && route.screen.is_none() && !webhook,
+        "exports" => route.method == Method::Get && !webhook,
         "body_limit" => action || webhook,
         _ => false,
     };
@@ -349,6 +350,7 @@ fn apply_modifier(route: &mut Route, call: &ExprMethodCall, outermost: bool) -> 
         "file_limit" => route
             .modifiers
             .push(Modifier::FileLimit(one_argument(call)?)),
+        "exports" => route.modifiers.push(Modifier::Exports(exports_of(call)?)),
         "verify" => route.webhook = Some(one_argument(call)?),
         "throttle" => route
             .modifiers
@@ -375,7 +377,7 @@ fn misplaced(method: &str, route: &Route) -> String {
         (Some(_), _) => "a webhook, which takes `.body_limit(…)` and ends with `.verify(…)`",
         (None, Method::Get) => {
             "a page, which takes `.throttle(…)`, `.signed()`, `.feature(…)` and `.entitled(…)`, \
-             as a screen `.live(…)` and `.cached(…)`, and otherwise `.document(…)`"
+             `.exports(…)`, as a screen `.live(…)` and `.cached(…)`, and otherwise `.document(…)`"
         }
         (None, _) => {
             "an action, which takes `.throttle(…)`, `.signed()`, `.feature(…)`, `.entitled(…)`, \
@@ -385,6 +387,22 @@ fn misplaced(method: &str, route: &Route) -> String {
         }
     };
     format!("`.{method}(…)` is not a route modifier `sofie gen` accepts here: this route is {kind}")
+}
+
+fn exports_of(call: &ExprMethodCall) -> Result<String, String> {
+    let path = call
+        .args
+        .first()
+        .filter(|_| call.args.len() == 1)
+        .and_then(string_literal);
+    match path {
+        Some(path) if path.starts_with('/') && !path.starts_with("//") => Ok(path),
+        _ => Err(
+            "write `.exports(\"/path.csv\")`: one string literal, the path of a \
+             `.document(Media::Csv)` route of this area"
+                .to_owned(),
+        ),
+    }
 }
 
 fn one_argument(call: &ExprMethodCall) -> Result<String, String> {
@@ -813,5 +831,31 @@ mod tests {
             routes[2].then,
             Some(Then::RedirectOrFollow("/home".to_owned()))
         );
+    }
+
+    #[test]
+    fn a_list_names_its_export_by_a_path_of_this_app() {
+        let routes = read(
+            "routes.screen(\"/orders\", \"orders\", queries::orders).exports(\"/orders.csv\");",
+        );
+
+        assert_eq!(
+            routes[0].modifiers,
+            [Modifier::Exports("/orders.csv".to_owned())]
+        );
+        for written in ["CSV", "\"//elsewhere.csv\"", "\"orders.csv\""] {
+            let source = format!(
+                "pub fn routes(routes: &mut Routes<Console>) {{ \
+                 routes.get(\"/orders\", queries::orders).exports({written}); }}"
+            );
+            let error = read_routes(
+                Path::new("routes.rs"),
+                &syn::parse_file(&source).unwrap(),
+                Vec::new(),
+                &[],
+            )
+            .unwrap_err();
+            assert!(error.message.contains(".exports("), "{written}: {error}");
+        }
     }
 }

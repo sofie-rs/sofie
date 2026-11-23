@@ -10,9 +10,13 @@ pub const FILTER: &str = "filter";
 pub const QUERY: &str = "query";
 pub const CONTROLS: &str = "controls";
 pub const ERRORS: &str = "errors";
+/// The CSV export of the same list, filtered and sorted as the page is.
+pub const EXPORT: &str = "export";
 pub const REFUSAL_KEY: &str = "key";
 pub const REFUSAL_ARGUMENTS: &str = "arguments";
 pub const REFUSAL_MESSAGE: &str = "message";
 
 pub const PAGE_FIELDS: [&str; 3] = [PAGE, SIZE, HAS_NEXT];
-pub const LISTED_FIELDS: [&str; 8] = [PAGE, SIZE, HAS_NEXT, SORT, FILTER, QUERY, CONTROLS, ERRORS];
+pub const LISTED_FIELDS: [&str; 9] = [
+    PAGE, SIZE, HAS_NEXT, SORT, FILTER, QUERY, CONTROLS, ERRORS, EXPORT,
+];

@@ -39,6 +39,34 @@ fn a_page_links_to_its_neighbours_keeping_its_order_and_filters() {
 }
 
 #[test]
+fn a_page_with_an_export_links_to_it_and_one_without_shows_no_link() {
+    let template = common::loaded("orders", SCREEN);
+    let page = |export: Option<&str>| {
+        json!({
+            "items": [{"email": "a@b.c", "total": 3}],
+            "page": 1,
+            "size": 20,
+            "has_next": false,
+            "export": export,
+        })
+    };
+
+    let exported = template
+        .render(&page(Some("/orders.csv?sort=total&email=a%20b")))
+        .unwrap();
+    let plain = template.render(&page(None)).unwrap();
+
+    assert!(
+        exported.ends_with(
+            "<a class=\"sofie-export\" href=\"/orders.csv?sort=total&amp;email=a%20b\" \
+             download>Export CSV</a></div>"
+        ),
+        "{exported}"
+    );
+    assert!(!plain.contains("sofie-export"), "{plain}");
+}
+
+#[test]
 fn a_page_keeps_its_loader_s_query_parameters_on_every_link_and_in_its_filter_form() {
     let template = common::loaded("orders", SCREEN);
     let page = json!({

@@ -416,6 +416,8 @@ pub enum Modifier {
     Document(String),
     /// The largest file a form may upload, as written.
     FileLimit(String),
+    /// The path, within the area, of the CSV route exporting this list.
+    Exports(String),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

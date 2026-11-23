@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use sofie_model::naming::{RouteSite, handler_module};
-use sofie_model::{App, Module, Then};
+use sofie_model::{App, Method, Modifier, Module, Then};
 
 use super::{Finding, Rule};
 
@@ -13,6 +13,7 @@ pub(super) fn check_routes(app: &App) -> Vec<Finding> {
         findings.extend(misrouted_handler(site));
         findings.extend(missing_screen(site));
         findings.extend(unrouted_then_screen(site));
+        findings.extend(unrouted_export(site, &sites));
     }
     findings
 }
@@ -175,5 +176,45 @@ fn unrouted_then_screen(site: RouteSite<'_>) -> Option<Finding> {
             site.route.path
         ),
         fix: format!("route screen `{name}` exactly once in this file, or refresh another screen"),
+    })
+}
+
+/// Another module may route the export into the same area.
+fn unrouted_export(site: RouteSite<'_>, sites: &[RouteSite<'_>]) -> Option<Finding> {
+    let export = site
+        .route
+        .modifiers
+        .iter()
+        .find_map(|modifier| match modifier {
+            Modifier::Exports(path) => Some(path),
+            _ => None,
+        })?;
+    let exporting = sites
+        .iter()
+        .filter(|other| other.area.area == site.area.area && other.route.method == Method::Get)
+        .find(|other| other.route.path == *export);
+    let csv = |route: &sofie_model::Route| {
+        route
+            .modifiers
+            .iter()
+            .any(|modifier| matches!(modifier, Modifier::Document(media) if media.ends_with("Csv")))
+    };
+    let problem = match exporting {
+        Some(other) if csv(other.route) => return None,
+        Some(_) => "which does not answer `.document(Media::Csv)`",
+        None => "but no GET route of this area is at that path",
+    };
+    Some(Finding {
+        rule: Rule::ExportRoute,
+        file: site.area.routes_file.clone(),
+        line: site.route.line,
+        message: format!(
+            "GET {} exports to {export}, {problem}; the app would refuse to serve",
+            site.route.path
+        ),
+        fix: format!(
+            "route `routes.get(\"{export}\", …).document(Media::Csv)` in this area, or export to \
+             the path of one"
+        ),
     })
 }

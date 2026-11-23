@@ -160,6 +160,7 @@ fn checks(site: &RouteSite) -> Vec<String> {
             | Modifier::Live(_)
             | Modifier::Cached(_)
             | Modifier::Document(_)
+            | Modifier::Exports(_)
             | Modifier::Queued => {}
         }
     }

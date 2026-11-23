@@ -1556,6 +1556,80 @@ async fn listed_orders(listing: sofie_http::Listing<Order>, read: sofie_db::Read
     listing.page(&read).await.map(drop)
 }
 
+#[cfg(all(feature = "listing", feature = "csv"))]
+async fn listed_orders_json(
+    listing: sofie_http::Listing<Order>,
+    read: sofie_db::Read,
+) -> Result<Listing> {
+    let listed = listing.page(&read).await?;
+    Ok(Listing(json!({ "export": listed.export() })))
+}
+
+#[cfg(all(feature = "listing", feature = "csv"))]
+#[tokio::test]
+async fn a_listing_links_its_export_filtered_and_sorted_as_asked_within_its_parent() {
+    let server = TestServer::start(empty_app().area("shop", |routes: &mut Routes<Web>| {
+        routes
+            .get("/shops/{shop}/orders", listed_orders_json)
+            .exports("/shops/{shop}/orders.csv");
+        routes
+            .get("/shops/{shop}/orders.csv", listed_orders)
+            .document(sofie_http::Media::Csv);
+        routes.get("/orders", listed_orders_json);
+    }))
+    .await;
+
+    let listed = server
+        .get("/shops/north%20side/orders?page=2&sort=-status&status=PAID")
+        .accept_json()
+        .await;
+    let unexported = server.get("/orders").accept_json().await;
+
+    assert_eq!(
+        listed.json()["export"],
+        "/shops/north%20side/orders.csv?sort=-status&status=PAID",
+        "{}",
+        listed.body
+    );
+    assert_eq!(unexported.json()["export"], Value::Null);
+}
+
+#[cfg(all(feature = "listing", feature = "csv"))]
+#[tokio::test]
+async fn an_export_to_a_path_without_a_csv_route_fails_to_serve() {
+    let missing = empty_app().area("shop", |routes: &mut Routes<Web>| {
+        routes.get("/orders", listed_orders).exports("/orders.csv");
+    });
+    let not_csv = empty_app().area("shop", |routes: &mut Routes<Web>| {
+        routes.get("/orders", listed_orders).exports("/orders/all");
+        routes.get("/orders/all", listed_orders);
+    });
+    let unfilled = empty_app().area("shop", |routes: &mut Routes<Web>| {
+        routes
+            .get("/orders", listed_orders)
+            .exports("/shops/{shop}/orders.csv");
+        routes
+            .get("/shops/{shop}/orders.csv", listed_orders)
+            .document(sofie_http::Media::Csv);
+    });
+
+    assert_fails_to_serve(
+        missing,
+        "GET /orders exports to /orders.csv, but no GET route of its area is at that path",
+    )
+    .await;
+    assert_fails_to_serve(
+        not_csv,
+        "GET /orders exports to /orders/all, which does not answer `.document(Media::Csv)`",
+    )
+    .await;
+    assert_fails_to_serve(
+        unfilled,
+        "GET /orders exports to /shops/{shop}/orders.csv, whose `{shop}` it does not have",
+    )
+    .await;
+}
+
 #[cfg(feature = "listing")]
 #[tokio::test]
 async fn a_json_route_refuses_a_filter_with_422_whatever_its_caller_accepts() {

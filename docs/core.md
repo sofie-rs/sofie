@@ -660,8 +660,9 @@ stays local.
   changes); it only calls `sofie.module_role('<module>')`, which the
   framework's migrations define, so the grants are library code and not
   copied into every module; a module with `migrations/sqlite/` gets a
-  comment-only twin there, since SQLite has no roles. It makes a role named as the module's schema
-  that owns the schema and
+  comment-only twin there, since SQLite has no roles. It makes a role named
+  `<database>.<module>` (`sofie.module_role_name`; a database name too long
+  for the 63-byte identifier is replaced by its digest) that owns the schema and
   every table in it, and of `sofie` gets what a commit writes (messages,
   history, idempotency keys, flags read). The app's login migrates as the
   owner of `sofie` and becomes a member of every module role. It serves as
@@ -679,7 +680,10 @@ stays local.
   this database never set up runs as the login. sofie-identity and
   sofie-tenancy ship their own `0000_module_role.sql`.
   A split module logs in as its role. Roles are global to a Postgres
-  server: apps sharing one need distinct module names.
+  server, which the database name in the role's keeps apart: two apps on
+  one server with a module of the same name each have their own role
+  (roles named as the module before, 2026-11-23, are moved to the new name
+  by migration `0027` and dropped once no database holds anything of them).
 - Migration files are SQL in the dialect of the database the module is
   configured for. Migrations the framework and plugins ship (the messages
   table, flags, settings) come in a folder per dialect; the framework's are

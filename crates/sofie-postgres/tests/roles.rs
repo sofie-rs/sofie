@@ -167,13 +167,15 @@ async fn a_commit_writes_each_module_s_records_as_that_module_s_role() {
     )
     .await
     .unwrap();
-    assert_eq!(
-        writers,
-        vec![
-            vec![SqlValue::Text("roles_alpha".to_owned())],
-            vec![SqlValue::Text("roles_beta".to_owned())],
-        ]
-    );
+    let roles = sofie_db::query_values(
+        &Postgres::connect(database.url()).unwrap(),
+        "SELECT sofie.module_role_name('roles_alpha') UNION ALL
+         SELECT sofie.module_role_name('roles_beta')",
+        &[],
+    )
+    .await
+    .unwrap();
+    assert_eq!(writers, roles);
 }
 
 /// A raw step on `M`'s items, planned after another module's write.
@@ -303,7 +305,8 @@ async fn a_module_role_remembers_the_records_its_mirrors_drop() {
 
     let granted = sofie_db::query_values(
         &Postgres::connect(database.url()).unwrap(),
-        "SELECT has_table_privilege('roles_gamma', 'sofie.mirror_forgotten', 'INSERT, UPDATE')",
+        "SELECT has_table_privilege(sofie.module_role_name('roles_gamma'), \
+         'sofie.mirror_forgotten', 'INSERT, UPDATE')",
         &[],
     )
     .await
@@ -374,4 +377,88 @@ async fn assert_roles_hold(db: &Db, database: &TestDatabase) {
         vec![vec![SqlValue::Int(1)]],
         "the app's own login reads every module"
     );
+}
+
+const ROLE_NAMES: &str = include_str!("../migrations/0027_module_role_names.sql");
+
+async fn schema_owner(database: &TestDatabase, schema: &str) -> SqlValue {
+    let postgres = Postgres::connect(database.url()).unwrap();
+    let rows = sofie_db::query_values(
+        &postgres,
+        "SELECT pg_get_userbyid(nspowner)::text FROM pg_namespace WHERE nspname = $1",
+        &[SqlValue::Text(schema.to_owned())],
+    )
+    .await
+    .unwrap();
+    rows.into_iter().next().unwrap().remove(0)
+}
+
+#[tokio::test]
+async fn two_databases_with_a_module_of_the_same_name_get_a_role_each() {
+    let first = TestDatabase::create().await;
+    let second = TestDatabase::create().await;
+    for database in [&first, &second] {
+        Db::new(Postgres::connect(database.url()).unwrap())
+            .schema()
+            .migrate(&[module("roles_alpha")])
+            .await
+            .unwrap();
+    }
+
+    let first_owner = schema_owner(&first, "roles_alpha").await;
+    let second_owner = schema_owner(&second, "roles_alpha").await;
+
+    assert_ne!(first_owner, second_owner);
+    assert_ne!(first_owner, SqlValue::Text("roles_alpha".to_owned()));
+}
+
+struct Delta;
+
+impl Module for Delta {
+    const NAME: &'static str = "roles_delta";
+}
+
+/// The state a database migrated before roles were named after it is in.
+const LEGACY: &str = "
+    DO $$ BEGIN CREATE ROLE roles_delta NOLOGIN; EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+    GRANT roles_delta TO CURRENT_USER;
+    CREATE SCHEMA roles_delta AUTHORIZATION roles_delta;
+    CREATE TABLE roles_delta.items (id uuid PRIMARY KEY, version int8 NOT NULL);
+    ALTER TABLE roles_delta.items OWNER TO roles_delta;
+";
+
+#[tokio::test]
+async fn a_role_named_as_its_schema_moves_to_the_database_s_name() {
+    let database = TestDatabase::create().await;
+    let db = Db::new(Postgres::connect(database.url()).unwrap());
+    db.schema().migrate(&[]).await.unwrap();
+    let (client, connection) = tokio_postgres::connect(database.url(), tokio_postgres::NoTls)
+        .await
+        .unwrap();
+    tokio::spawn(connection);
+    client.batch_execute(LEGACY).await.unwrap();
+    let (_, moving) = ROLE_NAMES.split_once("-- A role made before").unwrap();
+
+    client.batch_execute(&format!("--{moving}")).await.unwrap();
+
+    let renamed = client
+        .query_one(
+            "SELECT pg_get_userbyid(relowner)::text = sofie.module_role_name('roles_delta'),
+                    NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'roles_delta')
+             FROM pg_class WHERE oid = 'roles_delta.items'::regclass",
+            &[],
+        )
+        .await
+        .unwrap();
+    assert!(renamed.get::<_, bool>(0), "the table moved to the new role");
+    assert!(renamed.get::<_, bool>(1), "the old role is dropped");
+    assert_eq!(
+        schema_owner(&database, "roles_delta").await,
+        client
+            .query_one("SELECT sofie.module_role_name('roles_delta')", &[])
+            .await
+            .map(|row| SqlValue::Text(row.get(0)))
+            .unwrap()
+    );
+    db.commit(&mut Item::<Delta>::new()).await.unwrap();
 }

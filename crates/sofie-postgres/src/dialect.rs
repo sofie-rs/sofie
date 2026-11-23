@@ -106,8 +106,9 @@ impl Dialect for Postgres {
 pub(crate) fn entering_role(module: &str) -> String {
     let name = module.replace('\'', "''");
     format!(
-        "SELECT set_config('role', COALESCE((SELECT nspname::text FROM pg_namespace \
-         WHERE nspname = '{name}' AND pg_get_userbyid(nspowner) = '{name}'), 'none'), true)"
+        "SELECT set_config('role', COALESCE((SELECT pg_get_userbyid(nspowner) FROM pg_namespace \
+         WHERE nspname = '{name}' AND pg_get_userbyid(nspowner) = sofie.module_role_name('{name}')), \
+         'none'), true)"
     )
 }
 

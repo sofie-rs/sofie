@@ -42,7 +42,8 @@ pub(crate) const MIGRATIONS: Migrations = Migrations::new(
             "0023_product_events_principal.sql",
             "0024_forgotten_principals_at.sql",
             "0025_messages_actor_area.sql",
-            "0026_feed_actor.sql"
+            "0026_feed_actor.sql",
+            "0027_module_role_names.sql"
         ]
     ),
 );

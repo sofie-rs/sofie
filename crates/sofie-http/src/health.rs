@@ -6,9 +6,9 @@ use std::time::Duration;
 
 use tokio::time::Instant;
 
+use crate::inbound::Inbound;
 use http::request::Parts;
 use http::{Method, StatusCode};
-use hyper::body::Incoming;
 use sofie_core::{Error, Result};
 use sofie_db::{BoxFuture, Db};
 
@@ -50,7 +50,7 @@ impl Endpoints {
             )),
             expect(unused_variables)
         )]
-        body: &mut Incoming,
+        body: &mut Inbound,
     ) -> ControlFlow<Response> {
         if let Some(probe) = Probe::of(asked.request) {
             return ControlFlow::Break(probe.answer(db, &self.serving).await);

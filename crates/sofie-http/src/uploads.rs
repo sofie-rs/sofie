@@ -3,10 +3,11 @@ use std::fmt::{self, Display};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Duration;
 
+use crate::inbound::Inbound;
 use bytes::Bytes;
 use http::request::Parts;
 use http::{Method, StatusCode};
-use hyper::body::{Body, Incoming};
+use hyper::body::Body;
 use serde::Deserialize;
 use serde_json::{Map, Value};
 use sofie_auth::SigningKeys;
@@ -249,7 +250,7 @@ pub(crate) async fn read(
     asked: Asked<'_>,
     target: &Target,
     serving: &Serving,
-    mut body: Incoming,
+    mut body: Inbound,
     limit: usize,
 ) -> Result<RequestBody, Box<Response>> {
     let (request, caller) = (asked.request, asked.caller);
@@ -348,7 +349,7 @@ fn takes_files(request: &Parts, target: &Target) -> bool {
         && request.method != Method::HEAD
 }
 
-async fn refused_unread(mut body: Incoming, error: Error, caller: Caller<'_>) -> Box<Response> {
+async fn refused_unread(mut body: Inbound, error: Error, caller: Caller<'_>) -> Box<Response> {
     discard_rest(&mut body).await;
     Box::new(answer::failure(error, caller))
 }
@@ -375,7 +376,7 @@ impl From<Error> for Failure {
 
 impl Failure {
     /// The rest of the body is read first, as `read_body` does.
-    async fn answer(self, multipart: Multipart<Incoming>, caller: Caller<'_>) -> Response {
+    async fn answer(self, multipart: Multipart<Inbound>, caller: Caller<'_>) -> Response {
         discard_rest(&mut multipart.into_body()).await;
         match self {
             Self::Stopped(Stop::TooLarge) => too_large(caller),
@@ -404,7 +405,7 @@ fn malformed(stop: &Stop) -> Error {
     Error::BadRequest(format!("the form cannot be read: {reason}"))
 }
 
-struct Form<'s, B = Incoming> {
+struct Form<'s, B = Inbound> {
     multipart: Multipart<B>,
     storage: Option<&'s Storage>,
     file_limit: usize,

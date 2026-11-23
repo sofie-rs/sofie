@@ -105,6 +105,8 @@ compression = ["sofie-http/compression"]
 etag = ["sofie-http/etag"]
 # `.live("fragment")` refetches a fragment when a record its loader read changes.
 live = ["engine", "sofie-http/live", "sofie-postgres?/live"]
+# `/_sofie/socket`: a WebSocket calling routes, each GET answered again as what it read changes.
+socket = ["sofie-http/socket", "sofie-postgres?/live"]
 # `.cached(time)` keeps a screen's loaded reply until a record it read changes.
 screen-cache = ["engine", "sofie-http/screen-cache", "sofie-postgres?/live"]
 idempotency = ["sofie-http/idempotency"]

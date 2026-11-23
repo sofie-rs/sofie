@@ -83,7 +83,10 @@ impl ScreenCache {
         };
         let hearing = sofie_db::hears_other_instances(db);
         let before = match unpoisoned::lock(&self.kept).hit(&key, hearing) {
-            Ok((reply, topics)) => return (Ok(shared(reply)), topics),
+            Ok((reply, topics)) => {
+                sofie_db::record_topics(&topics);
+                return (Ok(shared(reply)), topics);
+            }
             Err(heard) => heard,
         };
         let load = (target.endpoint)(db.clone(), matched);

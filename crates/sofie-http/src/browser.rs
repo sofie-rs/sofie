@@ -2,8 +2,8 @@
 
 use std::ops::ControlFlow;
 
+use crate::inbound::Inbound;
 use http::{Method, StatusCode};
-use hyper::body::Incoming;
 use serde_json::Value;
 use sofie_core::{Error, Result, Timestamp};
 use sofie_db::Db;
@@ -130,7 +130,7 @@ impl Browser {
         &self,
         asked: Asked<'_>,
         db: &Db,
-        body: &mut Incoming,
+        body: &mut Inbound,
     ) -> ControlFlow<Response> {
         if asked.request.method != Method::POST || asked.request.uri.path() != PATH {
             return ControlFlow::Continue(());
@@ -139,7 +139,7 @@ impl Browser {
         ControlFlow::Break(self.receive(asked, body, now).await)
     }
 
-    async fn receive(&self, asked: Asked<'_>, body: &mut Incoming, now: Timestamp) -> Response {
+    async fn receive(&self, asked: Asked<'_>, body: &mut Inbound, now: Timestamp) -> Response {
         let caller = asked.caller;
         if csrf::refused_by(asked.request, &self.cookies).is_some() {
             return answer::refusal(StatusCode::FORBIDDEN, "Refused.", caller);

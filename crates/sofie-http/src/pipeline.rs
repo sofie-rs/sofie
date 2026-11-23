@@ -23,6 +23,7 @@ use crate::caller::Caller;
 use crate::context::Matched;
 use crate::deadline::Deadline;
 use crate::health::{Endpoints, Probe};
+use crate::inbound::Inbound;
 use crate::router::{Lookup, Router};
 use crate::routes::BODY_LIMIT;
 #[cfg(feature = "engine")]
@@ -53,6 +54,8 @@ pub(crate) struct Pipeline {
     pub(crate) endpoints: Endpoints,
     #[cfg(feature = "live")]
     pub(crate) live: crate::live::Live,
+    #[cfg(feature = "socket")]
+    pub(crate) sockets: crate::socket::Sockets,
     #[cfg(feature = "screen-cache")]
     pub(crate) screen_cache: crate::screen_cache::ScreenCache,
     #[cfg(feature = "shield")]
@@ -71,10 +74,39 @@ pub(crate) struct Asked<'r> {
     pub(crate) deadline: &'r Deadline,
 }
 
+/// A socket is opened here rather than in the pipeline, as it outlives any one answer.
+pub(crate) async fn handle(
+    pipeline: &std::sync::Arc<Pipeline>,
+    request: http::Request<Incoming>,
+    peer: SocketAddr,
+) -> Response {
+    #[cfg(feature = "socket")]
+    if crate::socket::is_opening(&request) {
+        return crate::socket::open(pipeline, request, peer).await;
+    }
+    pipeline.answer(request.map(Inbound::from), peer).await
+}
+
+/// For what is answered outside the pipeline, by the caller's address alone.
+#[cfg(all(
+    feature = "shield",
+    any(feature = "storage", feature = "live", feature = "socket")
+))]
+pub(crate) fn shielded(pipeline: &Pipeline, request: &Parts, peer: SocketAddr) -> Option<Response> {
+    let deadline = Deadline::default();
+    let asked = Asked {
+        request,
+        caller: Caller::of(&request.headers),
+        client: pipeline.client(request, peer).0,
+        deadline: &deadline,
+    };
+    pipeline.shield.refusal(asked, None)
+}
+
 impl Pipeline {
-    pub(crate) async fn handle(
+    pub(crate) async fn answer(
         &self,
-        request: http::Request<Incoming>,
+        request: http::Request<Inbound>,
         peer: SocketAddr,
     ) -> Response {
         let (request, body) = request.into_parts();
@@ -125,7 +157,7 @@ impl Pipeline {
         trace.finish(answer::secure(without_head_body(&request.method, response)))
     }
 
-    async fn respond(&self, asked: Asked<'_>, lookup: Lookup<'_>, mut body: Incoming) -> Response {
+    async fn respond(&self, asked: Asked<'_>, lookup: Lookup<'_>, mut body: Inbound) -> Response {
         let framework = asked
             .deadline
             .within(self.framework_answer(asked, &mut body));
@@ -219,23 +251,10 @@ impl Pipeline {
         self.assets.response(request.uri.path())
     }
 
-    /// For what is answered outside the pipeline, by the caller's address alone.
-    #[cfg(all(feature = "shield", any(feature = "storage", feature = "live")))]
-    pub(crate) fn shielded(&self, request: &Parts, peer: SocketAddr) -> Option<Response> {
-        let deadline = Deadline::default();
-        let asked = Asked {
-            request,
-            caller: Caller::of(&request.headers),
-            client: self.client(request, peer).0,
-            deadline: &deadline,
-        };
-        self.shield.refusal(asked, None)
-    }
-
     async fn framework_answer(
         &self,
         asked: Asked<'_>,
-        body: &mut Incoming,
+        body: &mut Inbound,
     ) -> ControlFlow<Response> {
         #[cfg(feature = "shield")]
         if crate::health::is_reserved(asked.request.uri.path())
@@ -253,7 +272,7 @@ impl Pipeline {
         &self,
         asked: Asked<'_>,
         lookup: Lookup<'_>,
-        body: &mut Option<Incoming>,
+        body: &mut Option<Inbound>,
     ) -> Result<(Response, Option<Uuid>), Box<Response>> {
         let (request, caller) = (asked.request, asked.caller);
         #[cfg(feature = "shield")]
@@ -340,7 +359,7 @@ impl Pipeline {
         &self,
         asked: Asked<'_>,
         found: Found<'_>,
-        body: &mut Option<Incoming>,
+        body: &mut Option<Inbound>,
     ) -> Result<Response, Box<Response>> {
         let target = found.target;
         #[cfg(feature = "product-events")]
@@ -446,7 +465,7 @@ impl Pipeline {
         &self,
         asked: Asked<'_>,
         target: &Target,
-        body: &mut Option<Incoming>,
+        body: &mut Option<Inbound>,
     ) -> Result<RequestBody, Box<Response>> {
         let body = body.take().ok_or_else(|| {
             let error = Error::internal_message("the request body was taken twice");
@@ -600,7 +619,7 @@ fn without_head_body(method: &Method, response: Response) -> Response {
 }
 
 pub(crate) async fn read_body(
-    body: &mut Incoming,
+    body: &mut Inbound,
     limit: usize,
     caller: Caller<'_>,
 ) -> Result<Bytes, Box<Response>> {
@@ -630,7 +649,7 @@ pub(crate) fn too_large(caller: Caller<'_>) -> Response {
 
 /// Closing an HTTP/1.1 connection with unread bytes makes the kernel send a reset that can
 /// destroy the answer, so the rest is read within bounds first (nginx's lingering close).
-pub(crate) async fn discard_rest(body: &mut Incoming) {
+pub(crate) async fn discard_rest(body: &mut Inbound) {
     if hyper::body::Body::is_end_stream(body) {
         return;
     }

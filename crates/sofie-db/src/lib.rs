@@ -177,7 +177,7 @@ pub use joins::{JoinedField, joined, joined_field};
 #[cfg(feature = "live")]
 pub use live::{
     Announced, Readers, TableChange, Topic, Topics, committed_changes, hears_other_instances,
-    track_topics,
+    record_topics, track_topics,
 };
 #[cfg(feature = "product-reports")]
 pub use product_events::{Cohort, Period, ProductEvents, ProductSql, Retention, cohorts};

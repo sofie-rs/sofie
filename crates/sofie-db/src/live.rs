@@ -121,14 +121,30 @@ tokio::task_local! {
     static HEARD: RefCell<Topics>;
 }
 
+/// An enclosing tracking hears what this one heard too, so a socket watching a live screen's
+/// loader misses none of its tables.
 pub async fn track_topics<F: Future>(future: F) -> (F::Output, Topics) {
-    HEARD
+    let (output, topics) = HEARD
         .scope(RefCell::new(Topics::Of(BTreeSet::new())), async {
             let output = future.await;
             let topics = HEARD.with(|heard| heard.borrow().clone());
             (output, topics)
         })
-        .await
+        .await;
+    record_topics(&topics);
+    (output, topics)
+}
+
+/// For what read no table this time, such as a reply kept from an earlier read.
+pub fn record_topics(topics: &Topics) {
+    let _ = HEARD.try_with(|heard| {
+        let mut heard = heard.borrow_mut();
+        match (&mut *heard, topics) {
+            (Topics::Every, _) => {}
+            (enclosing, Topics::Every) => *enclosing = Topics::Every,
+            (Topics::Of(enclosing), Topics::Of(topics)) => enclosing.extend(topics),
+        }
+    });
 }
 
 pub(crate) fn tracking() -> bool {
@@ -482,5 +498,21 @@ mod tests {
         assert_eq!(unnamed, Topics::Every);
         assert!(unnamed.covers(Topic::named("other", "table")));
         read_anything();
+    }
+
+    #[tokio::test]
+    async fn an_enclosing_tracking_hears_what_an_inner_one_and_a_kept_reply_heard() {
+        let order = Topic::named("shop", "order");
+        let kept = Topic::named("shop", "product");
+
+        let (((), inner), outer) = track_topics(async {
+            let inner = track_topics(async { read_tables([("shop", "order")]) }).await;
+            record_topics(&Topics::Of(BTreeSet::from([kept])));
+            inner
+        })
+        .await;
+
+        assert_eq!(inner, Topics::Of(BTreeSet::from([order])));
+        assert_eq!(outer, Topics::Of(BTreeSet::from([order, kept])));
     }
 }

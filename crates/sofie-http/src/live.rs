@@ -6,7 +6,7 @@ use std::convert::Infallible;
 use std::future::poll_fn;
 use std::net::SocketAddr;
 use std::pin::{Pin, pin};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::task::{Context, Poll};
 use std::time::Duration;
 
@@ -17,7 +17,7 @@ use http::{HeaderValue, Method, StatusCode};
 use http_body_util::{BodyExt, Either, Full};
 use hyper::body::{Frame, Incoming};
 use sofie_auth::{Signed, SigningKeys};
-use sofie_core::{Error, Result, Uuid, unpoisoned};
+use sofie_core::{Error, Result, Uuid};
 use sofie_db::{Announced, Reach, Topic, Topics};
 use tokio::sync::broadcast::error::RecvError;
 use tokio::sync::{broadcast, mpsc, watch};
@@ -25,6 +25,7 @@ use tokio::time::{Interval, MissedTickBehavior, Sleep};
 
 use crate::answer::{self, HTML, Response, TEXT};
 use crate::caller::Caller;
+use crate::holders::{Held, Holders};
 use crate::pipeline::Pipeline;
 use crate::routes::{Audience, Route, RouteRules, View};
 use crate::target::Target;
@@ -33,9 +34,6 @@ use crate::{Area, PageRoute};
 
 const PATH: &str = "/_sofie/live/";
 const MARKER: &str = "sofie-live";
-/// Tabs of one person, or callers behind one address (IPv6 by /64).
-const PER_HOLDER: usize = 8;
-const PER_PROCESS: usize = 10_000;
 /// More than this and a screen hears every change instead.
 const TOPICS_LIMIT: usize = 32;
 /// Proxies close a connection idle for a minute or so.
@@ -69,15 +67,9 @@ impl<A: Area> PageRoute<'_, A> {
     }
 }
 
-#[derive(Default)]
-struct Open {
-    total: usize,
-    held: HashMap<Requester, usize>,
-}
-
 pub(crate) struct Live {
     areas: HashMap<&'static str, Audience>,
-    open: Arc<Mutex<Open>>,
+    holders: Holders,
     closing: watch::Sender<bool>,
 }
 
@@ -94,7 +86,7 @@ impl Live {
         }
         Ok(Self {
             areas,
-            open: Arc::default(),
+            holders: Holders::default(),
             closing: watch::channel(false).0,
         })
     }
@@ -102,20 +94,6 @@ impl Live {
     /// Ends every stream, so a stopping server is not held open by them.
     pub(crate) fn close(&self) {
         self.closing.send_replace(true);
-    }
-
-    fn admit(&self, holder: Requester) -> Option<Admitted> {
-        let mut open = unpoisoned::lock(&self.open);
-        let held = open.held.get(&holder).copied().unwrap_or(0);
-        if open.total >= PER_PROCESS || held >= PER_HOLDER {
-            return None;
-        }
-        open.total += 1;
-        open.held.insert(holder, held + 1);
-        Some(Admitted {
-            open: Arc::clone(&self.open),
-            holder,
-        })
     }
 }
 
@@ -143,26 +121,6 @@ fn require_plain(route: &Route, name: &str) -> Result<()> {
 
 fn route_error(route: &Route, problem: &str) -> Error {
     Error::internal_message(format!("route {} {} {problem}", route.method, route.path))
-}
-
-/// Frees its place when its stream ends, however it ends.
-struct Admitted {
-    open: Arc<Mutex<Open>>,
-    holder: Requester,
-}
-
-impl Drop for Admitted {
-    fn drop(&mut self) {
-        let mut open = unpoisoned::lock(&self.open);
-        open.total -= 1;
-        let held = open.held.get_mut(&self.holder).map_or(0, |held| {
-            *held -= 1;
-            *held
-        });
-        if held == 0 {
-            open.held.remove(&self.holder);
-        }
-    }
 }
 
 pub(crate) async fn heard<F: Future>(rules: &RouteRules, load: F) -> (F::Output, Option<Topics>) {
@@ -283,17 +241,19 @@ fn unsealed<'r>(request: &'r Parts, sealed: &Sealed<'_>) -> Option<&'r str> {
 }
 
 pub(crate) async fn answer(
-    pipeline: &Pipeline,
+    pipeline: &Arc<Pipeline>,
     request: http::Request<Incoming>,
     peer: SocketAddr,
 ) -> http::Response<Body> {
     let is_stream = request.method() == Method::GET && request.uri().path().starts_with(PATH);
     if !is_stream {
-        return pipeline.handle(request, peer).await.map(Either::Left);
+        return crate::pipeline::handle(pipeline, request, peer)
+            .await
+            .map(Either::Left);
     }
     let (request, _) = request.into_parts();
     #[cfg(feature = "shield")]
-    if let Some(refusal) = pipeline.shielded(&request, peer) {
+    if let Some(refusal) = crate::pipeline::shielded(pipeline, &request, peer) {
         return answer::secure(refusal).map(Either::Left);
     }
     match pipeline.live.stream(pipeline, &request, peer).await {
@@ -344,7 +304,7 @@ impl Live {
             .and_then(|stream| listened(stream.split_once('?').map(|(_, query)| query)))
             .ok_or_else(|| refuse(StatusCode::BAD_REQUEST, "Not a list of topics."))?;
         let holder = Requester::of(session.principal(), pipeline.client(request, peer).0);
-        let admitted = self.admit(holder).ok_or_else(|| {
+        let place = self.holders.admit(holder).ok_or_else(|| {
             let mut busy = refuse(StatusCode::TOO_MANY_REQUESTS, "Too many open streams.");
             busy.headers_mut()
                 .insert(RETRY_AFTER, HeaderValue::from_static(RETRY));
@@ -356,7 +316,7 @@ impl Live {
             topics,
             reach,
             closing: self.closing.subscribe(),
-            _admitted: admitted,
+            _held: place,
         };
         tokio::spawn(listening.forward(frames));
         let head = answer::secure(answer::response(StatusCode::OK, None, Bytes::new()));
@@ -399,7 +359,7 @@ struct Listening {
     topics: Topics,
     reach: Reach,
     closing: watch::Receiver<bool>,
-    _admitted: Admitted,
+    _held: Held,
 }
 
 enum Woken {
@@ -527,7 +487,7 @@ mod tests {
             topics: Topics::Every,
             reach: Reach::All,
             closing: live.closing.subscribe(),
-            _admitted: live.admit(holder).unwrap(),
+            _held: live.holders.admit(holder).unwrap(),
         };
         let (frames, mut events) = mpsc::channel(1);
         tokio::spawn(listening.forward(frames));
@@ -538,19 +498,5 @@ mod tests {
         }
 
         assert_eq!(last.as_deref(), Some(END));
-    }
-
-    #[test]
-    fn the_addresses_of_one_ipv6_64_share_one_holder_s_streams() {
-        let live = Live::new(&[]).unwrap();
-        let holder = |last: u16| {
-            let address = std::net::Ipv6Addr::new(0x2001, 0xdb8, 0, 0, 0, 0, 0, last);
-            Requester::of(None, std::net::IpAddr::V6(address))
-        };
-
-        let admitted: Vec<Admitted> = (0..8).filter_map(|last| live.admit(holder(last))).collect();
-
-        assert_eq!(admitted.len(), PER_HOLDER);
-        assert!(live.admit(holder(9)).is_none());
     }
 }

@@ -452,6 +452,40 @@ connection, skips its own notifications and listens again after a failure;
 notifications sent while it was not listening are lost, so those screens
 catch up on their next change or reconnect.
 
+### Sockets
+
+With `socket`, `/_sofie/socket` opens one WebSocket (RFC 6455, HTTP/1.1, text
+messages, no extensions) through which a client calls the app's own routes.
+Each message is a JSON object naming a call: `{"id": 1, "method": "GET",
+"path": "/members/notes"}` (also `POST`, `PUT`, `PATCH`, `DELETE`, with an
+optional JSON `body`), or `{"stop": 1}`. The answer is `{"id": 1, "status":
+200, "body": …}`, the route's JSON as rendered (any other text as a string).
+A `GET` is watched: answered again whenever a committed change reaches a table
+its loader read, as live screens hear them, but only when the answer differs
+from the last one sent; an answer that is not a success ends its watch. Other
+methods run once. The app declares nothing: every JSON route is callable.
+
+Each message passes the whole pipeline as a request with the handshake's
+headers (cookie, origin, host, language, forwarded client), so routing,
+throttles, CSRF, the session store's check, permissions, idempotency and the
+commit apply to it exactly as to an HTTP request, and a watch's every answer is
+loaded again through its route. The handshake is refused to another site
+(an `Origin` that is not the app's host, or the session cookie without an
+`Origin`), since browsers send cookies on any site's handshake. A watch hears
+changes as its route's area reaches: an owned area's watch only its
+principal's writes. Changes heard while a watch runs are tested against what
+that run read, so none is missed.
+
+A socket holds at most 32 watches and runs 8 calls at once (past that it is
+not read until one finishes), coalesces a burst of commits within 50 ms, pings
+every 20 s, closes after a minute without a frame from the client, and closes
+with `4000` after 10 minutes so the client reopens with its current cookie
+(an ended session stops hearing) and with `1001` on shutdown. A message is at
+most 64 KiB; binary, malformed or oversized messages close the socket (`1003`,
+`1008`, `1009`). Sockets share the live streams' caps (8 per principal or
+client address, 10 000 per process, `429` past them) but are counted apart.
+A call still running when its socket closes runs to its end.
+
 ### Islands
 
 Anything richer than the catalog — a rich editor, a chart, a map, an app-like

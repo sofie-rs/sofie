@@ -1387,6 +1387,7 @@ dependencies = [
  "hyper",
  "hyper-util",
  "matchit",
+ "ring",
  "rustls",
  "serde",
  "serde_json",

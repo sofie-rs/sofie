@@ -139,6 +139,8 @@ pub(crate) async fn serve(
         steps: app.steps,
         #[cfg(feature = "live")]
         live,
+        #[cfg(feature = "socket")]
+        sockets: crate::socket::Sockets::default(),
         #[cfg(feature = "screen-cache")]
         screen_cache: crate::screen_cache::ScreenCache::default(),
     };
@@ -189,6 +191,8 @@ async fn run(connections: Connections, listener: TcpListener, shutdown: impl Fut
     drop(listener);
     #[cfg(feature = "live")]
     connections.pipeline.live.close();
+    #[cfg(feature = "socket")]
+    connections.pipeline.sockets.close();
     if tokio::time::timeout(SHUTDOWN_GRACE, connections.graceful.shutdown())
         .await
         .is_err()
@@ -285,7 +289,7 @@ impl Connections {
             };
             #[cfg(not(any(feature = "live", feature = "storage")))]
             async move {
-                Ok::<_, Infallible>(pipeline.handle(request, peer).await)
+                Ok::<_, Infallible>(crate::pipeline::handle(&pipeline, request, peer).await)
             }
         });
         self.spawn((stream, peer), service, (permit, slot), None);
@@ -388,6 +392,12 @@ impl<S> Served<S> {
         B::Data: Send,
         B::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
     {
+        #[cfg(feature = "socket")]
+        let connection = self
+            .builder
+            .serve_connection_with_upgrades(TokioIo::new(io), self.service)
+            .into_owned();
+        #[cfg(not(feature = "socket"))]
         let connection = self
             .builder
             .serve_connection(TokioIo::new(io), self.service)

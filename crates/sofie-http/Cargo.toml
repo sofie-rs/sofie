@@ -105,6 +105,9 @@ compression = ["dep:brotli", "dep:flate2", "sofie-engine?/compression"]
 # `PageRoute::live`: an open screen refetches its fragments when a record its
 # loader read changes, told by a server-sent event stream per area.
 live = ["engine", "sofie-db/live"]
+# `/_sofie/socket`: one WebSocket per tab calling the app's routes, each GET watched and
+# answered again when a record its loader read changes.
+socket = ["sofie-db/live", "dep:ring", "dep:serde", "serde/derive", "tokio/io-util", "tokio/macros"]
 # `PageRoute::cached`: a screen's loaded reply kept per path, query and reach
 # until a record it read changes on any instance, or its time runs out.
 screen-cache = ["engine", "sofie-db/live"]
@@ -148,6 +151,7 @@ http-body-util.workspace = true
 hyper.workspace = true
 hyper-util.workspace = true
 matchit.workspace = true
+ring = { workspace = true, optional = true }
 rustls = { workspace = true, optional = true }
 serde = { workspace = true, optional = true }
 serde_json.workspace = true
@@ -160,9 +164,9 @@ tracing.workspace = true
 sofie-engine = { workspace = true, optional = true, features = ["compile"] }
 
 [dev-dependencies]
-# So `tests/clients.rs`, `etag.rs`, `cors.rs`, `live.rs`, `middleware.rs`, `session_cache.rs`,
+# So `tests/clients.rs`, `etag.rs`, `cors.rs`, `live.rs`, `middleware.rs`, `session_cache.rs`, `socket.rs`,
 # `tls.rs` and `uploads.rs` run in every test run; the tests parse their screens.
-sofie-http = { path = ".", default-features = false, features = ["clients", "cors", "csv", "etag", "live", "parse", "session-list", "steps", "tls", "uploads"] }
+sofie-http = { path = ".", default-features = false, features = ["clients", "cors", "csv", "etag", "live", "parse", "session-list", "socket", "steps", "tls", "uploads"] }
 rustls.workspace = true
 sofie-storage = { path = "../sofie-storage", features = ["local"] }
 sofie-telemetry = { path = "../sofie-telemetry", features = ["capture", "product-events"] }

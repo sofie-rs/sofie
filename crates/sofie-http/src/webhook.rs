@@ -91,7 +91,7 @@ pub(crate) async fn deliver(
     asked: crate::pipeline::Asked<'_>,
     target: &crate::target::Target,
     parameters: Vec<(String, String)>,
-    body: &mut Option<hyper::body::Incoming>,
+    body: &mut Option<crate::inbound::Inbound>,
 ) -> std::result::Result<Response, Box<Response>> {
     #[cfg(feature = "shield")]
     if let Some(refusal) = pipeline.shield.refusal(asked, None) {

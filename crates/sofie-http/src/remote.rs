@@ -5,8 +5,8 @@ use std::collections::HashMap;
 use std::ops::ControlFlow;
 use std::sync::Arc;
 
+use crate::inbound::Inbound;
 use http::{Method, StatusCode};
-use hyper::body::Incoming;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 use serde_json::Value;
@@ -67,7 +67,7 @@ pub(crate) async fn answer(
     asked: Asked<'_>,
     db: &Db,
     keys: &SigningKeys,
-    body: &mut Incoming,
+    body: &mut Inbound,
 ) -> ControlFlow<Response> {
     if !asked.request.uri.path().starts_with("/_sofie/") {
         return ControlFlow::Continue(());
@@ -128,7 +128,7 @@ impl Served {
         asked: Asked<'_>,
         db: &Db,
         keys: &SigningKeys,
-        body: &mut Incoming,
+        body: &mut Inbound,
     ) -> ControlFlow<Response> {
         let request = asked.request;
         let path = request.uri.path();

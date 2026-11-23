@@ -1,10 +1,10 @@
 use std::ops::ControlFlow;
 use std::sync::Arc;
 
+use crate::inbound::Inbound;
 use http::header::{REFERER, SET_COOKIE};
 use http::request::Parts;
 use http::{HeaderValue, Method, StatusCode, Uri};
-use hyper::body::Incoming;
 use serde_json::{Map, Value};
 use sofie_core::{Error, Instant, Result, Uuid};
 use sofie_db::Db;
@@ -24,7 +24,7 @@ impl Toolbar {
         &self,
         asked: Asked<'_>,
         db: &Db,
-        body: &mut Incoming,
+        body: &mut Inbound,
     ) -> ControlFlow<Response> {
         if asked.request.uri.path() != PATH {
             return ControlFlow::Continue(());
@@ -32,7 +32,7 @@ impl Toolbar {
         ControlFlow::Break(self.respond(asked, db, body).await)
     }
 
-    async fn respond(&self, asked: Asked<'_>, db: &Db, body: &mut Incoming) -> Response {
+    async fn respond(&self, asked: Asked<'_>, db: &Db, body: &mut Inbound) -> Response {
         let (request, caller) = (asked.request, asked.caller);
         if request.method != Method::POST {
             return answer::method_not_allowed(&["POST"], caller);

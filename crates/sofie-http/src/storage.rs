@@ -1,6 +1,7 @@
 use sofie_db::Context as _;
 use std::net::SocketAddr;
 use std::pin::Pin;
+use std::sync::Arc;
 use std::task::{Context, Poll};
 
 use bytes::Bytes;
@@ -58,7 +59,7 @@ impl<A: Area, M> Resolve<RequestContext<A, M>> for Storage {
 /// A download is streamed from the store, so it is answered before the pipeline, whose
 /// answers are whole.
 pub(crate) async fn answer(
-    pipeline: &Pipeline,
+    pipeline: &Arc<Pipeline>,
     request: http::Request<Incoming>,
     peer: SocketAddr,
 ) -> Streamed {
@@ -67,12 +68,12 @@ pub(crate) async fn answer(
         #[cfg(feature = "live")]
         let others = crate::live::answer(pipeline, request, peer).await;
         #[cfg(not(feature = "live"))]
-        let others = pipeline.handle(request, peer).await;
+        let others = crate::pipeline::handle(pipeline, request, peer).await;
         return others.map(Either::Left);
     };
     let (request, _) = request.into_parts();
     #[cfg(feature = "shield")]
-    if let Some(refusal) = pipeline.shielded(&request, peer) {
+    if let Some(refusal) = crate::pipeline::shielded(pipeline, &request, peer) {
         return whole(refusal);
     }
     download(storage, &request).await

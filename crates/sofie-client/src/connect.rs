@@ -4,9 +4,13 @@ use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
 use std::time::{Duration, Instant};
 
 use bytes::Bytes;
+use http::header::HOST;
+use http::uri::{Authority, Scheme};
+use http::{Request, Response, Uri};
 use http_body_util::Full;
-use hyper::client::conn::http1::{self, SendRequest};
-use hyper_util::rt::TokioIo;
+use hyper::body::Incoming;
+use hyper::client::conn::{http1, http2};
+use hyper_util::rt::{TokioExecutor, TokioIo};
 use rustls::pki_types::ServerName;
 use rustls::{ClientConfig, RootCertStore};
 use sofie_core::{Error, Result, unpoisoned};
@@ -16,7 +20,77 @@ use tokio_rustls::TlsConnector;
 use crate::guard::{Failure, Reach};
 use crate::target::Target;
 
-pub(crate) type Sender = SendRequest<Full<Bytes>>;
+type Body = Full<Bytes>;
+
+/// An HTTP/2 connection carries many requests at once, so the pool lends it out and keeps it.
+pub(crate) enum Sender {
+    Http1(http1::SendRequest<Body>),
+    Http2(http2::SendRequest<Body>),
+}
+
+impl Sender {
+    fn is_closed(&self) -> bool {
+        match self {
+            Self::Http1(sender) => sender.is_closed(),
+            Self::Http2(sender) => sender.is_closed(),
+        }
+    }
+
+    async fn ready(&mut self) -> hyper::Result<()> {
+        match self {
+            Self::Http1(sender) => sender.ready().await,
+            Self::Http2(sender) => sender.ready().await,
+        }
+    }
+
+    /// HTTP/2 names the host in `:authority` rather than in `Host`.
+    pub(crate) async fn send_request(
+        &mut self,
+        request: Request<Body>,
+    ) -> hyper::Result<Response<Incoming>> {
+        match self {
+            Self::Http1(sender) => sender.send_request(request).await,
+            Self::Http2(sender) => sender.send_request(absolute(request)).await,
+        }
+    }
+
+    /// `None` when the connection closed before taking the request, which a new one may send.
+    pub(crate) async fn try_send_request(
+        &mut self,
+        request: Request<Body>,
+    ) -> hyper::Result<Option<Response<Incoming>>> {
+        let sent = match self {
+            Self::Http1(sender) => sender.try_send_request(request).await,
+            Self::Http2(sender) => sender.try_send_request(absolute(request)).await,
+        };
+        match sent {
+            Ok(response) => Ok(Some(response)),
+            Err(error) if error.message().is_some() => Ok(None),
+            Err(error) => Err(error.into_error()),
+        }
+    }
+
+    fn lent(&self) -> Option<Self> {
+        match self {
+            Self::Http1(_) => None,
+            Self::Http2(sender) => Some(Self::Http2(sender.clone())),
+        }
+    }
+}
+
+/// Only TLS offers HTTP/2, so the scheme is `https`.
+fn absolute(request: Request<Body>) -> Request<Body> {
+    let (mut parts, body) = request.into_parts();
+    let authority = parts
+        .headers
+        .remove(HOST)
+        .and_then(|host| Authority::try_from(host.as_bytes()).ok());
+    let mut uri = parts.uri.into_parts();
+    uri.scheme = Some(Scheme::HTTPS);
+    uri.authority = authority;
+    parts.uri = Uri::from_parts(uri).unwrap_or_default();
+    Request::from_parts(parts, body)
+}
 
 /// Below the minute servers idle out after, so a request is rarely sent on a closing connection.
 const IDLE_FOR: Duration = Duration::from_secs(20);
@@ -24,6 +98,7 @@ const IDLE_PER_HOST: usize = 8;
 /// hyper takes a released connection back only once its task has run again after the response.
 const READY_WITHIN: Duration = Duration::from_millis(50);
 const MAX_HOSTS: usize = 64;
+const H2: &[u8] = b"h2";
 
 pub(crate) struct Connector {
     tls: TlsConnector,
@@ -85,11 +160,16 @@ impl Connector {
         }
     }
 
+    /// A shared HTTP/2 connection stays pooled while busy, so one at its stream limit is passed
+    /// over for a new connection rather than tried again.
     pub(crate) async fn reuse(&self, key: &PoolKey) -> Option<Sender> {
         while let Some(mut sender) = self.take_idle(key) {
             let ready = tokio::time::timeout(READY_WITHIN, sender.ready()).await;
             if matches!(ready, Ok(Ok(()))) {
                 return Some(sender);
+            }
+            if let Sender::Http2(_) = sender {
+                return None;
             }
         }
         None
@@ -98,9 +178,11 @@ impl Connector {
     fn take_idle(&self, key: &PoolKey) -> Option<Sender> {
         let mut idle = self.idle();
         let connections = idle.get_mut(key)?;
-        let reused = std::iter::from_fn(|| connections.pop())
-            .find(Idle::usable)
-            .map(|connection| connection.sender);
+        connections.retain(Idle::usable);
+        let lent = connections
+            .iter()
+            .find_map(|connection| connection.sender.lent());
+        let reused = lent.or_else(|| connections.pop().map(|connection| connection.sender));
         if connections.is_empty() {
             idle.remove(key);
         }
@@ -121,6 +203,14 @@ impl Connector {
             return;
         }
         let connections = idle.entry(key).or_default();
+        if let Sender::Http2(_) = sender
+            && let Some(shared) = connections
+                .iter_mut()
+                .find(|connection| matches!(connection.sender, Sender::Http2(_)))
+        {
+            shared.since = Instant::now();
+            return;
+        }
         if connections.len() < IDLE_PER_HOST {
             connections.push(Idle {
                 sender,
@@ -169,6 +259,9 @@ impl Connector {
             .connect(name, stream)
             .await
             .map_err(|error| failed(target, &error))?;
+        if stream.get_ref().1.alpn_protocol() == Some(H2) {
+            return http2_handshake(target, TokioIo::new(stream)).await;
+        }
         http1_handshake(target, TokioIo::new(stream)).await
     }
 }
@@ -180,7 +273,7 @@ fn client_config(roots: RootCertStore) -> ClientConfig {
         .expect("ring's default provider supports the safe default protocol versions")
         .with_root_certificates(roots)
         .with_no_client_auth();
-    config.alpn_protocols = vec![b"http/1.1".to_vec()];
+    config.alpn_protocols = vec![H2.to_vec(), b"http/1.1".to_vec()];
     config
 }
 
@@ -191,13 +284,31 @@ where
     let (sender, connection) = http1::handshake(io)
         .await
         .map_err(|error| failed(target, &error))?;
+    drive(target, connection);
+    Ok(Sender::Http1(sender))
+}
+
+async fn http2_handshake<Io>(target: &Target, io: Io) -> Result<Sender, Failure>
+where
+    Io: hyper::rt::Read + hyper::rt::Write + Unpin + Send + 'static,
+{
+    let (sender, connection) = http2::handshake(TokioExecutor::new(), io)
+        .await
+        .map_err(|error| failed(target, &error))?;
+    drive(target, connection);
+    Ok(Sender::Http2(sender))
+}
+
+fn drive<E: std::fmt::Display>(
+    target: &Target,
+    connection: impl Future<Output = Result<(), E>> + Send + 'static,
+) {
     let host = target.host.clone();
     tokio::spawn(async move {
         if let Err(error) = connection.await {
             tracing::debug!(server.address = host, error = %error, "outgoing connection closed");
         }
     });
-    Ok(sender)
 }
 
 fn failed(target: &Target, error: &dyn std::fmt::Display) -> Failure {
@@ -221,7 +332,7 @@ mod tests {
         let (mut sender, connection) = http1::handshake(TokioIo::new(client)).await.unwrap();
         tokio::spawn(connection);
         sender.ready().await.unwrap();
-        (sender, server)
+        (Sender::Http1(sender), server)
     }
 
     fn key(host: usize, reach: Reach) -> PoolKey {
@@ -229,6 +340,24 @@ mod tests {
             &Target::parse(&format!("https://host-{host}.test")).unwrap(),
             reach,
         )
+    }
+
+    #[test]
+    fn an_http2_request_names_its_host_as_the_authority_instead_of_a_header() {
+        let request = http::Request::get("/v1/charges?limit=3")
+            .header(HOST, "api.vendor.test:8443")
+            .header("authorization", "Bearer sk_test")
+            .body(Full::new(Bytes::new()))
+            .unwrap();
+
+        let sent = absolute(request);
+
+        assert_eq!(
+            sent.uri().to_string(),
+            "https://api.vendor.test:8443/v1/charges?limit=3"
+        );
+        assert!(sent.headers().get(HOST).is_none());
+        assert_eq!(sent.headers()["authorization"], "Bearer sk_test");
     }
 
     #[tokio::test]
@@ -261,7 +390,7 @@ mod tests {
             .unwrap();
         let answered = sender.send_request(request);
 
-        connector.release(key(0, Reach::Vendor), sender);
+        connector.release(key(0, Reach::Vendor), Sender::Http1(sender));
         let mut received = [0; 1024];
         let _ = server.read(&mut received).await.unwrap();
         server

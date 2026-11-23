@@ -143,11 +143,9 @@ impl Exchange<'_> {
         let key = PoolKey::of(target, self.reach);
         if let Some(mut sender) = self.shared.connector.reuse(&key).await {
             match sender.try_send_request(self.http_request(target)).await {
-                Ok(response) => return self.read(response, key, sender).await,
-                Err(error) if error.message().is_none() => {
-                    return Err(failed(target, &error.into_error()));
-                }
-                Err(_) => {}
+                Ok(Some(response)) => return self.read(response, key, sender).await,
+                Ok(None) => {}
+                Err(error) => return Err(failed(target, &error)),
             }
         }
         let mut sender = self.connect(target).await?;

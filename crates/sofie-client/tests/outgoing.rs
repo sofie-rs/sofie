@@ -9,7 +9,7 @@ use http_body_util::Full;
 use hyper::body::Incoming;
 use hyper::service::service_fn;
 use hyper::{Request, Response, StatusCode};
-use hyper_util::rt::TokioIo;
+use hyper_util::rt::{TokioExecutor, TokioIo};
 use rustls::ServerConfig;
 use rustls::pki_types::{CertificateDer, PrivateKeyDer, PrivatePkcs8KeyDer};
 use serde_json::{Value, json};
@@ -27,6 +27,7 @@ const SERVER_KEY: &[u8] = include_bytes!("certificates/server.key.der");
 struct Seen {
     flaky: AtomicUsize,
     keys: Mutex<Vec<String>>,
+    connections: AtomicUsize,
 }
 
 struct Server {
@@ -36,23 +37,44 @@ struct Server {
 
 impl Server {
     async fn start() -> Self {
+        Self::serving(false).await
+    }
+
+    /// Offers HTTP/2 alone, as a vendor preferring it does.
+    async fn start_http2() -> Self {
+        Self::serving(true).await
+    }
+
+    async fn serving(http2: bool) -> Self {
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let port = listener.local_addr().unwrap().port();
-        let acceptor = TlsAcceptor::from(Arc::new(server_config()));
+        let mut config = server_config();
+        if http2 {
+            config.alpn_protocols = vec![b"h2".to_vec()];
+        }
+        let acceptor = TlsAcceptor::from(Arc::new(config));
         let seen = Arc::new(Seen::default());
         let serving = Arc::clone(&seen);
         tokio::spawn(async move {
             loop {
                 let (stream, _) = listener.accept().await.unwrap();
+                serving.connections.fetch_add(1, Ordering::SeqCst);
                 let (acceptor, seen) = (acceptor.clone(), Arc::clone(&serving));
                 tokio::spawn(async move {
                     let Ok(stream) = acceptor.accept(stream).await else {
                         return;
                     };
                     let service = service_fn(move |request| answer(request, Arc::clone(&seen)));
-                    let _ = hyper::server::conn::http1::Builder::new()
-                        .serve_connection(TokioIo::new(stream), service)
-                        .await;
+                    let io = TokioIo::new(stream);
+                    if http2 {
+                        let _ = hyper::server::conn::http2::Builder::new(TokioExecutor::new())
+                            .serve_connection(io, service)
+                            .await;
+                    } else {
+                        let _ = hyper::server::conn::http1::Builder::new()
+                            .serve_connection(io, service)
+                            .await;
+                    }
                 });
             }
         });
@@ -118,6 +140,7 @@ async fn answer(
         }
         "/ok" | "/flaky" => reply(StatusCode::OK, r#"{"ok":true}"#),
         "/big" => reply(StatusCode::OK, &"x".repeat(4096)),
+        "/version" => reply(StatusCode::OK, &format!("{:?}", request.version())),
         "/agent" => {
             let agent = request.headers()["user-agent"].to_str().unwrap();
             reply(StatusCode::OK, agent)
@@ -167,6 +190,32 @@ async fn a_request_reaches_its_vendor_over_tls_trusting_the_test_s_root_only() {
         matches!(&untrusted_certificate, Error::Unavailable(message) if message.contains("certificate")),
         "{untrusted_certificate:?}"
     );
+}
+
+async fn version(outgoing: &Outgoing) -> String {
+    let answer = outgoing.get("/version").send().await.unwrap();
+    String::from_utf8(answer.body().to_vec()).unwrap()
+}
+
+#[tokio::test]
+async fn a_vendor_offering_http2_is_spoken_to_over_one_connection_for_requests_at_once() {
+    let http2 = Server::start_http2().await;
+    let http1 = Server::start().await;
+    let outgoing = http2.outgoing(Vendor::default());
+
+    let first = version(&outgoing).await;
+    let at_once = tokio::join!(
+        version(&outgoing),
+        version(&outgoing),
+        version(&outgoing),
+        version(&outgoing)
+    );
+    let older = version(&http1.outgoing(Vendor::default())).await;
+
+    assert_eq!(first, "HTTP/2.0");
+    assert_eq!(at_once, ["HTTP/2.0"; 4].map(str::to_owned).into());
+    assert_eq!(http2.seen.connections.load(Ordering::SeqCst), 1);
+    assert_eq!(older, "HTTP/1.1");
 }
 
 #[tokio::test]

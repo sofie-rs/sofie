@@ -936,7 +936,11 @@ impl Payments for Stripe {
   refuse calls for 30 s, then one probe is let through. Retries (two, with
   backoff) only on a failed connection or a 502/503/504, and only when the
   method is idempotent or the request carries an `IdempotencyKey`, sent as
-  `Idempotency-Key`. A connection is reused while idle under 20 s.
+  `Idempotency-Key`. A connection is reused while idle under 20 s. Over
+  TLS the client offers HTTP/2 before HTTP/1.1 (ALPN); a vendor choosing it
+  gets one connection per host shared by every request at once, with the
+  host as `:authority`, and a new one only while that one is at its stream
+  limit. Plain HTTP (a remote contract inside the network) stays HTTP/1.1.
 - **Tests make no real calls.** An app sofie-testing starts builds no
   adapter and so no `Outgoing` (a process switch, not a feature a workspace
   build could turn on in the production binary);

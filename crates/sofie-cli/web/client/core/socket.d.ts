@@ -1,0 +1,16 @@
+declare module "sofie:socket" {
+  export type Method = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+
+  export interface Answer<Body = unknown> {
+    status: number;
+    body: Body;
+  }
+
+  export interface Socket {
+    /** Returns the function that stops the watch; an answer that is not a success ends it. */
+    watch<Body = unknown>(path: string, onAnswer: (answer: Answer<Body>) => void): () => void;
+    call<Body = unknown>(method: Method, path: string, body?: unknown): Promise<Answer<Body>>;
+  }
+
+  export const socket: Socket;
+}

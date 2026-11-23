@@ -50,11 +50,32 @@ pub(crate) fn build_islands(
     Ok(bundles.into_iter().map(|bundle| bundle.area).collect())
 }
 
+/// Its `sofie:socket` declaration sits apart, as a file that exports anything cannot declare
+/// a module; an island importing the types sees it through the reference.
 #[cfg(feature = "typescript")]
-pub(crate) fn types_file(app: &App) -> (PathBuf, Option<String>) {
-    let text = has_islands(app).then(|| crate::typescript(app));
-    (app.root.join("web").join("gen").join("types.ts"), text)
+pub(crate) fn types_files(app: &App) -> [(PathBuf, Option<String>); 2] {
+    use crate::api::typescript::TYPESCRIPT_HEADER;
+
+    let generated = app.root.join("web").join("gen");
+    let types = has_islands(app).then(|| {
+        let text = crate::typescript(app);
+        let rest = text.strip_prefix(TYPESCRIPT_HEADER).unwrap_or(&text);
+        format!("{TYPESCRIPT_HEADER}/// <reference path=\"./{SOCKET_DECLARATION}\" />\n{rest}")
+    });
+    let socket = has_islands(app).then(|| {
+        format!(
+            "{TYPESCRIPT_HEADER}{}",
+            include_str!("../web/client/core/socket.d.ts")
+        )
+    });
+    [
+        (generated.join("types.ts"), types),
+        (generated.join(SOCKET_DECLARATION), socket),
+    ]
 }
+
+#[cfg(feature = "typescript")]
+const SOCKET_DECLARATION: &str = "sofie.d.ts";
 
 #[must_use]
 pub fn island_sources(app: &App) -> Vec<PathBuf> {

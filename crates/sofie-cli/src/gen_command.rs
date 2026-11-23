@@ -209,7 +209,7 @@ pub(crate) fn sync_generated(
     }
     files.extend(render_env_examples(app)?);
     #[cfg(feature = "typescript")]
-    files.push(crate::islands::types_file(app));
+    files.extend(crate::islands::types_files(app));
     files.push(render_agents_md(app)?);
     let mut outcomes = Vec::new();
     for (path, text) in files {

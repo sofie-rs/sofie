@@ -1,10 +1,12 @@
-//! Signing and sealing: sessions sealed into a cookie with no server store, signed links and tokens.
+//! Signing and sealing: sessions sealed into a cookie with no server store, signed links and
+//! tokens, webhook signatures.
 
 mod bearer;
 mod digest;
 mod principal_token;
 mod session;
 mod signing;
+mod standard_webhooks;
 
 pub use bearer::BearerToken;
 pub use digest::digest;
@@ -13,6 +15,9 @@ pub use session::{
     OLD_SIGNING_KEYS, OpenError, SIGNING_KEYS, SessionClaims, SigningKeys, new_signing_key,
 };
 pub use signing::Signed;
+pub use standard_webhooks::{
+    WEBHOOK_ID, WEBHOOK_SIGNATURE, WEBHOOK_TIMESTAMP, WebhookHeaders, WebhookSecret,
+};
 
 use ring::rand::{SecureRandom, SystemRandom};
 use sofie_core::{Error, Result};

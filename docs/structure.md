@@ -3044,7 +3044,13 @@ What the modifiers do:
   `Storage::download_url` (see core.md, "Files").
 - A webhook's `Verify` gets the headers and raw body and returns the
   delivery id; the delivery runs without a session or the same-origin
-  check, and a redelivery of an id gets the first answer.
+  check, and a redelivery of an id gets the first answer. A sender of
+  Standard Webhooks (sofie-webhooks among them) needs no verifier of its
+  own: `.verify(StandardWebhooks::new(secret)?)` checks `webhook-signature`
+  over `webhook-id.webhook-timestamp.body`, refuses a timestamp more than
+  five minutes from now and takes `webhook-id` as the delivery id. The
+  format lives once, in `sofie::auth::WebhookSecret`, which sofie-webhooks
+  signs with.
 
 A resource is reached under its name in the plural (`OrderLine` →
 `/order-lines`): `GET /order-lines` lists, `GET /order-lines/{order_line}`

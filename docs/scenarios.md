@@ -101,8 +101,9 @@ scheduled for delivery and mailed.
 ## 3. An incoming webhook
 
 Covered in scenario 2, step 2. `routes.webhook(...)` gives the raw body,
-signature verification and idempotency by delivery id, in the `Web` area.
-The handler is an ordinary action. No strain.
+signature verification and idempotency by delivery id, in the `Web` area;
+a sender of Standard Webhooks is verified by `StandardWebhooks`, others by a
+`Verify` of the app's. The handler is an ordinary action. No strain.
 
 ## 4. A payment through a gateway
 

@@ -2,7 +2,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
-use sofie::auth::SigningKeys;
+use sofie::auth::{SigningKeys, WEBHOOK_ID, WEBHOOK_SIGNATURE, WEBHOOK_TIMESTAMP, WebhookSecret};
 use sofie::core::Uuid;
 use sofie::db::worker::JobContext;
 use sofie::db::{Context, Outcome, Plan, Queued, Resolve, Stamp};
@@ -10,7 +10,6 @@ use sofie::prelude::*;
 
 use crate::delivery::{Attempt, Next, WebhookDelivery};
 use crate::endpoint::{Disabled, WebhookEndpoint};
-use crate::secret;
 use crate::sender::Transport;
 
 pub(crate) const FAN_OUT: &str = "sofie_webhooks.fan_out";
@@ -195,20 +194,20 @@ fn signed_headers(
         .sealed_secrets(now)
         .map(|sealed| {
             let plain = keys
-                .open_value(secret::PURPOSE, sealed)
+                .open_value(crate::SECRET_PURPOSE, sealed)
                 .and_then(|plain| String::from_utf8(plain).ok())
                 .ok_or_else(|| {
                     Error::internal_message(
                         "a webhook secret does not open with the app's signing keys",
                     )
                 })?;
-            secret::signature(&plain, &id, timestamp, delivery.body())
+            Ok(WebhookSecret::parse(&plain)?.sign(&id, timestamp, delivery.body().as_bytes()))
         })
         .collect::<Result<Vec<_>>>()?;
     Ok(vec![
-        ("webhook-id", id),
-        ("webhook-timestamp", timestamp.to_string()),
-        ("webhook-signature", signatures.join(" ")),
+        (WEBHOOK_ID, id),
+        (WEBHOOK_TIMESTAMP, timestamp.to_string()),
+        (WEBHOOK_SIGNATURE, signatures.join(" ")),
         ("user-agent", USER_AGENT.to_owned()),
     ])
 }

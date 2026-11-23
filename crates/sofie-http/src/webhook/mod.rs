@@ -1,3 +1,5 @@
+mod standard;
+
 use std::sync::Arc;
 
 use bytes::Bytes;
@@ -11,6 +13,8 @@ use crate::answer::{self, Response};
 use crate::handler::{Endpoint, endpoint};
 use crate::routes::{RouteRules, View};
 use crate::{RequestContext, Routes, Web};
+
+pub use standard::StandardWebhooks;
 
 const UNVERIFIED: &str = "The delivery could not be verified.";
 

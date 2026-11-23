@@ -173,4 +173,4 @@ pub use tls::Tls;
 pub use uploads::Upload;
 pub use urlencoded::percent_encode;
 #[cfg(feature = "webhooks")]
-pub use webhook::{Delivery, Verify, WebhookRoute};
+pub use webhook::{Delivery, StandardWebhooks, Verify, WebhookRoute};

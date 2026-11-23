@@ -164,7 +164,7 @@ codebase by features.
 What not every app needs is a feature of its crate, forwarded by `sofie` and off
 by default, so the framework compiled into an app stays small (its lines are
 measured against Loco's by `bench/run.sh` and reported, though held to no limit): `idempotency`
-(`.idempotent()` actions), `webhooks` (`Routes::webhook`), `signed-links`
+(`.idempotent()` actions), `webhooks` (`Routes::webhook`, `StandardWebhooks`), `signed-links`
 (`.signed()` routes and `SignedUrls`), `steps` (`App::step`,
 `App::step_all`), `cors` (`App::cors`, `SOFIE_CORS_ORIGINS`), `tls`
 (`Serving::tls`, HTTPS from `SOFIE_TLS_CERTIFICATE` and `SOFIE_TLS_KEY`),

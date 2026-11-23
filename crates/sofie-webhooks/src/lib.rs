@@ -8,7 +8,6 @@ mod endpoint;
 mod jobs;
 mod retention;
 mod routes;
-mod secret;
 mod sender;
 
 use serde::Serialize;
@@ -23,6 +22,8 @@ pub use routes::{ROUTES, routes};
 pub use sender::WebhookSender;
 
 const MODULE_NAME: &str = "sofie_webhooks";
+/// Sealing is bound to its purpose, so a sealed secret opens nowhere else.
+const SECRET_PURPOSE: &str = "sofie_webhooks.secret";
 /// Receivers keep bodies small; a larger event names its record for the receiver to fetch.
 const MAXIMUM_BODY: usize = 256 * 1024;
 

@@ -2,9 +2,10 @@
 
 use http::StatusCode;
 use serde_json::json;
+use sofie_auth::{WEBHOOK_ID, WEBHOOK_SIGNATURE, WEBHOOK_TIMESTAMP, WebhookSecret};
 use sofie_core::{Error, Result, SqlValue, Uuid};
 use sofie_db::{Db, File, IdempotencyKey, Migrations, Outcome, Plan, Reply, Step};
-use sofie_http::{App, Delivery, Routes, Verify, Web};
+use sofie_http::{App, Delivery, Routes, StandardWebhooks, Verify, Web};
 use sofie_testing::{TestApp, TestRequest};
 
 const MIGRATIONS: Migrations = Migrations::new(
@@ -15,6 +16,7 @@ const MIGRATIONS: Migrations = Migrations::new(
     )],
 );
 const SECRET: &str = "whsec_test";
+const STANDARD_SECRET: &str = "whsec_MfKQ9r8GKYqrTwjUPD8ILPZIo2LaLaSw";
 
 struct Charge {
     id: Uuid,
@@ -66,6 +68,9 @@ fn routes(routes: &mut Routes<Web>) {
     routes
         .webhook("/payments/callback", charge)
         .verify(SharedSecret);
+    routes
+        .webhook("/payments/standard", charge)
+        .verify(StandardWebhooks::new(STANDARD_SECRET).expect("the test secret parses"));
 }
 
 async fn start() -> TestApp {
@@ -193,6 +198,35 @@ async fn a_webhook_runs_each_verified_delivery_once_outside_any_session() {
         unsigned.json()["error"],
         "The delivery could not be verified."
     );
+    assert_eq!(charges(&app).await, 1);
+}
+
+/// Each retry is signed afresh, as a sender signs every attempt at its own time.
+fn standard_delivery(app: &TestApp, id: &str, secret: &str) -> TestRequest {
+    let body = json!({ "type": "payment.succeeded" }).to_string();
+    let now = app.db().clock().now().timestamp().as_second();
+    let signature = WebhookSecret::parse(secret)
+        .unwrap()
+        .sign(id, now, body.as_bytes());
+    app.post("/payments/standard")
+        .header(WEBHOOK_ID, id)
+        .header(WEBHOOK_TIMESTAMP, &now.to_string())
+        .header(WEBHOOK_SIGNATURE, &signature)
+        .header("content-type", "application/json")
+        .body(body)
+}
+
+#[tokio::test]
+async fn a_standard_webhook_is_verified_and_runs_once_per_webhook_id() {
+    let app = start().await;
+
+    let first = standard_delivery(&app, "msg_1", STANDARD_SECRET).await;
+    let retried = standard_delivery(&app, "msg_1", STANDARD_SECRET).await;
+    let forged = standard_delivery(&app, "msg_2", &WebhookSecret::generate().unwrap()).await;
+
+    assert_eq!(first.status, StatusCode::OK, "{}", first.body);
+    assert_eq!(retried.json(), first.json());
+    assert_eq!(forged.status, StatusCode::UNAUTHORIZED);
     assert_eq!(charges(&app).await, 1);
 }
 

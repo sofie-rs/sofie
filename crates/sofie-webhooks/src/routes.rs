@@ -2,6 +2,7 @@
 //! the area's scope keeps each owner to its own.
 
 use serde::Serialize;
+use sofie::auth::WebhookSecret;
 use sofie::db::{Outcome, Plan, Queued, ReadOnly, Reply, Stamp};
 use sofie::http::{ListedRoute, Query, Rate, Sealing};
 use sofie::prelude::*;
@@ -10,7 +11,7 @@ use crate::delivery::WebhookDelivery;
 use crate::endpoint::{
     Disabled, WebhookEndpoint, WebhookEndpointId, checked_description, checked_events, checked_url,
 };
-use crate::{WebhookArea, WebhookEvent, jobs, secret};
+use crate::{WebhookArea, WebhookEvent, jobs};
 
 /// Each endpoint is a fan-out target for every event, so an owner keeps a few.
 const MAXIMUM_ENDPOINTS: usize = 20;
@@ -101,8 +102,8 @@ async fn create<A: WebhookArea>(
             format!("an owner keeps at most {MAXIMUM_ENDPOINTS} endpoints"),
         ));
     }
-    let plain = secret::generate()?;
-    let sealed = sealing.seal(secret::PURPOSE, plain.as_bytes())?;
+    let plain = WebhookSecret::generate()?;
+    let sealed = sealing.seal(crate::SECRET_PURPOSE, plain.as_bytes())?;
     let mut endpoint = WebhookEndpoint::new(owner, url, events, sealed)?;
     endpoint.change_description(description);
     Ok(WithSecret {
@@ -155,8 +156,8 @@ async fn rotate(
     sealing: Sealing,
     clock: Clock,
 ) -> Result<WithSecret> {
-    let plain = secret::generate()?;
-    let sealed = sealing.seal(secret::PURPOSE, plain.as_bytes())?;
+    let plain = WebhookSecret::generate()?;
+    let sealed = sealing.seal(crate::SECRET_PURPOSE, plain.as_bytes())?;
     endpoint.rotate(sealed, clock.now())?;
     Ok(WithSecret {
         endpoint,

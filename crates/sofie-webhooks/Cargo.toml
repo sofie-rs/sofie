@@ -11,11 +11,11 @@ homepage.workspace = true
 [dependencies]
 sofie = { workspace = true, features = ["jobs", "retention", "signed-links", "soft-delete"] }
 sofie-client.workspace = true
-ring.workspace = true
 serde = { workspace = true, features = ["derive"] }
 tracing.workspace = true
 
 [dev-dependencies]
+ring.workspace = true
 sofie = { package = "sofie-framework", path = "../sofie", features = ["capture", "sqlite"] }
 serde_json.workspace = true
 sofie-testing.workspace = true

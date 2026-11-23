@@ -44,9 +44,12 @@ syn = { workspace = true, features = ["full", "visit"] }
 tokio = { workspace = true, features = ["signal"] }
 
 [dev-dependencies]
+# A real server for `tests/socket_helper.rs`, which runs the browser's socket helper in node.
+sofie-db.workspace = true
+sofie-http = { workspace = true, features = ["socket"] }
 sofie-model = { path = "../sofie-model", features = ["testing"] }
 sofie-testing.workspace = true
-tokio = { workspace = true, features = ["time"] }
+tokio = { workspace = true, features = ["macros", "time"] }
 
 [lints]
 workspace = true

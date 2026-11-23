@@ -139,6 +139,44 @@ fn the_plan_names_the_app_s_tests_that_reach_into_the_moved_crate() {
 }
 
 #[test]
+fn a_module_needing_sofie_identity_is_refused_and_the_plan_says_why() {
+    let shop = shop();
+    shop.write("sofie-identity/Cargo.toml", &manifest("sofie-identity", ""));
+    shop.write("sofie-identity/src/lib.rs", "");
+    module(
+        &shop,
+        "billing",
+        "sofie-identity = { path = \"../../sofie-identity\" }\n",
+        "/invoices",
+    );
+
+    let plan = split_plan(shop.root(), "billing").unwrap();
+    let refused = split_module(shop.root(), "billing")
+        .err()
+        .unwrap()
+        .to_string();
+
+    assert_eq!(plan.needs_identity, ["depends on sofie-identity"]);
+    assert!(
+        plan.to_string()
+            .contains("Refused: a split app cannot reach sofie-identity yet, and `billing` needs it\n  needs depends on sofie-identity\n"),
+        "{plan}"
+    );
+    assert!(
+        refused.contains("`billing` needs sofie-identity"),
+        "{refused}"
+    );
+    assert!(
+        shop.path("modules/billing").is_dir(),
+        "a refused split moves nothing"
+    );
+    assert_eq!(
+        split_plan(shop.root(), "order").unwrap().needs_identity,
+        Vec::<String>::new()
+    );
+}
+
+#[test]
 fn write_moves_the_module_and_wires_both_apps_to_each_other() {
     let shop = shop();
 

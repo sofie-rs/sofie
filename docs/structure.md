@@ -2444,7 +2444,12 @@ that cannot cross apps (not `async`, generic, taking `&mut` or a borrowed
 type, or answering other than `Result` of an owned type; their callers stop
 compiling), the reverse-proxy prefixes and the keys each app needs. It also
 lists the app's test files naming `<module>::`, which no longer compile once
-the app stops depending on the module; it does not move them.
+the app stops depending on the module; it does not move them. A module
+that needs sofie-identity is refused, and the plan says why: it depends on
+sofie-identity or sofie-tenancy, or it defines or routes into an area that
+signs members in or checks permissions. A split app would have neither the
+accounts nor the permissions of the app it left; reaching them through
+remote contracts waits for a product that needs it.
 
 - **Where it goes.** The module folder (crate pair, areas, migrations,
   `lang/`, `config.rs`, `.env.example`) moves to `split/<module>/modules/`,

@@ -4,7 +4,7 @@ use std::fmt::{self, Write as _};
 use std::fs;
 use std::path::{Component, Path, PathBuf};
 
-use sofie_model::naming::{contract_package, relative_path};
+use sofie_model::naming::{IDENTITY_PACKAGE, TENANCY_PACKAGE, contract_package, relative_path};
 use sofie_model::{App, Crate, Module};
 
 use crate::env_example::remote_prefix;
@@ -52,6 +52,8 @@ pub struct SplitPlan {
     pub last_module: bool,
     /// The areas its contract defines, which the apps' wirings name through it.
     pub defines_areas: bool,
+    /// Why it cannot leave: what it needs of sofie-identity, which a split app does not reach.
+    pub needs_identity: Vec<String>,
 }
 
 #[derive(Debug)]
@@ -93,6 +95,13 @@ fn names_crate(source: &str, crate_name: &str) -> bool {
 
 pub fn split_module(root: &Path, module: &str) -> Result<Split, GenError> {
     let plan = split_plan(root, module)?;
+    if !plan.needs_identity.is_empty() {
+        return Err(GenError::App(format!(
+            "`{}` needs sofie-identity, which a split app cannot reach yet: {}",
+            plan.module,
+            plan.needs_identity.join("; ")
+        )));
+    }
     refuse_existing(&plan.to)?;
     let mut journal = Journal::default();
     let generated = carry_out(&mut journal, &plan);
@@ -166,6 +175,7 @@ fn plan(
         orphaned_tests,
         last_module: app.modules.len() == 1,
         defines_areas: !module.defined_areas.is_empty(),
+        needs_identity: needs_identity(app, module),
         app: app.app.package.clone(),
         new_app: format!("{package}-app"),
         from: module.krate.path.clone(),
@@ -175,6 +185,30 @@ fn plan(
         module: name,
         package,
     }
+}
+
+/// A split app has no sign-in of its own and no member or permission of the app it left.
+fn needs_identity(app: &App, module: &Module) -> Vec<String> {
+    let packages = [IDENTITY_PACKAGE, TENANCY_PACKAGE]
+        .into_iter()
+        .filter(|package| module.krate.depends_on(package))
+        .map(|package| format!("depends on {package}"));
+    let defined = module.defined_areas.iter().map(|area| area.name.as_str());
+    let routed = module.areas.iter().map(|area| area.area.as_str());
+    let mut areas: Vec<&str> = defined.chain(routed).collect();
+    areas.sort_unstable();
+    areas.dedup();
+    let member_areas = areas.into_iter().filter_map(|name| {
+        let area = app.area(name)?;
+        let definition = area.definition?;
+        if definition.is_permitted() {
+            return Some(format!("area `{name}` checks sofie-identity's permissions"));
+        }
+        definition
+            .is_member_area()
+            .then(|| format!("area `{name}` signs members in"))
+    });
+    packages.chain(member_areas).collect()
 }
 
 /// Contracts the module depends on: of modules staying behind, or of ones already split off.
@@ -309,6 +343,14 @@ impl fmt::Display for SplitPlan {
             "sofie split {module}: module `{module}` leaves `{}` for a new app `{}`.\n",
             self.app, self.new_app
         )?;
+        if !self.needs_identity.is_empty() {
+            writeln!(
+                formatter,
+                "Refused: a split app cannot reach sofie-identity yet, and `{module}` needs it"
+            )?;
+            list(formatter, "needs", &self.needs_identity)?;
+            writeln!(formatter)?;
+        }
         writeln!(formatter, "Moves")?;
         writeln!(
             formatter,
@@ -887,6 +929,7 @@ mod tests {
             orphaned_tests: Vec::new(),
             last_module: false,
             defines_areas: false,
+            needs_identity: Vec::new(),
         };
 
         assert!(write_proxy_table(&mut Journal::default(), &plan).is_err());

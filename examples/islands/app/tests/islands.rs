@@ -1,7 +1,7 @@
 use serde_json::json;
 use sofie::db::Db;
 use sofie::http::App;
-use sofie_testing::TestApp;
+use sofie_testing::{TestApp, TestSocket};
 
 async fn demo() -> TestApp {
     sofie_testing::start(migrated, islands_demo::worker).await
@@ -93,4 +93,20 @@ async fn the_bundle_is_answered_with_the_copy_its_build_compressed() {
     assert_eq!(bundle.header("content-encoding"), "br");
     let built = include_bytes!(concat!(env!("OUT_DIR"), "/islands/web.js.br"));
     assert_eq!(bundle.header("content-length"), built.len().to_string());
+}
+
+#[tokio::test]
+async fn the_editor_s_socket_hears_each_note_written() {
+    let demo = demo().await;
+    let mut socket = TestSocket::open(&demo).await;
+
+    let watch = socket.watch("/").await;
+    let first = socket.answer().await.unwrap();
+    let note = json!({ "title": "Groceries", "body": "milk" });
+    demo.post("/notes").json(&note).await.assert_ok();
+    let written = socket.answer().await.unwrap();
+
+    assert_eq!(first["id"], watch);
+    assert_eq!(written["id"], watch);
+    assert_eq!(written["body"], note);
 }

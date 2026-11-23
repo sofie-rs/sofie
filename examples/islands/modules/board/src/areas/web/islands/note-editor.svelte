@@ -1,17 +1,26 @@
 <script lang="ts">
+  import { socket } from "sofie:socket";
   import type { NoteDraft } from "../../../../../../web/gen/types";
   import WordCount from "../../../../web/word-count.svelte";
 
   let { title, body }: NoteDraft = $props();
   let saved = $state("");
+  let latest = $state<NoteDraft>({ title, body });
+
+  // Saved here or in another tab, the latest note arrives as it is written.
+  $effect(() =>
+    socket.watch<NoteDraft>("/", (answer) => {
+      if (answer.status === 200) latest = answer.body;
+    }),
+  );
 
   async function save() {
-    const response = await fetch("/notes", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Accept: "application/json" },
-      body: JSON.stringify({ title, body }),
-    });
-    saved = response.ok ? "Saved." : "Not saved.";
+    try {
+      const answer = await socket.call("POST", "/notes", { title, body });
+      saved = answer.status === 200 ? "Saved." : "Not saved.";
+    } catch {
+      saved = "Not saved.";
+    }
   }
 </script>
 
@@ -21,6 +30,7 @@
   <WordCount {body} />
   <button>Save</button>
   <p role="status">{saved}</p>
+  <p class="latest">Latest: {latest.title}</p>
 </form>
 
 <style>

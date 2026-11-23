@@ -1,6 +1,6 @@
 [package]
 name = "islands-demo"
-description = "Example app: Svelte islands, typed props and `sofie dev`."
+description = "Example app: Svelte islands, typed props, a socket and `sofie dev`."
 edition.workspace = true
 rust-version.workspace = true
 version.workspace = true
@@ -8,13 +8,13 @@ publish = false
 
 [dependencies]
 board = { path = "../modules/board" }
-sofie = { workspace = true, features = ["islands", "compression"] }
+sofie = { workspace = true, features = ["islands", "compression", "socket"] }
 
 [build-dependencies]
 sofie-cli.workspace = true
 
 [dev-dependencies]
-sofie-testing.workspace = true
+sofie-testing = { workspace = true, features = ["socket"] }
 serde_json.workspace = true
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 

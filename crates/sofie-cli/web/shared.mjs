@@ -43,6 +43,7 @@ export async function bundle({ out, area, contents, sourcefile, development, opt
     nodePaths: [join(toolchain, "node_modules")],
     conditions: ["svelte", "browser", development ? "development" : "production"],
     ...options,
+    alias: { "sofie:socket": join(toolchain, "client", "core", "socket.js"), ...options.alias },
     plugins: [svelte(development), ...(options.plugins ?? [])],
   });
   const stylesheet = join(out, `${area}.css`);

@@ -486,6 +486,27 @@ most 64 KiB; binary, malformed or oversized messages close the socket (`1003`,
 client address, 10 000 per process, `429` past them) but are counted apart.
 A call still running when its socket closes runs to its end.
 
+Islands and client areas import the page's socket from `sofie:socket`, which
+opens it on first use: `socket.watch(path, onAnswer)` returns the function
+that stops the watch, and `socket.call(method, path, body)` resolves with
+`{ status, body }`.
+
+```svelte
+<script>
+  import { socket } from "sofie:socket";
+  let notes = $state([]);
+  $effect(() => socket.watch("/members/notes", (answer) => {
+    if (answer.status === 200) notes = answer.body;
+  }));
+</script>
+```
+
+The helper reopens a closed socket (at once after `4000`, otherwise after
+0.5 s doubling to 30 s, spread at random) and asks every watch again, so what
+changed while it was closed arrives; a call sent but unanswered when it closed
+is rejected rather than sent again, as it may have run. With no watch or call
+left it stays closed until the next one.
+
 ### Islands
 
 Anything richer than the catalog — a rich editor, a chart, a map, an app-like

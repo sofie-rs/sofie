@@ -758,6 +758,7 @@ mod conformance {
             "engine-check.mjs",
             "format-check.mjs",
             "navigation-check.mjs",
+            "socket-check.mjs",
         ] {
             let output = std::process::Command::new("node")
                 .arg(std::path::Path::new(TOOLCHAIN).join("client").join(check))

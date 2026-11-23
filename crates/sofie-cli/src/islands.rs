@@ -59,10 +59,16 @@ pub(crate) fn types_file(app: &App) -> (PathBuf, Option<String>) {
 #[must_use]
 pub fn island_sources(app: &App) -> Vec<PathBuf> {
     let toolchain = Path::new(TOOLCHAIN);
-    let mut sources: Vec<PathBuf> = ["build.mjs", "shared.mjs", "runtime.js", "package-lock.json"]
-        .into_iter()
-        .map(|file| toolchain.join(file))
-        .collect();
+    let mut sources: Vec<PathBuf> = [
+        "build.mjs",
+        "shared.mjs",
+        "runtime.js",
+        "client/core/socket.js",
+        "package-lock.json",
+    ]
+    .into_iter()
+    .map(|file| toolchain.join(file))
+    .collect();
     sources.extend(
         app.modules
             .iter()

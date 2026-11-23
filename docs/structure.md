@@ -454,8 +454,9 @@ catch up on their next change or reconnect.
 
 ### Sockets
 
-With `socket`, `/_sofie/socket` opens one WebSocket (RFC 6455, HTTP/1.1, text
-messages, no extensions) through which a client calls the app's own routes.
+With `socket`, `/_sofie/socket` opens one WebSocket (RFC 6455, text messages,
+no extensions), by an HTTP/1.1 upgrade or, over HTTP/2, as a stream of the
+page's connection (extended CONNECT, RFC 8441, which the server advertises), through which a client calls the app's own routes.
 Each message is a JSON object naming a call: `{"id": 1, "method": "GET",
 "path": "/members/notes"}` (also `POST`, `PUT`, `PATCH`, `DELETE`, with an
 optional JSON `body`), or `{"stop": 1}`. The answer is `{"id": 1, "status":
@@ -483,8 +484,13 @@ with `4000` after 10 minutes so the client reopens with its current cookie
 (an ended session stops hearing) and with `1001` on shutdown. A message is at
 most 64 KiB; binary, malformed or oversized messages close the socket (`1003`,
 `1008`, `1009`). Sockets share the live streams' caps (8 per principal or
-client address, 10 000 per process, `429` past them) but are counted apart.
-A call still running when its socket closes runs to its end.
+client address, 10 000 per process, `429` past them) but are counted apart;
+an upgraded HTTP/1.1 connection keeps its place under the server's connection
+cap while its socket is open. A call still running when its socket closes runs
+to its end. Measured (release, macOS, 2 000 sockets with a watch each, from a
+separate process): about 30 KB per open socket, its connection included,
+against about 33 KB for an idle kept-alive HTTP/1.1 connection, whose buffers
+hyper drops on upgrade.
 
 Islands and client areas import the page's socket from `sofie:socket`, which
 opens it on first use: `socket.watch(path, onAnswer)` returns the function
@@ -506,6 +512,11 @@ The helper reopens a closed socket (at once after `4000`, otherwise after
 changed while it was closed arrives; a call sent but unanswered when it closed
 is rejected rather than sent again, as it may have run. With no watch or call
 left it stays closed until the next one.
+
+`sofie gen` writes `web/gen/sofie.d.ts` beside `web/gen/types.ts`, which
+references it, so a `lang="ts"` island sees `sofie:socket`'s types. Tests open
+a browser's socket with sofie-testing's `socket` feature: `TestSocket::open(&app)`, or
+`caller.socket()` signed in, then `watch`, `call` and `answer`.
 
 ### Islands
 

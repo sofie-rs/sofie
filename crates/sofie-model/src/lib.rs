@@ -57,6 +57,7 @@ pub use entitlements::{EntitlementDeclaration, Entitlements};
 pub use error::ModelError;
 pub use flags::{FeatureCode, FeatureDeclaration, FeatureGate};
 pub use gateways::{Gateway, GatewayAdapter};
+pub use handlers::ReExports;
 pub use islands::{Island, IslandBundle, PropsDeclaration, is_island_name, island_bundles};
 pub use load::{
     dependency_crate, files_with_extension, load, rust_files, subdirectories, workspace_crates,

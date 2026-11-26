@@ -1682,6 +1682,45 @@ fn reads_jobs_mirrors_events_and_what_a_module_provides_other_modules() {
 }
 
 #[test]
+fn finds_a_function_through_the_re_exports_of_its_crate() {
+    let fixture = Fixture::order("mod actions;\nmod queries;\npub use queries::*;\n");
+    fixture.write(
+        "modules/order/src/actions/mod.rs",
+        "mod place;\nmod cancel;\npub use place::place_order;\npub use self::cancel::cancel as void;\n",
+    );
+    fixture.write(
+        "modules/order/src/actions/place.rs",
+        "pub async fn place_order() -> Result<()> { Ok(()) }\n",
+    );
+    fixture.write(
+        "modules/order/src/actions/cancel.rs",
+        "pub async fn cancel() -> Result<()> { Ok(()) }\n",
+    );
+    fixture.write(
+        "modules/order/src/queries.rs",
+        "pub async fn list() -> Result<()> { Ok(()) }\n",
+    );
+
+    let code = fixture.module("order").code;
+
+    let found = |path: &[&str]| {
+        let path: Vec<String> = path.iter().map(|segment| (*segment).to_owned()).collect();
+        code.function(&path)
+            .map(|function| function.path.join("::"))
+    };
+    assert_eq!(
+        found(&["actions", "place_order"]).as_deref(),
+        Some("actions::place::place_order")
+    );
+    assert_eq!(
+        found(&["actions", "void"]).as_deref(),
+        Some("actions::cancel::cancel")
+    );
+    assert_eq!(found(&["list"]).as_deref(), Some("queries::list"));
+    assert_eq!(found(&["actions", "missing"]), None);
+}
+
+#[test]
 fn leaves_test_and_testing_feature_code_out_of_what_a_function_does() {
     let fixture = Fixture::order("mod actions;\n");
     fixture.write(

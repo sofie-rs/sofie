@@ -13,11 +13,11 @@ use crate::FeatureCode;
 use crate::constraints::described;
 use crate::effects::Effects;
 use crate::entitlements::{EntitlementDeclaration, entitlement_of};
-use crate::handlers::HandlerScope;
+use crate::handlers::{HandlerScope, ReExports};
 use crate::naming::{DEFAULT_BEHAVIORS, behavior_columns, stored_name};
 use crate::syntax::{
-    doc_line, last_name, line_of, macro_expressions, path_ends_with, segments, string_literal,
-    type_last_name,
+    doc_line, is_public, last_name, line_of, macro_expressions, path_ends_with, segments,
+    string_literal, type_last_name,
 };
 use crate::telemetry::TelemetryCode;
 
@@ -181,12 +181,20 @@ pub struct Code {
     pub features: FeatureCode,
     pub entitlements: Vec<EntitlementDeclaration>,
     pub telemetry: TelemetryCode,
+    pub re_exports: ReExports,
 }
 
 impl Code {
     #[must_use]
     pub fn function(&self, path: &[String]) -> Option<&Function> {
-        self.functions.iter().find(|function| function.path == path)
+        let declared =
+            |path: &[String]| self.functions.iter().find(|function| function.path == path);
+        declared(path).or_else(|| {
+            self.re_exports
+                .targets(path)
+                .iter()
+                .find_map(|target| declared(target))
+        })
     }
 
     #[must_use]
@@ -275,6 +283,9 @@ impl Code {
         calls.visit_item(item);
         match item {
             Item::Fn(function) => self.functions.push(function_of(function, file, scope)),
+            Item::Use(item_use) if is_public(&item_use.vis) => {
+                self.re_exports.collect(item_use, scope);
+            }
             Item::Impl(implementation) => {
                 self.methods.extend(methods_of(implementation, file, scope));
             }

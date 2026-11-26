@@ -204,12 +204,7 @@ fn outside_contract(module: &Module, event: &EventDeclaration) -> Finding {
 
 fn check_each(module: &Module, schedule: &Schedule) -> Option<Finding> {
     let each = schedule.each.as_ref()?;
-    let declared = module
-        .code
-        .functions
-        .iter()
-        .any(|function| &function.path == each);
-    if declared {
+    if module.code.function(each).is_some() {
         return None;
     }
     Some(Finding {

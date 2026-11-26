@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use syn::Item;
+use syn::{Item, ItemUse};
 
 use crate::syntax::use_paths;
 
@@ -161,5 +161,76 @@ fn declared_name(item: &Item) -> Option<String> {
         Item::Enum(item) => Some(item.ident.to_string()),
         Item::Type(item) => Some(item.ident.to_string()),
         _ => None,
+    }
+}
+
+/// A crate's own `pub use` items, so `actions::place_order` finds `actions::place::place_order`.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct ReExports {
+    named: BTreeMap<Vec<String>, Vec<String>>,
+    globs: Vec<(Vec<String>, Vec<String>)>,
+}
+
+/// Bounds a chain of re-exports, which also ends a cycle such as `pub use self::*`.
+const MOST_HOPS: usize = 8;
+
+impl ReExports {
+    pub(crate) fn collect(&mut self, item: &ItemUse, scope: &HandlerScope) {
+        for used in use_paths(&item.tree) {
+            let Some(target) = target(&used.segments, scope) else {
+                continue;
+            };
+            match used.binding {
+                Some(binding) => {
+                    let alias = [scope.module_path(), &[binding]].concat();
+                    self.named.insert(alias, target);
+                }
+                None => self.globs.push((scope.module_path().to_vec(), target)),
+            }
+        }
+    }
+
+    #[must_use]
+    pub fn targets(&self, path: &[String]) -> Vec<Vec<String>> {
+        let mut found: Vec<Vec<String>> = Vec::new();
+        let mut frontier = vec![path.to_vec()];
+        for _ in 0..MOST_HOPS {
+            frontier = frontier
+                .iter()
+                .flat_map(|path| self.step(path))
+                .filter(|next| !found.contains(next))
+                .collect();
+            if frontier.is_empty() {
+                break;
+            }
+            found.extend(frontier.iter().cloned());
+        }
+        found
+    }
+
+    fn step(&self, path: &[String]) -> Vec<Vec<String>> {
+        let mut next = Vec::new();
+        for split in 0..=path.len() {
+            let (prefix, rest) = path.split_at(split);
+            if let Some(target) = self.named.get(prefix) {
+                next.push([target.as_slice(), rest].concat());
+            }
+            if rest.is_empty() {
+                continue;
+            }
+            for (_, target) in self.globs.iter().filter(|(module, _)| module == prefix) {
+                next.push([target.as_slice(), rest].concat());
+            }
+        }
+        next
+    }
+}
+
+/// Without `crate`, `self` or `super`, a `use` path starts at a child module or another crate.
+fn target(segments: &[String], scope: &HandlerScope) -> Option<Vec<String>> {
+    match segments.first().map(String::as_str) {
+        Some("crate" | "self" | "super") => scope.resolve(segments).ok(),
+        Some(_) => Some([scope.module_path(), segments].concat()),
+        None => None,
     }
 }

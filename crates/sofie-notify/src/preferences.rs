@@ -218,7 +218,7 @@ fn first_on(
     day: Option<Weekday>,
     at: TimeOfDay,
 ) -> Result<LocalDateTime> {
-    let today = now.to_zoned(jiff_zone(zone)?).date();
+    let today = now.to_zoned_datetime(jiff_zone(zone)?).date();
     let ahead = day.map_or(0, |day| {
         (day.to_monday_zero_offset() - today.weekday().to_monday_zero_offset()).rem_euclid(7)
     });

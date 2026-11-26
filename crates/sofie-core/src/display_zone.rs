@@ -67,7 +67,7 @@ impl DisplayZone {
 
     #[must_use]
     pub fn repeated_offset(&self, instant: Instant) -> Option<String> {
-        let zoned = instant.timestamp().to_zoned(self.zone.clone());
+        let zoned = instant.timestamp().to_zoned_datetime(self.zone.clone());
         self.repeats(zoned.datetime())
             .then(|| zoned.strftime("%:z").to_string())
     }

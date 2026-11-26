@@ -589,7 +589,7 @@ async fn a_digest_mails_a_bounded_number_and_holds_the_rest_for_the_next() {
 /// A day well ahead of the test clock's start, so moving there only goes forward.
 fn year_ahead() -> String {
     let next_year = jiff::Timestamp::now()
-        .to_zoned(jiff::tz::TimeZone::UTC)
+        .to_zoned_datetime(jiff::tz::TimeZone::UTC)
         .date()
         .year()
         + 1;

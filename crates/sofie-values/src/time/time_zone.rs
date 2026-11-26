@@ -39,8 +39,8 @@ impl TimeZone {
             .expect("a zone found in the database carries its name")
     }
 
-    pub(crate) fn zoned(&self, instant: Instant) -> jiff::Zoned {
-        instant.timestamp().to_zoned(self.zone.clone())
+    pub(crate) fn zoned(&self, instant: Instant) -> jiff::ZonedDateTime {
+        instant.timestamp().to_zoned_datetime(self.zone.clone())
     }
 
     pub(crate) fn instant_of(&self, local: civil::DateTime) -> Result<Instant> {

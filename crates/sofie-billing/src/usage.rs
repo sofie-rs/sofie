@@ -119,8 +119,8 @@ fn fixed(anchor: Timestamp, length: SignedDuration, now: Timestamp) -> Timestamp
 /// Added to the anchor rather than chained, so a period anchored on the 31st ends each month's last day.
 fn calendar(anchor: Timestamp, months: i32, now: Timestamp) -> Result<Timestamp> {
     let failed = |error| Error::internal("computing a quota's period", error);
-    let start = anchor.to_zoned(TimeZone::UTC).datetime();
-    let current = now.to_zoned(TimeZone::UTC).datetime();
+    let start = anchor.to_zoned_datetime(TimeZone::UTC).datetime();
+    let current = now.to_zoned_datetime(TimeZone::UTC).datetime();
     let apart = (i32::from(current.year()) - i32::from(start.year())) * 12
         + i32::from(current.month())
         - i32::from(start.month());
@@ -131,7 +131,7 @@ fn calendar(anchor: Timestamp, months: i32, now: Timestamp) -> Result<Timestamp>
             .map_err(failed)?;
         if candidate <= current {
             return candidate
-                .to_zoned(TimeZone::UTC)
+                .to_zoned_datetime(TimeZone::UTC)
                 .map(|zoned| zoned.timestamp())
                 .map_err(failed);
         }

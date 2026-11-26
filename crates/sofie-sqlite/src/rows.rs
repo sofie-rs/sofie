@@ -177,7 +177,6 @@ fn kinds(statement: &Statement<'_>, sql: &str, expects: &[Option<SqlType>]) -> R
         )));
     }
     columns
-        .iter()
         .enumerate()
         .map(|(index, column)| {
             let kind = Kind::declared(column.decl_type());

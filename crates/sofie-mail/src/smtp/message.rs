@@ -17,7 +17,7 @@ pub(crate) fn render(envelope: &Envelope<'_>) -> Result<String> {
     let mail = envelope.mail;
     // In UTC as `+0000`; RFC 5322 reads `-0000` as a zone left unknown.
     let date = DateTimePrinter::new()
-        .zoned_to_string(&envelope.date.to_zoned(jiff::tz::TimeZone::UTC))
+        .zoned_datetime_to_string(&envelope.date.to_zoned_datetime(jiff::tz::TimeZone::UTC))
         .map_err(|error| Error::internal("writing a mail's date", error))?;
     // Base64 never holds a `-`, so no line of a part can equal the boundary.
     let boundary = format!("sofie-mail-{}", envelope.key);

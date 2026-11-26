@@ -2,11 +2,12 @@ use std::path::Path;
 
 use super::{Finding, Rule};
 
-const TIME_TYPES: [&str; 9] = [
+const TIME_TYPES: [&str; 10] = [
     "SystemTime",
     "Instant",
     "Timestamp",
     "Zoned",
+    "ZonedDateTime",
     "Utc",
     "Local",
     "OffsetDateTime",

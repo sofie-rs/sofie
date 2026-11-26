@@ -218,7 +218,7 @@ fn quiet_until(settings: &Settings, now: Timestamp) -> Result<Option<Timestamp>>
     else {
         return Ok(None);
     };
-    let local = now.to_zoned(jiff_zone(zone)?);
+    let local = now.to_zoned_datetime(jiff_zone(zone)?);
     let time = crate::TimeOfDay::of(local.time());
     let quiet = if from <= until {
         from <= time && time < until
@@ -244,7 +244,7 @@ fn quiet_until(settings: &Settings, now: Timestamp) -> Result<Option<Timestamp>>
     }
     // Inside the second pass of a repeated hour the first one is already over.
     let later = jiff_zone(zone)?
-        .to_ambiguous_zoned(date.to_datetime(until.civil()))
+        .to_ambiguous_zoned_datetime(date.to_datetime(until.civil()))
         .later()
         .map_err(|error| Error::internal("finding the end of quiet hours", error))?;
     Ok(Some(later.timestamp()))

@@ -48,6 +48,59 @@ fn hand_built(caller: &str, effects: &Effects, file: &Path) -> Option<Finding> {
     })
 }
 
+/// The wiring provides only `dyn` traits, so a `Dep` of the module's own struct fails at run time.
+pub(super) fn check_unprovided_deps(modules: &[Module]) -> Vec<Finding> {
+    modules
+        .iter()
+        .filter(|module| !provides_by_hand(module))
+        .flat_map(|module| {
+            entry_points(module)
+                .filter_map(|path| module.code.function(path))
+                .filter_map(|function| unprovided_dep(module, function))
+        })
+        .collect()
+}
+
+fn provides_by_hand(module: &Module) -> bool {
+    let functions = module
+        .code
+        .functions
+        .iter()
+        .map(|function| &function.effects);
+    let methods = module.code.methods.iter().map(|method| &method.effects);
+    functions
+        .chain(methods)
+        .flat_map(|effects| &effects.calls)
+        .any(|call| call.path.last().is_some_and(|name| name == "provide"))
+}
+
+fn unprovided_dep(module: &Module, function: &Function) -> Option<Finding> {
+    let provided =
+        function
+            .arguments
+            .iter()
+            .find_map(|argument| match argument.arguments.as_slice() {
+                [ty] if argument.name == "Dep" && module.code.structs.contains(&ty.name) => {
+                    Some(ty)
+                }
+                _ => None,
+            })?;
+    Some(Finding {
+        rule: Rule::UnprovidedDep,
+        file: function.file.clone(),
+        line: function.line,
+        message: format!(
+            "`{}` takes `Dep<{provided}>`, but nothing provides `{provided}`: the wiring provides \
+             only contract traits, so every call fails with \"nothing provides {provided}\"",
+            function.path.join("::")
+        ),
+        fix: format!(
+            "take `Dep<dyn Trait>` for a trait of the module's contract that `{provided}` \
+             implements, then run `sofie gen`; or build `{provided}` inside the handler"
+        ),
+    })
+}
+
 fn entry_points(module: &Module) -> impl Iterator<Item = &Vec<String>> {
     let handlers = module
         .areas

@@ -111,6 +111,7 @@ pub enum Rule {
     UndeclaredGen,
     UndeclaredRoutes,
     UnknownArea,
+    UnprovidedDep,
     UnusedDependency,
     UnusedItem,
     UnusedRatio,
@@ -182,6 +183,7 @@ impl Rule {
             Self::UndeclaredGen => "undeclared-gen",
             Self::UndeclaredRoutes => "undeclared-routes",
             Self::UnknownArea => "unknown-area",
+            Self::UnprovidedDep => "unprovided-dep",
             Self::UnusedDependency => "unused-dependency",
             Self::UnusedItem => "unused-item",
             Self::UnusedRatio => "unused-ratio",
@@ -230,6 +232,7 @@ pub fn check(app: &App, screens: &Screens) -> Vec<Finding> {
     findings.extend(routes::check_routes(app));
     findings.extend(safe_methods::check_safe_methods(&app.modules));
     findings.extend(own_contract::check_own_contract(&app.modules));
+    findings.extend(own_contract::check_unprovided_deps(&app.modules));
     findings.extend(fragments::check_fragments(&app.modules, screens));
     findings.extend(mails::check_mails(&app.modules));
     findings.extend(bindings::check_bindings(&app.modules, screens));

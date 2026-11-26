@@ -2768,6 +2768,42 @@ fn a_handler_job_or_listener_reading_through_its_own_module_s_contract_is_report
 }
 
 #[test]
+fn a_handler_taking_a_dep_of_its_own_struct_is_reported() {
+    let routes = vec![
+        route(Method::Post, "/orders", "actions::place", 1),
+        route(Method::Post, "/quotes", "actions::quote", 2),
+    ];
+    let mut order = module_with_routes("order", "customer", routes);
+    order.code.structs = vec!["Ledger".to_owned()];
+    let handler = |path: &str, argument: &str, line: usize| Function {
+        arguments: vec![type_name(argument)],
+        line,
+        ..function(path, "()", &[])
+    };
+    order.code.functions = vec![
+        handler("actions::place", "Dep<Ledger>", 10),
+        handler("actions::quote", "Dep<dyn Pricing>", 20),
+    ];
+
+    let findings: Vec<Finding> = check(&app_with(vec![order]))
+        .into_iter()
+        .filter(|finding| finding.rule.name() == "unprovided-dep")
+        .collect();
+
+    assert_eq!(
+        rule_lines(&findings),
+        [("unprovided-dep", 10)],
+        "{findings:#?}"
+    );
+    assert_contains(
+        &findings[0].message,
+        "`actions::place` takes `Dep<Ledger>`, but nothing provides `Ledger`",
+    );
+    assert_contains(&findings[0].fix, "`Dep<dyn Trait>`");
+    assert_contains(&findings[0].fix, "`sofie gen`");
+}
+
+#[test]
 fn a_module_building_a_cross_owner_check_by_hand_is_reported() {
     let mut scheduling = module_with_routes("scheduling", "customer", Vec::new());
     let calling = |path: &str, call: &[&str], line: usize| Function {

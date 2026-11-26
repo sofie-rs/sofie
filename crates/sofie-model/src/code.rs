@@ -172,6 +172,7 @@ pub struct Code {
     pub aggregates: Vec<Aggregate>,
     pub inputs: Vec<InputDeclaration>,
     pub enums: Vec<EnumDeclaration>,
+    pub structs: Vec<String>,
     /// The `#[derive(Value)]` types, which unlike enums get no derived `Fixture`.
     pub values: Vec<String>,
     /// Each of `values` from the crate's root, through a root re-export where there is one.
@@ -281,6 +282,9 @@ impl Code {
             code: self,
         };
         calls.visit_item(item);
+        if let Item::Struct(structure) = item {
+            self.structs.push(structure.ident.unraw().to_string());
+        }
         match item {
             Item::Fn(function) => self.functions.push(function_of(function, file, scope)),
             Item::Use(item_use) if is_public(&item_use.vis) => {

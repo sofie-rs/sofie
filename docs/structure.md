@@ -797,10 +797,12 @@ pub struct Sku {
 }
 
 impl Sku {
-    pub fn try_new(code: &str) -> Result<Self, SkuError> { … }
+    pub fn try_new(code: String) -> Result<Self, SkuError> { … }
 }
 ```
 
+- `try_new` is yours to write; the derive calls it with the field's own type
+  (`String` here, not `&str`) and its error only needs `Display`.
 - Construction goes through `try_new`; deserializing a request or a row calls
   it too, so an invalid value never enters the app. A row goes through
   `Value::decode_stored` (default: the same check), which a value whose input
@@ -812,7 +814,8 @@ impl Sku {
   one column) and is a JSON object of its fields. An `Option` of it is `None`
   only when every column is null, so an `Option` of one whose fields are all
   optional is refused when compiled.
-- Equality, hashing and cloning are derived; values are immutable.
+- The derive adds no `Clone`, `PartialEq`, `Eq` or `Hash`; derive the ones you
+  need next to it (`#[derive(Value, Clone, PartialEq)]`). Values are immutable.
 - A value marked `#[sensitive]` is masked in `Debug`, and so in logs and
   traces (`Iban(***)`); a shipped value may mask partially (`Email` prints
   `j***@example.com`). A field holding it, or a `Secret`, counts as a

@@ -8,6 +8,7 @@ use super::changes::changed_files;
 use super::read::{app_crates, test_functions};
 use crate::cargo;
 use crate::child_process::{self, ProcessGroup};
+use crate::dev_command::dotenv;
 use crate::gen_command::{GenError, io_error};
 
 const PROGRESS: [&str; 11] = [
@@ -38,6 +39,20 @@ impl CargoCommand {
         }
     }
 
+    /// A test run goes on past a failing test binary, so one answer names every failure.
+    fn arguments(self) -> &'static [&'static str] {
+        match self {
+            Self::Build => &["build", "--offline", "--message-format", "short"],
+            Self::Test => &[
+                "test",
+                "--offline",
+                "--no-fail-fast",
+                "--message-format",
+                "short",
+            ],
+        }
+    }
+
     fn rest(self) -> String {
         format!("cargo {} --offline", self.name())
     }
@@ -59,15 +74,7 @@ fn cargo(
     command: CargoCommand,
     filter: Option<&str>,
 ) -> Result<ToolOutput, GenError> {
-    let output = run_cargo(
-        root,
-        app_cargo(
-            root,
-            app,
-            &[command.name(), "--offline", "--message-format", "short"],
-        )
-        .args(filter_arguments(filter)?),
-    )?;
+    let output = run_cargo(root, &mut cargo_command(root, app, command, filter)?)?;
     let stderr = String::from_utf8_lossy(&output.stderr);
     let stdout = String::from_utf8_lossy(&output.stdout);
     let succeeded = output.status.success();
@@ -92,6 +99,21 @@ fn cargo(
     };
     let verdict = verdict(&format!("cargo {}", command.name()), output.status);
     Ok(ToolOutput::judged(format!("{verdict}\n{summary}"), succeeded).with_rest(command.rest()))
+}
+
+/// Tests read the app's `.env` as `sofie dev` gives it to the app.
+fn cargo_command(
+    root: &Path,
+    app: &App,
+    command: CargoCommand,
+    filter: Option<&str>,
+) -> Result<Command, GenError> {
+    let mut cargo = app_cargo(root, app, command.arguments());
+    cargo.args(filter_arguments(filter)?);
+    if let CargoCommand::Test = command {
+        cargo.envs(dotenv(root)?);
+    }
+    Ok(cargo)
 }
 
 /// After `--`, so the filter reaches the test binary and never cargo as an option.
@@ -509,7 +531,40 @@ pub(super) fn build_rest() -> String {
 mod tests {
     use std::path::Path;
 
-    use super::{TestFile, filter_arguments, module_prefix, test_summary};
+    use std::ffi::OsStr;
+
+    use sofie_model::testing::{TemporaryDirectory, manifest};
+
+    use super::{
+        CargoCommand, TestFile, cargo_command, filter_arguments, module_prefix, test_summary,
+    };
+
+    /// Without `--no-fail-fast` a run stopped at the first failing test binary, and without
+    /// the `.env` a test needing the app's configuration failed only here.
+    #[test]
+    fn a_test_run_reads_the_env_file_and_runs_past_a_failing_binary() {
+        let directory = TemporaryDirectory::new("sofie-mcp-test-command");
+        directory.write(
+            "Cargo.toml",
+            "[workspace]\nresolver = \"3\"\nmembers = [\"app\"]\n",
+        );
+        directory.write("app/Cargo.toml", &manifest("shop", ""));
+        directory.write("app/src/main.rs", "fn main() {}\n");
+        directory.write(".env", "SOFIE_MCP_TEST_COMMAND_KEY=local\n");
+        let app = sofie_model::load(directory.root()).unwrap();
+
+        let test = cargo_command(directory.root(), &app, CargoCommand::Test, None).unwrap();
+        let build = cargo_command(directory.root(), &app, CargoCommand::Build, None).unwrap();
+
+        let key = OsStr::new("SOFIE_MCP_TEST_COMMAND_KEY");
+        assert!(
+            test.get_envs()
+                .any(|(name, value)| name == key && value == Some(OsStr::new("local")))
+        );
+        assert!(test.get_args().any(|argument| argument == "--no-fail-fast"));
+        assert!(build.get_envs().all(|(name, _)| name != key));
+        assert!(build.get_args().all(|argument| argument != "--no-fail-fast"));
+    }
 
     /// Before `--`, a filter such as `--config=build.rustc-wrapper=…` was an option of cargo itself.
     #[test]

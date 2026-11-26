@@ -363,8 +363,8 @@ const LATER_TOOLS: &[Tool] = &[
     },
     Tool {
         name: "test",
-        description: "Test: use after a change to run the app's tests. `cargo test --offline` of the app and its modules; answers the \
-                      counts of passed, failed and ignored tests, the diagnostics, every failure \
+        description: "Test: use after a change to run the app's tests. `cargo test --offline --no-fail-fast` of the app and its modules, with the app's \
+                      `.env`; answers the counts of passed, failed and ignored tests, the diagnostics, every failure \
                       in full, and the passed and ignored tests by file: every name in files git \
                       sees changed, counts elsewhere; with `filter`, every name it ran and the \
                       tests in changed files it left out, and fails when it matched no test.",

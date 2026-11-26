@@ -177,6 +177,7 @@ const TESTING_PACKAGE: &str = "sofie-testing";
 const IDENTITY_PACKAGE: &str = "sofie-identity";
 const FIXTURES: &str = "fixtures";
 const FEATURES: &str = "[features]";
+const FLAGS_CALL: &str = "app.flags()";
 
 /// What the scaffolded files name besides the app and its modules, which a new app lacks.
 fn add_test_dependencies(
@@ -196,6 +197,12 @@ fn add_test_dependencies(
     if sources.contains("sofie_testing::") && !names_dependency(&text, TESTING_PACKAGE) {
         let line = format!("{TESTING_PACKAGE}.workspace = true\n");
         text = with_workspace_dev_dependency(app, &text, TESTING_PACKAGE, &line, journal, outcome)?;
+    }
+    // `TestApp::flags` is behind sofie-testing's `flags` feature.
+    if sources.contains(FLAGS_CALL)
+        && let Some(edited) = with_feature_in(&text, DEV_DEPENDENCIES, TESTING_PACKAGE, "flags")
+    {
+        text = edited;
     }
     let dev_names = |package| {
         toml_section(&text, DEV_DEPENDENCIES)

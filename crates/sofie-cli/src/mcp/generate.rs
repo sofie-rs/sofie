@@ -154,6 +154,8 @@ fn outcome_lines(outcomes: &[GenOutcome]) -> String {
 
 #[cfg(test)]
 mod tests {
+    use std::fs;
+
     use sofie_core::Timestamp;
     use sofie_model::testing::{TemporaryDirectory, manifest};
 
@@ -167,6 +169,68 @@ mod tests {
                 "use sofie::prelude::*;\n\n#[derive(Aggregate)]\npub struct {aggregate} {{\n    \
                  meta: Meta,\n    #[max(40)]\n    name: String,\n}}\n"
             ),
+        );
+    }
+
+    fn at() -> Timestamp {
+        Timestamp::from_second(1_791_720_000).unwrap()
+    }
+
+    /// A flagged route's test calls `app.flags()`, which plain sofie-testing lacks.
+    #[test]
+    fn a_flagged_route_s_test_turns_on_sofie_testing_s_flags() {
+        let directory = TemporaryDirectory::new("sofie-mcp-scaffold-flags");
+        directory.write(
+            "Cargo.toml",
+            "[workspace]\nresolver = \"3\"\nmembers = [\"app\", \"modules/*\", \"modules/*/contract\"]\n",
+        );
+        directory.write(
+            "app/Cargo.toml",
+            &manifest("shop", "catalog = { path = \"../modules/catalog\" }\n"),
+        );
+        directory.write("app/src/main.rs", "fn main() {}\n");
+        directory.write("modules/catalog/Cargo.toml", &manifest("catalog", ""));
+        directory.write(
+            "modules/catalog/contract/Cargo.toml",
+            &manifest("catalog-contract", ""),
+        );
+        directory.write(
+            "modules/catalog/contract/src/lib.rs",
+            "mod r#gen;\n\npub use r#gen::routes;\n",
+        );
+        directory.write(
+            "modules/catalog/src/lib.rs",
+            "use sofie::prelude::*;\n\nmod queries;\n\n\
+             pub const PAGES: Feature = Feature::new(\"catalog.pages\");\n\n\
+             pub mod areas {\n    pub mod web {\n        pub mod routes;\n    }\n}\n",
+        );
+        directory.write(
+            "modules/catalog/src/queries.rs",
+            "use sofie::prelude::*;\n\npub async fn list_pages() -> Result<Vec<String>> {\n    \
+             Ok(Vec::new())\n}\n",
+        );
+        directory.write(
+            "modules/catalog/src/areas/web/routes.rs",
+            "use sofie::prelude::*;\n\nuse crate::queries;\n\npub fn routes(routes: &mut Routes<Web>) {\n    \
+             routes.get(\"/pages\", queries::list_pages).feature(crate::PAGES);\n}\n",
+        );
+        let generator = Generator::ScaffoldTests {
+            now: at(),
+            all: true,
+            module: None,
+        };
+
+        let report = step(directory.root(), directory.root(), &generator).unwrap();
+
+        let written = fs::read_dir(directory.path("app/tests/scaffolded"))
+            .unwrap()
+            .map(|entry| fs::read_to_string(entry.unwrap().path()).unwrap())
+            .collect::<String>();
+        assert!(written.contains("app.flags().set("), "{report}\n{written}");
+        let app_manifest = fs::read_to_string(directory.path("app/Cargo.toml")).unwrap();
+        assert!(
+            app_manifest.contains("sofie-testing = { workspace = true, features = [\"flags\"] }"),
+            "{app_manifest}"
         );
     }
 
@@ -188,7 +252,7 @@ mod tests {
         module_with_an_aggregate(&directory, "catalog", "Product");
         module_with_an_aggregate(&directory, "stock", "Shelf");
         let generator = Generator::ScaffoldTests {
-            now: Timestamp::from_second(1_791_720_000).unwrap(),
+            now: at(),
             all: false,
             module: Some("stock".to_owned()),
         };

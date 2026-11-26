@@ -13,6 +13,8 @@ use crate::{TestApp, TestDatabase, TestServer};
 /// Fixtures are the same in every run unless this names another seed.
 const SEED_VARIABLE: &str = "SOFIE_TEST_SEED";
 const DEFAULT_SEED: u64 = 0x5EED;
+/// The test clock starts at the real now unless this pins an RFC 3339 instant.
+const NOW_VARIABLE: &str = "SOFIE_TEST_NOW";
 #[cfg(feature = "flags")]
 const FLAGS_ENVIRONMENT: &str = "test";
 
@@ -49,7 +51,7 @@ where
 {
     sofie::fakes_from_tests();
     let database = TestDatabase::create().await;
-    let clock = TestClock::starting_at(Timestamp::now());
+    let clock = TestClock::starting_at(start_time(std::env::var(NOW_VARIABLE).ok()));
     let db = Db::new(connect(database.url())).with_clock(clock.clock());
     sofie_db::keep_raised(&db);
     db.schema()
@@ -90,6 +92,17 @@ fn seed() -> u64 {
     })
 }
 
+fn start_time(pinned: Option<String>) -> Timestamp {
+    pinned.map_or_else(Timestamp::now, |now| {
+        now.parse().unwrap_or_else(|error| {
+            panic!(
+                "{NOW_VARIABLE} must be an RFC 3339 instant such as 2026-01-05T09:00:00Z, \
+                 got `{now}`: {error}"
+            )
+        })
+    })
+}
+
 async fn start_flags(db: &Db, wanted: bool) -> Option<Flags> {
     #[cfg(feature = "flags")]
     if wanted {
@@ -106,4 +119,22 @@ async fn start_flags(db: &Db, wanted: bool) -> Option<Flags> {
 
 fn connect(url: &str) -> Postgres {
     Postgres::connect(url).expect("connecting to the test database")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_pinned_now_starts_the_test_clock() {
+        let pinned = start_time(Some("2026-01-05T09:00:00+03:00".to_owned()));
+
+        assert_eq!(pinned, "2026-01-05T06:00:00Z".parse::<Timestamp>().unwrap());
+    }
+
+    #[test]
+    #[should_panic(expected = "SOFIE_TEST_NOW must be an RFC 3339 instant")]
+    fn a_now_that_is_no_instant_fails_naming_the_variable() {
+        start_time(Some("next monday".to_owned()));
+    }
 }

@@ -100,11 +100,22 @@ async fn hold_liveness(server_url: String) {
                 .expect("taking the test process's liveness lock");
             let _ = locked.send(());
             drop_abandoned(&client).await;
-            let _ = connection.await;
+            let ended = connection.await;
+            liveness_lost(&ended);
         });
     });
     held.await
         .expect("the liveness connection takes its lock or panics");
+}
+
+/// Without its lock this process looks dead, and another one may drop its databases mid-test;
+/// a panic here would end only this thread, so the whole process stops.
+fn liveness_lost(ended: &impl std::fmt::Debug) -> ! {
+    eprintln!(
+        "sofie-testing: the connection holding this test process's liveness lock ended \
+         ({ended:?}); another test process may now drop this one's databases, so it aborts"
+    );
+    std::process::abort();
 }
 
 /// Dropped by the process that takes the dead one's lock, so two processes never drop the same one;

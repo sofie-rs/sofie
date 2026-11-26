@@ -256,7 +256,9 @@ impl AppLanguages {
             let package = crate::wiring::path(name);
             quote!((#name, #package::TRANSLATIONS))
         });
+        let unbounded_length = crate::wiring::unbounded_length();
         quote! {
+            #unbounded_length
             fn translations() -> Result<sofie::engine::Translations> {
                 sofie::http::translations(
                     &[#(#languages),*],
@@ -541,7 +543,10 @@ mod tests {
             wiring.contains("screens . translate (translations () ?)"),
             "{wiring}"
         );
-        assert!(wiring.contains("fn translations ()"), "{wiring}");
+        assert!(
+            wiring.contains("too_many_lines , reason = \"generated: grows with what the app declares\")] fn translations ()"),
+            "{wiring}"
+        );
         assert!(!plain.contains("sofie :: mail"), "{plain}");
     }
 

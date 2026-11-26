@@ -593,7 +593,8 @@ fn provides_contracts_lookups_extensions_and_jobs_to_the_app_and_its_worker() {
     for expected in [
         "pub fn app(db: Db) -> Result<App> {\n    provide(&db);\n",
         "pub fn worker(db: Db) -> Worker {\n    provide(&db);\n    sofie::http::worker(db, MODULES)\n}\n",
-        "fn provide(db: &Db) {\n    sofie::db::provide::<dyn order_contract::Orders>(\n        db,\n        \
+        "#[allow(clippy::too_many_lines, reason = \"generated: grows with what the app declares\")]\n\
+         fn provide(db: &Db) {\n    sofie::db::provide::<dyn order_contract::Orders>(\n        db,\n        \
          std::sync::Arc::new(order::contract::OrderContract::from(db.clone())),\n    );\n    \
          sofie::db::provide::<dyn sofie::db::Lookup<order_contract::Order>>(\n        db,\n        \
          std::sync::Arc::new(\n            \

@@ -4,7 +4,7 @@ use sofie_model::naming::job_name;
 use sofie_model::{Module, Provision, WiringSide};
 
 use super::gates::job_function;
-use super::{exposed_aggregates, in_module, path, rooted};
+use super::{exposed_aggregates, in_module, path, rooted, unbounded_length};
 
 pub(super) fn provide_function(
     modules: &[&Module],
@@ -18,7 +18,9 @@ pub(super) fn provide_function(
     if statements.is_empty() {
         return None;
     }
+    let unbounded_length = unbounded_length();
     Some(quote! {
+        #unbounded_length
         fn provide(db: &Db) {
             #(#statements)*
         }

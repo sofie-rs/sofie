@@ -2,7 +2,7 @@ use proc_macro2::TokenStream;
 use quote::quote;
 use sofie_model::{Gateway, Module};
 
-use super::in_module;
+use super::{in_module, unbounded_length};
 
 pub(super) fn gateways_function(modules: &[&Module]) -> Option<TokenStream> {
     let loads: Vec<TokenStream> = modules
@@ -17,7 +17,9 @@ pub(super) fn gateways_function(modules: &[&Module]) -> Option<TokenStream> {
     if loads.is_empty() {
         return None;
     }
+    let unbounded_length = unbounded_length();
     Some(quote! {
+        #unbounded_length
         fn gateways() -> Result<()> {
             #(#loads)*
             Ok(())

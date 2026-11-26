@@ -558,6 +558,10 @@ fn embedded_path(app: &App, file: &Path) -> String {
         .expect("the embedded-path rule refuses a file the wiring cannot spell")
 }
 
+pub(crate) fn unbounded_length() -> TokenStream {
+    quote!(#[allow(clippy::too_many_lines, reason = "generated: grows with what the app declares")])
+}
+
 /// Names come from parsed Rust and Cargo package names, so they always lex.
 pub(crate) fn path(text: &str) -> TokenStream {
     text.parse()

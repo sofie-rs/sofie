@@ -257,6 +257,12 @@ framework owns. No frontend framework's release can break an app.
   date-time) as its parts. The edit screen shows a password or sensitive field empty and not
   required, and a blank one keeps what is stored (when the record's JSON
   holds it).
+  An override reads the same `data` as the built-in screen, next to the
+  path's parameters: the index has `data.list`, the listed page its
+  `<Table of={data.list}>` takes; show and edit have `data.record` (the
+  record's JSON), `data.display.<field>` (the text of a percentage or a
+  value of parts) and, with `history`, `data.history`; create has none.
+  `sofie scaffold screen <module>/<area>/<name>` writes the default out to start from.
 - **Lists page, sort and filter through fragments.** A loader taking
   `Listing<T>` (the query's `page`, `size`, `sort=-total` and filters such
   as `status=PAID` or `total.gt=100`, each checked against the fields

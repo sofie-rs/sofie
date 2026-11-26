@@ -1408,7 +1408,9 @@ They live in `sofie-flags`, behind the `sofie` facade's `feature-flags` feature
 (`flags` already names the `Active` and `Default` behaviors), as
 `sofie::flags`. A flag is declared in its module's manifest, `src/module.rs`
 (the module's features), and named `<module>.<flag>` by a literal, once in
-the app (`sofie check`, `feature-flag`).
+the app (`sofie check`, `feature-flag`). A flag nothing gates yet is a `pub`
+const nothing names, which `sofie check` reports as dead code; declare it
+with the first route, action or template that reads it.
 
 | What a flag gates | How |
 |---|---|

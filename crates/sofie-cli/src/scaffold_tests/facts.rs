@@ -313,10 +313,7 @@ fn constraints(
                 Fact {
                     subject: name.clone(),
                     text,
-                    test: format!(
-                        "{snake}_{field}_keeps_{}",
-                        constraint.replace([' ', '-'], "_")
-                    ),
+                    test: format!("{snake}_{field}_keeps_{}", identifier_part(constraint)),
                     body: format!(
                         "sofie_testing::assert_boundary({field:?}, {path}::__{}, {constraint:?});",
                         field.to_uppercase()
@@ -327,6 +324,16 @@ fn constraints(
             facts.facts.push(fact);
         }
     }
+}
+
+/// A bound such as `max i64::MAX` or `min 1.5` as snake case a function name can end with.
+fn identifier_part(text: &str) -> String {
+    let lowered = text.to_lowercase();
+    let words: Vec<&str> = lowered
+        .split(|character: char| !character.is_ascii_alphanumeric())
+        .filter(|word| !word.is_empty())
+        .collect();
+    words.join("_")
 }
 
 fn lookup(requests: &Requests, aggregate: &Aggregate, made: &Making, facts: &mut ModuleFacts) {
@@ -351,4 +358,21 @@ fn lookup(requests: &Requests, aggregate: &Aggregate, made: &Making, facts: &mut
         ),
         on_app: true,
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::identifier_part;
+
+    #[test]
+    fn a_bound_becomes_a_snake_case_identifier_part() {
+        assert_eq!(identifier_part("max 40"), "max_40");
+        assert_eq!(identifier_part("min 1.5"), "min_1_5");
+        assert_eq!(identifier_part("max i64::MAX"), "max_i64_max");
+        assert_eq!(
+            identifier_part("len MIN_LEN-MAX_LEN"),
+            "len_min_len_max_len"
+        );
+        assert_eq!(identifier_part("min -3"), "min_3");
+    }
 }

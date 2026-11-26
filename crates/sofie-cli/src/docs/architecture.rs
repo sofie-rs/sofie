@@ -133,7 +133,7 @@ fn areas_table(app: &App) -> String {
     )
 }
 
-fn contracts_table(app: &App) -> String {
+pub(super) fn contracts_table(app: &App) -> String {
     let rows: Vec<[String; 5]> = sorted::modules(app)
         .into_iter()
         .filter_map(|module| {
@@ -157,11 +157,15 @@ fn contracts_table(app: &App) -> String {
                 .chain(&module.extensions)
                 .map(|provision| provision.contract.join("::"))
                 .collect();
+            // `cargo fmt` reorders the `pub use` lines `sofie fix` appends, so source order is unstable.
+            let mut exports: Vec<&str> =
+                module.contract_exports.iter().map(String::as_str).collect();
+            exports.sort_unstable();
             Some([
                 code(&contract.crate_name),
                 codes(&areas),
                 codes(&events),
-                codes(&module.contract_exports),
+                codes(&exports),
                 codes(&provided),
             ])
         })

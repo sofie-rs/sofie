@@ -118,10 +118,21 @@ fn generated_pages(directory: &Path) -> Result<Vec<PathBuf>, GenError> {
 mod tests {
     use std::path::PathBuf;
 
-    use sofie_model::testing::{aggregate, app, area, field, function, module, route};
+    use sofie_model::testing::{aggregate, app, area, field, function, krate, module, route};
     use sofie_model::{Call, Gateway, GatewayAdapter, Method, Modifier, ProductEvent};
 
-    use super::{module_page, security, telemetry};
+    use super::{architecture, module_page, security, telemetry};
+
+    #[test]
+    fn the_contracts_table_lists_generated_exports_in_name_order() {
+        let mut order = module("order", "shop/modules/order");
+        order.contract = Some(krate("order-contract", "shop/modules/order/contract"));
+        order.contract_exports = vec!["routes".to_owned(), "pruned".to_owned()];
+
+        let table = architecture::contracts_table(&app("shop", vec![order]));
+
+        assert!(table.contains("| `pruned`, `routes` |"), "{table}");
+    }
 
     #[test]
     fn a_module_page_lists_the_checks_across_owners_by_their_callers() {

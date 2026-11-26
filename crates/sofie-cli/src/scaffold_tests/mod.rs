@@ -131,11 +131,6 @@ pub(crate) fn without_moment(report: &str, now: Timestamp) -> String {
     )
 }
 
-#[cfg(test)]
-fn scaffold_tests_at(root: &Path, now: Timestamp) -> Result<ScaffoldedTests, GenError> {
-    scaffold_module_tests_at(root, now, None)
-}
-
 pub(crate) fn scaffold_module_tests_at(
     root: &Path,
     now: Timestamp,

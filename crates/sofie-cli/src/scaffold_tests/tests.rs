@@ -59,7 +59,7 @@ fn file_name(file: &Path) -> &str {
 fn writes_a_test_for_each_fact_and_lists_the_facts() {
     let app = app();
 
-    let outcome = scaffold_tests_at(app.root(), at(1_791_720_000)).unwrap();
+    let outcome = scaffold_module_tests_at(app.root(), at(1_791_720_000), None).unwrap();
 
     let [file, root] = &outcome.created[..] else {
         panic!("{outcome:?}");
@@ -125,8 +125,8 @@ fn writes_a_test_for_each_fact_and_lists_the_facts() {
 #[test]
 fn a_later_run_writes_only_what_changed_and_names_the_superseded_tests() {
     let app = app();
-    let first = scaffold_tests_at(app.root(), at(1_791_720_000)).unwrap();
-    let unchanged = scaffold_tests_at(app.root(), at(1_791_720_060)).unwrap();
+    let first = scaffold_module_tests_at(app.root(), at(1_791_720_000), None).unwrap();
+    let unchanged = scaffold_module_tests_at(app.root(), at(1_791_720_060), None).unwrap();
     app.write(
         "modules/catalog/src/product.rs",
         &PRODUCT
@@ -134,7 +134,7 @@ fn a_later_run_writes_only_what_changed_and_names_the_superseded_tests() {
             .replace("Listed,\n}", "Listed,\n    Retired,\n}"),
     );
 
-    let changed = scaffold_tests_at(app.root(), at(1_791_720_120)).unwrap();
+    let changed = scaffold_module_tests_at(app.root(), at(1_791_720_120), None).unwrap();
 
     assert_eq!(unchanged, ScaffoldedTests::default());
     assert_eq!(changed.created.len(), 1);
@@ -160,7 +160,7 @@ fn a_later_run_writes_only_what_changed_and_names_the_superseded_tests() {
 #[test]
 fn a_later_run_appends_to_the_root_file_and_keeps_its_owners_edits() {
     let app = app();
-    scaffold_tests_at(app.root(), at(1_791_720_000)).unwrap();
+    scaffold_module_tests_at(app.root(), at(1_791_720_000), None).unwrap();
     let root = app.path("app/tests/scaffolded/main.rs");
     let edited = format!("{}\nfn shared() {{}}\n", fs::read_to_string(&root).unwrap());
     fs::write(&root, &edited).unwrap();
@@ -169,7 +169,7 @@ fn a_later_run_appends_to_the_root_file_and_keeps_its_owners_edits() {
         &PRODUCT.replace("#[max(40)]", "#[max(50)]"),
     );
 
-    let changed = scaffold_tests_at(app.root(), at(1_791_720_060)).unwrap();
+    let changed = scaffold_module_tests_at(app.root(), at(1_791_720_060), None).unwrap();
 
     let module = file_name(&changed.created[0]).strip_suffix(".rs").unwrap();
     assert_eq!(
@@ -183,7 +183,7 @@ fn a_run_failing_part_way_undoes_what_it_wrote() {
     let app = app();
     fs::create_dir_all(app.path("app/tests/scaffolded/main.rs")).unwrap();
 
-    assert!(scaffold_tests_at(app.root(), at(1_791_720_000)).is_err());
+    assert!(scaffold_module_tests_at(app.root(), at(1_791_720_000), None).is_err());
 
     let left: Vec<PathBuf> = files_with_extension(&app.path("app/tests/scaffolded"), "rs")
         .unwrap()
@@ -196,7 +196,7 @@ fn a_run_failing_part_way_undoes_what_it_wrote() {
 #[test]
 fn a_file_written_with_fact_lines_still_counts_its_facts_as_covered() {
     let app = app();
-    let first = scaffold_tests_at(app.root(), at(1_791_720_000)).unwrap();
+    let first = scaffold_module_tests_at(app.root(), at(1_791_720_000), None).unwrap();
     let text = written_text(&first, 0);
     let mut lines = String::new();
     for (fact, test) in constant_facts(&text) {
@@ -204,7 +204,7 @@ fn a_file_written_with_fact_lines_still_counts_its_facts_as_covered() {
     }
     fs::write(&first.created[0], format!("{lines}\nfn other() {{}}\n")).unwrap();
 
-    let again = scaffold_tests_at(app.root(), at(1_791_720_060)).unwrap();
+    let again = scaffold_module_tests_at(app.root(), at(1_791_720_060), None).unwrap();
 
     assert_eq!(again, ScaffoldedTests::default());
 }
@@ -213,7 +213,7 @@ fn a_file_written_with_fact_lines_still_counts_its_facts_as_covered() {
 fn names_a_file_and_its_header_by_the_moment_like_the_files_before_it() {
     let app = app();
 
-    let outcome = scaffold_tests_at(app.root(), at(951_782_400)).unwrap();
+    let outcome = scaffold_module_tests_at(app.root(), at(951_782_400), None).unwrap();
 
     assert_eq!(file_name(&outcome.created[0]), "catalog_20000229000000.rs");
     assert!(
@@ -262,7 +262,7 @@ fn app_with_a_product_page() -> TemporaryDirectory {
 fn a_page_test_checks_the_read_model_it_answers_and_shows_the_record_its_path_loads() {
     let app = app_with_a_product_page();
 
-    let outcome = scaffold_tests_at(app.root(), at(1_791_720_000)).unwrap();
+    let outcome = scaffold_module_tests_at(app.root(), at(1_791_720_000), None).unwrap();
 
     let text = written_text(&outcome, 0);
     let succeeds = text
@@ -298,7 +298,7 @@ fn a_page_test_finds_the_text_fields_its_screen_writes_bare_on_the_page() {
          <dd>{data.name}</dd>\n  <dd><Money value={data.price} /></dd>\n</Section>\n",
     );
 
-    let outcome = scaffold_tests_at(app.root(), at(1_791_720_000)).unwrap();
+    let outcome = scaffold_module_tests_at(app.root(), at(1_791_720_000), None).unwrap();
 
     let text = written_text(&outcome, 0);
     let renders = text
@@ -327,7 +327,7 @@ fn a_run_reports_the_gaps_of_its_own_facts_and_counts_the_older_ones() {
     let gap = "catalog: Product: no fixture, as its factory is written by hand and no route of \
                the module creates it";
 
-    let first = scaffold_tests_at(app.root(), at(1_791_720_000)).unwrap();
+    let first = scaffold_module_tests_at(app.root(), at(1_791_720_000), None).unwrap();
     app.write(
         "modules/catalog/src/lib.rs",
         "mod category;\nmod product;\n\npub use category::Category;\npub use product::{Product, ProductStatus};\n",
@@ -336,7 +336,7 @@ fn a_run_reports_the_gaps_of_its_own_facts_and_counts_the_older_ones() {
         "modules/catalog/src/category.rs",
         "use sofie::prelude::*;\n\n#[derive(Aggregate)]\npub struct Category {\n    meta: Meta,\n    name: String,\n}\n",
     );
-    let second = scaffold_tests_at(app.root(), at(1_791_720_060)).unwrap();
+    let second = scaffold_module_tests_at(app.root(), at(1_791_720_060), None).unwrap();
 
     assert_eq!(first.uncovered, [gap], "{first:?}");
     assert!(first.older_uncovered.is_empty(), "{first:?}");
@@ -374,7 +374,7 @@ fn a_list_linking_each_row_to_a_page_is_tested_with_one_record() {
          link=\"/products/{product.id}\" />\n",
     );
 
-    let outcome = scaffold_tests_at(app.root(), at(1_791_720_000)).unwrap();
+    let outcome = scaffold_module_tests_at(app.root(), at(1_791_720_000), None).unwrap();
 
     let text = written_text(&outcome, 0);
     let links = text
@@ -408,8 +408,8 @@ fn the_app_gains_the_dev_dependencies_its_scaffolded_tests_name() {
          [workspace.dependencies]\nsofie = { path = \"sofie\" }\n",
     );
 
-    let outcome = scaffold_tests_at(app.root(), at(1_791_720_000)).unwrap();
-    let again = scaffold_tests_at(app.root(), at(1_791_720_060)).unwrap();
+    let outcome = scaffold_module_tests_at(app.root(), at(1_791_720_000), None).unwrap();
+    let again = scaffold_module_tests_at(app.root(), at(1_791_720_060), None).unwrap();
 
     let manifest = fs::read_to_string(app.path("app/Cargo.toml")).unwrap();
     assert!(
@@ -444,7 +444,7 @@ fn a_resource_s_routes_are_tested_and_its_create_route_makes_records() {
         "use sofie::prelude::*;\n",
     );
 
-    let outcome = scaffold_tests_at(app.root(), at(1_791_720_000)).unwrap();
+    let outcome = scaffold_module_tests_at(app.root(), at(1_791_720_000), None).unwrap();
 
     let text = written_text(&outcome, 0);
     assert!(
@@ -541,7 +541,7 @@ fn app_creating_behind_a_permission(signs_members_in: bool) -> TemporaryDirector
 fn a_record_created_only_behind_a_permission_is_left_uncovered_rather_than_refused() {
     let app = app_creating_behind_a_permission(false);
 
-    let outcome = scaffold_tests_at(app.root(), at(1_791_720_000)).unwrap();
+    let outcome = scaffold_module_tests_at(app.root(), at(1_791_720_000), None).unwrap();
 
     let text = written_text(&outcome, 0);
     assert!(
@@ -561,7 +561,7 @@ fn a_record_created_only_behind_a_permission_is_left_uncovered_rather_than_refus
 fn a_record_created_behind_a_permission_is_made_by_a_principal_granted_it() {
     let app = app_creating_behind_a_permission(true);
 
-    let outcome = scaffold_tests_at(app.root(), at(1_791_720_000)).unwrap();
+    let outcome = scaffold_module_tests_at(app.root(), at(1_791_720_000), None).unwrap();
 
     let text = written_text(&outcome, 0);
     for test in [
@@ -598,7 +598,7 @@ fn a_record_created_behind_a_permission_is_made_by_a_principal_granted_it() {
 fn a_dry_run_names_the_file_by_the_moment_s_form_and_the_real_run_by_its_moment() {
     let app = app();
 
-    let report = scaffold_tests_at(app.root(), at(951_782_400))
+    let report = scaffold_module_tests_at(app.root(), at(951_782_400), None)
         .unwrap()
         .to_string();
     let dry = without_moment(&report, at(951_782_400));
@@ -641,7 +641,7 @@ fn a_value_without_a_fixture_is_named_instead_of_scaffolded_into_tests_that_do_n
         &manifest("catalog", "sofie = { path = \"../../sofie\" }\n"),
     );
 
-    let missing = scaffold_tests_at(app.root(), at(1_791_720_000)).unwrap();
+    let missing = scaffold_module_tests_at(app.root(), at(1_791_720_000), None).unwrap();
     app.write(
         "modules/catalog/src/habit.rs",
         &format!(
@@ -649,7 +649,7 @@ fn a_value_without_a_fixture_is_named_instead_of_scaffolded_into_tests_that_do_n
              sofie::values::Seed) -> Self {{\n        Self(\"Read\".to_owned())\n    }}\n}}\n"
         ),
     );
-    let written = scaffold_tests_at(app.root(), at(1_791_720_060)).unwrap();
+    let written = scaffold_module_tests_at(app.root(), at(1_791_720_060), None).unwrap();
 
     assert!(
         missing.uncovered.iter().any(|gap| gap.starts_with(
@@ -698,7 +698,7 @@ fn an_exported_value_with_a_fixture_is_tested_to_round_trip_and_a_private_one_is
          sofie::values::Seed) -> Self {\n        Self(\"x\".to_owned())\n    }\n}\n",
     );
 
-    let written = scaffold_tests_at(app.root(), at(1_791_720_000)).unwrap();
+    let written = scaffold_module_tests_at(app.root(), at(1_791_720_000), None).unwrap();
 
     let text = written_text(&written, 0);
     assert!(

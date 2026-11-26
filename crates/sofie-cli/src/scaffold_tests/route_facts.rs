@@ -4,8 +4,8 @@ use sofie_model::naming::{RouteSite, bound_aggregate, path_parameters, screen_ke
 use sofie_model::{Aggregate, KnownArea, Method, ReadModel};
 
 use super::facts::{Fact, ModuleFacts};
-use super::link_facts;
 use super::requests::{Requests, caller, granted_principal, principal};
+use super::{FLAGS_CALL, link_facts};
 
 pub(super) fn route(requests: &Requests, site: &RouteSite, facts: &mut ModuleFacts) {
     let name = site.name();
@@ -200,7 +200,7 @@ fn flagged_off(
         text: format!("route {} is not found while {flag} is off", site.name()),
         test: format!("{handler}_is_not_found_while_its_flag_is_off"),
         body: format!(
-            "app.flags().set({flag:?}, sofie::flags::Rule::off()).await.unwrap();\n{member}{caller}.request(&{request}).accept_json().await.assert_status(404);"
+            "{FLAGS_CALL}.set({flag:?}, sofie::flags::Rule::off()).await.unwrap();\n{member}{caller}.request(&{request}).accept_json().await.assert_status(404);"
         ),
         on_app: true,
     });

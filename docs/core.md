@@ -499,6 +499,18 @@ let page = OrderRow::query()
   #[derive(ReadModel)]
   pub struct OrderSummary { by_status: Vec<StatusCount>, total: Money }
   ```
+- Child rows are read the same way. `#[read(from = …)]` takes an aggregate,
+  not a child, so a loader `find`s the parent and maps the children it holds
+  (through a method of the aggregate, since its fields are private) into a
+  computed read model:
+
+  ```rust
+  #[derive(ReadModel)]
+  pub struct OrderView { status: OrderStatus, lines: Vec<LineView> }
+
+  let order = Order::find(&read, id).await?;
+  let lines = order.lines().iter().map(LineView::from).collect();
+  ```
 
 #### The query builder
 

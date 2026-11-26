@@ -94,6 +94,11 @@ impl Aggregate for Tag {
 
 async fn database() -> (TestDatabase, Postgres) {
     let database = TestDatabase::create().await;
+    Db::new(Postgres::connect(database.url()).unwrap())
+        .schema()
+        .migrate(&[])
+        .await
+        .unwrap();
     let driver = Postgres::connect(database.url()).unwrap();
     driver
         .transaction(vec![Step::Script(CREATE_TABLES.to_owned())])

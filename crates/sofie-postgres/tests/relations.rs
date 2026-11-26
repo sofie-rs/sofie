@@ -222,7 +222,9 @@ async fn crm() -> (TestDatabase, Db) {
         .transaction(vec![Step::Script(CREATE_TABLES.to_owned())])
         .await
         .unwrap();
-    (database, Db::new(postgres))
+    let db = Db::new(postgres);
+    db.schema().migrate(&[]).await.unwrap();
+    (database, db)
 }
 
 async fn member(db: &Db, account: Uuid, name: &str) -> Id<Member> {

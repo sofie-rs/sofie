@@ -75,6 +75,7 @@ async fn shop() -> (TestDatabase, Db, Postgres) {
         .await
         .unwrap();
     let db = Db::new(Postgres::connect(database.url()).unwrap());
+    db.schema().migrate(&[]).await.unwrap();
     (database, db, outside)
 }
 
@@ -167,7 +168,6 @@ impl sofie_db::Event for Reviewed {
 #[tokio::test]
 async fn an_event_raised_from_a_stale_copy_is_a_conflict() {
     let (_database, db, outside) = shop().await;
-    db.schema().migrate(&[]).await.unwrap();
     let order = committed(&db, "ada", 120).await;
     let mut first = Order::find(&db.read(), order.id()).await.unwrap();
     let mut stale = Order::find(&db.read(), order.id()).await.unwrap();

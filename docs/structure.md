@@ -1727,7 +1727,8 @@ builds it, on a free local port with `SOFIE_SHIELD=off`, and refuses a
 
 ## Scaffolded tests
 
-`sofie scaffold tests` writes tests for what the app declares today, in
+`sofie scaffold tests [--module NAME] [ROOT]` writes tests for what the app
+declares today (`--module` for one module only), in
 files named by the moment: `app/tests/scaffolded/<module>_<YYYYMMDDHHMMSS>.rs` (a dry run shows that form; the real run prints the name), one test crate whose `main.rs` the command keeps declaring
 each file, appending the `mod` lines it lacks and leaving the rest as the app
 wrote it. Scaffolded tests are extended in their file; hand-written tests go in
@@ -1811,6 +1812,12 @@ it, and `sofie feature` changes the app's features:
   `app/Cargo.toml` as text (keeping comments and layout; inline, dotted or
   `[dependencies.sofie]` form), then runs `sofie gen` and `sofie check`.
   `sofie components` names it for a component whose feature is off.
+- **`sofie lint [ROOT]`** and **`sofie test [--filter NAME] [ROOT]`**
+  (sofie-cli feature `mcp`) are the MCP `lint` and `test` tools on the
+  command line: `lint` runs `cargo fmt --check` and `cargo clippy
+  --all-targets -- -D warnings` over the app's packages; `test` runs past a
+  failing test binary (`--no-fail-fast`) and reads the app's `.env`, a
+  variable already in the environment winning.
 - **`sofie mcp [ROOT]`** (sofie-cli feature `mcp`) serves the same model to coding
   agents over the Model Context Protocol on stdio (JSON-RPC 2.0, the
   `initialize`, `ping`, `tools/list` and `tools/call` subset), each tool

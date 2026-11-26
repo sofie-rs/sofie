@@ -1682,6 +1682,34 @@ fn reads_jobs_mirrors_events_and_what_a_module_provides_other_modules() {
 }
 
 #[test]
+fn leaves_test_and_testing_feature_code_out_of_what_a_function_does() {
+    let fixture = Fixture::order("mod actions;\n");
+    fixture.write(
+        "modules/order/src/actions.rs",
+        "pub async fn place(read: Read) -> Result<()> {\n    \
+         #[cfg(feature = \"testing\")]\n    seed::orders();\n    \
+         #[cfg(test)]\n    {\n        probe();\n    }\n    \
+         #[cfg(feature = \"testing\")]\n    let _ = read.fixture();\n    \
+         ledger::record();\n    Ok(())\n}\n",
+    );
+
+    let order = fixture.module("order");
+
+    let effects = &order.code.functions[0].effects;
+    let calls: Vec<String> = effects
+        .calls
+        .iter()
+        .map(|call| call.path.join("::"))
+        .collect();
+    assert_eq!(calls, ["ledger::record"]);
+    assert!(
+        effects.method_calls.is_empty(),
+        "{:?}",
+        effects.method_calls
+    );
+}
+
+#[test]
 fn reads_what_functions_and_methods_do_and_where_states_move() {
     let fixture = Fixture::order("mod actions;\nmod order;\npub use order::Order;\n");
     fixture.write(

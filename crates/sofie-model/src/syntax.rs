@@ -7,7 +7,7 @@ use proc_macro2::TokenStream;
 use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
 use syn::{
-    Attribute, Expr, ExprMethodCall, FnArg, GenericArgument, Item, ItemFn, Lit, Macro, Pat,
+    Attribute, Expr, ExprMethodCall, FnArg, GenericArgument, Item, ItemFn, Lit, Macro, Meta, Pat,
     PathArguments, PathSegment, Token, Type, UseTree, Visibility,
 };
 
@@ -125,6 +125,27 @@ pub(crate) fn has_attribute(attributes: &[Attribute], name: &str) -> bool {
     attributes
         .iter()
         .any(|attribute| is_attribute(attribute, name))
+}
+
+pub(crate) fn is_test_only(attributes: &[Attribute]) -> bool {
+    attributes.iter().any(|attribute| {
+        attribute.path().is_ident("test")
+            || (attribute.path().is_ident("cfg")
+                && attribute
+                    .parse_args::<Meta>()
+                    .is_ok_and(|predicate| is_test_predicate(&predicate)))
+    })
+}
+
+fn is_test_predicate(predicate: &Meta) -> bool {
+    match predicate {
+        Meta::Path(path) => path.is_ident("test"),
+        Meta::NameValue(pair) => {
+            pair.path.is_ident("feature")
+                && string_literal(&pair.value).as_deref() == Some("testing")
+        }
+        Meta::List(_) => false,
+    }
 }
 
 pub(crate) fn path_ends_with(path: &syn::Path, names: &[&str]) -> bool {

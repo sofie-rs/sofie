@@ -3,11 +3,14 @@
 use std::collections::BTreeMap;
 
 use syn::visit::{self, Visit};
-use syn::{Block, Expr, ExprCall, ExprMethodCall, FnArg, Macro, Pat, Signature};
+use syn::{
+    Attribute, Block, Expr, ExprCall, ExprMethodCall, FnArg, Item, Local, Macro, Pat, Signature,
+    Stmt,
+};
 
 use crate::code::TypeName;
 use crate::handlers::HandlerScope;
-use crate::syntax::{last_name, line_of, macro_expressions, segments};
+use crate::syntax::{is_test_only, last_name, line_of, macro_expressions, segments};
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Effects {
@@ -113,6 +116,12 @@ impl EffectVisitor<'_> {
 }
 
 impl Visit<'_> for EffectVisitor<'_> {
+    fn visit_stmt(&mut self, statement: &Stmt) {
+        if !is_test_only(statement_attributes(statement)) {
+            visit::visit_stmt(self, statement);
+        }
+    }
+
     fn visit_expr_call(&mut self, call: &ExprCall) {
         if let Expr::Path(function) = call.func.as_ref() {
             self.found.calls.push(Call {
@@ -151,6 +160,43 @@ impl Visit<'_> for EffectVisitor<'_> {
         for expression in macro_expressions(call) {
             self.visit_expr(&expression);
         }
+    }
+}
+
+fn statement_attributes(statement: &Stmt) -> &[Attribute] {
+    match statement {
+        Stmt::Local(Local { attrs, .. }) => attrs,
+        Stmt::Macro(statement) => &statement.attrs,
+        Stmt::Item(item) => item_attributes(item),
+        Stmt::Expr(expression, _) => expression_attributes(expression),
+    }
+}
+
+fn item_attributes(item: &Item) -> &[Attribute] {
+    match item {
+        Item::Fn(item) => &item.attrs,
+        Item::Impl(item) => &item.attrs,
+        Item::Mod(item) => &item.attrs,
+        Item::Const(item) => &item.attrs,
+        Item::Static(item) => &item.attrs,
+        _ => &[],
+    }
+}
+
+fn expression_attributes(expression: &Expr) -> &[Attribute] {
+    match expression {
+        Expr::Call(call) => &call.attrs,
+        Expr::MethodCall(call) => &call.attrs,
+        Expr::Block(block) => &block.attrs,
+        Expr::Macro(call) => &call.attrs,
+        Expr::Await(awaited) => &awaited.attrs,
+        Expr::Try(tried) => &tried.attrs,
+        Expr::Assign(assignment) => &assignment.attrs,
+        Expr::If(condition) => &condition.attrs,
+        Expr::Match(matched) => &matched.attrs,
+        Expr::ForLoop(looped) => &looped.attrs,
+        Expr::Unsafe(block) => &block.attrs,
+        _ => &[],
     }
 }
 

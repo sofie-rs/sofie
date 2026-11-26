@@ -7,7 +7,7 @@ use syn::ext::IdentExt;
 use syn::visit::{self, Visit};
 use syn::{Attribute, ImplItem, Item, ItemImpl, ItemUse, LitStr, Macro, MetaList, Type};
 
-use crate::syntax::{is_public, line_of};
+use crate::syntax::{is_public, is_test_only, line_of};
 
 /// String literals count, since a generator, a format string or `serde(with = "…")` can name an item there.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -194,17 +194,6 @@ fn named(ident: &proc_macro2::Ident) -> PublicItem {
         name: ident.unraw().to_string(),
         line: line_of(ident),
     }
-}
-
-fn is_test_only(attributes: &[Attribute]) -> bool {
-    attributes.iter().any(|attribute| {
-        attribute.path().is_ident("test")
-            || (attribute.path().is_ident("cfg")
-                && attribute
-                    .meta
-                    .require_list()
-                    .is_ok_and(|list| list.tokens.to_string() == "test"))
-    })
 }
 
 fn is_procedural_macro(attributes: &[Attribute]) -> bool {

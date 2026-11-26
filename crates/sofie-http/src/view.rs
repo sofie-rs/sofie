@@ -416,8 +416,7 @@ fn is_followed(location: &str) -> bool {
 }
 
 /// Cannot fail: the boot check ensures the action has every parameter of the screen's path.
-/// The page at the action's own path keeps the query posted to, so a signed link's signature,
-/// which covers that path and query, opens the page too.
+/// The action's own path keeps its query, which a signed link's signature covers.
 #[cfg(feature = "engine")]
 fn page_location(
     page: &ScreenRoute,

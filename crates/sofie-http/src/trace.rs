@@ -121,8 +121,7 @@ fn log_finished(span: &Span, status: StatusCode, elapsed: Duration) {
         span.record("otel.status_code", "ERROR");
     }
     span.in_scope(|| {
-        // One line per request costs more than it tells; the span keeps the rest. A
-        // development build keeps every line, which the dev tools read.
+        // A line per request costs more than it tells; dev builds keep them for the dev tools.
         if cfg!(debug_assertions) || is_notable(status, elapsed) {
             tracing::info!(
                 http.response.status_code = code,

@@ -71,7 +71,7 @@ pub use fuzz::{Finding, FuzzOptions, FuzzReport, Outcome, fuzz};
 pub use gen_command::{GenError, GenMode, GenOutcome, gen_app, regenerate, regenerated};
 pub use islands::{IslandMode, has_islands};
 #[cfg(feature = "mcp")]
-pub use mcp::serve_mcp;
+pub use mcp::{lint_app, serve_mcp, test_app};
 pub use new_command::{
     AccountScreen, AreaAccess, FileChange, NEW_COMMANDS, NewCode, NewCommand, NewMenuEntry,
     NewRoute, new_app, new_code, new_module,

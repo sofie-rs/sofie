@@ -18,6 +18,7 @@ use std::path::Path;
 
 use crate::child_process::stop_on_interrupt;
 use crate::gen_command::GenError;
+use cargo::CargoCommand;
 pub(crate) use cargo::build_failure;
 
 /// The most an answer holds, in bytes; a test run can print megabytes.
@@ -48,6 +49,16 @@ pub fn serve_mcp(root: &Path, input: impl BufRead, mut output: impl Write) -> io
     Ok(())
 }
 
+/// `sofie test`: the `test` tool's answer in full; `Err` when the build or a test failed.
+pub fn test_app(root: &Path, filter: Option<&str>) -> Result<String, String> {
+    cargo::run(root, CargoCommand::Test, filter).into_result()
+}
+
+/// `sofie lint`: the `lint` tool's answer; `Err` when a file needs formatting or clippy objects.
+pub fn lint_app(root: &Path) -> Result<String, String> {
+    cargo::lint(root, false).into_result()
+}
+
 pub(crate) struct ToolOutput {
     text: String,
     failed: bool,
@@ -69,6 +80,14 @@ impl ToolOutput {
             text,
             failed: !succeeded,
             rest: None,
+        }
+    }
+
+    fn into_result(self) -> Result<String, String> {
+        if self.failed {
+            Err(self.text)
+        } else {
+            Ok(self.text)
         }
     }
 

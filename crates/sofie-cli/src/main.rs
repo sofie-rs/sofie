@@ -36,7 +36,9 @@ const USAGE_AFTER_NEW: &str = "sofie scaffold screen KEY [ROOT]\n       \
                      sofie docs [--check] [ROOT]   (feature `docs`)\n       \
                      sofie openapi [ROOT]          (feature `openapi`)\n       \
                      sofie typescript [ROOT]       (feature `typescript`)\n       \
-                     sofie mcp [ROOT]              (feature `mcp`)";
+                     sofie mcp [ROOT]              (feature `mcp`)\n       \
+                     sofie lint [ROOT]             (feature `mcp`)\n       \
+                     sofie test [--filter NAME] [ROOT]   (feature `mcp`)";
 const FINDINGS: u8 = 1;
 const FAILED: u8 = 2;
 
@@ -74,6 +76,10 @@ enum Command {
     TypeScript(PathBuf),
     #[cfg(feature = "mcp")]
     Mcp(PathBuf),
+    #[cfg(feature = "mcp")]
+    Lint(PathBuf),
+    #[cfg(feature = "mcp")]
+    Test(Option<String>, PathBuf),
     /// Arguments a command recognised but refused, with why.
     Refused(String),
 }
@@ -116,6 +122,12 @@ fn main() -> ExitCode {
         }
         #[cfg(feature = "mcp")]
         Some(Command::Mcp(root)) => run_mcp(&root),
+        #[cfg(feature = "mcp")]
+        Some(Command::Lint(root)) => print_answer(sofie_cli::lint_app(&root)),
+        #[cfg(feature = "mcp")]
+        Some(Command::Test(filter, root)) => {
+            print_answer(sofie_cli::test_app(&root, filter.as_deref()))
+        }
         Some(Command::Check(root)) => report_findings(&root, check_app(&root)),
         Some(Command::ConfigCheck(environment, root)) => {
             report_findings(&root, check_config(&root, &environment))
@@ -228,26 +240,6 @@ fn parse(arguments: &[String]) -> Option<Command> {
         ("split", [module, rest @ ..]) if !module.starts_with('-') => {
             Some(Command::Split(module.clone(), false, root(rest)?))
         }
-        #[cfg(feature = "docs")]
-        ("docs", [flag, rest @ ..]) if flag == "--check" => {
-            Some(Command::Docs(GenMode::Check, root(rest)?))
-        }
-        #[cfg(feature = "docs")]
-        ("docs", rest) => Some(Command::Docs(GenMode::Write, root(rest)?)),
-        #[cfg(feature = "openapi")]
-        ("openapi", rest) => Some(Command::OpenApi(root(rest)?)),
-        #[cfg(feature = "typescript")]
-        ("typescript", rest) => Some(Command::TypeScript(root(rest)?)),
-        #[cfg(feature = "mcp")]
-        ("mcp", rest) => Some(Command::Mcp(root(rest)?)),
-        #[cfg(not(feature = "docs"))]
-        ("docs", _) => Some(left_out("docs")),
-        #[cfg(not(feature = "openapi"))]
-        ("openapi", _) => Some(left_out("openapi")),
-        #[cfg(not(feature = "typescript"))]
-        ("typescript", _) => Some(left_out("typescript")),
-        #[cfg(not(feature = "mcp"))]
-        ("mcp", _) => Some(left_out("mcp")),
         ("config", [check, flag, environment, rest @ ..])
             if check == "check" && flag == "--env" && !environment.starts_with('-') =>
         {
@@ -267,6 +259,46 @@ fn parse(arguments: &[String]) -> Option<Command> {
         ("explain", [name, rest @ ..]) if !name.starts_with('-') => {
             Some(Command::Explain(name.clone(), root(rest)?))
         }
+        (command, rest) => feature_command(command, rest),
+    }
+}
+
+/// The commands a cargo feature of sofie-cli carries.
+fn feature_command(command: &str, rest: &[String]) -> Option<Command> {
+    match (command, rest) {
+        #[cfg(feature = "docs")]
+        ("docs", [flag, rest @ ..]) if flag == "--check" => {
+            Some(Command::Docs(GenMode::Check, root(rest)?))
+        }
+        #[cfg(feature = "docs")]
+        ("docs", rest) => Some(Command::Docs(GenMode::Write, root(rest)?)),
+        #[cfg(feature = "openapi")]
+        ("openapi", rest) => Some(Command::OpenApi(root(rest)?)),
+        #[cfg(feature = "typescript")]
+        ("typescript", rest) => Some(Command::TypeScript(root(rest)?)),
+        #[cfg(feature = "mcp")]
+        ("mcp", rest) => Some(Command::Mcp(root(rest)?)),
+        #[cfg(feature = "mcp")]
+        ("lint", rest) => Some(Command::Lint(root(rest)?)),
+        #[cfg(feature = "mcp")]
+        ("test", [flag, filter, rest @ ..]) if flag == "--filter" && !filter.starts_with('-') => {
+            Some(Command::Test(Some(filter.clone()), root(rest)?))
+        }
+        #[cfg(feature = "mcp")]
+        ("test", rest) => Some(Command::Test(None, root(rest)?)),
+        #[cfg(not(feature = "docs"))]
+        ("docs", _) => Some(left_out("docs")),
+        #[cfg(not(feature = "openapi"))]
+        ("openapi", _) => Some(left_out("openapi")),
+        #[cfg(not(feature = "typescript"))]
+        ("typescript", _) => Some(left_out("typescript")),
+        #[cfg(not(feature = "mcp"))]
+        ("mcp", _) => Some(left_out("mcp")),
+        #[cfg(not(feature = "mcp"))]
+        (command @ ("lint" | "test"), _) => Some(Command::Refused(format!(
+            "`sofie {command}` runs what the MCP `{command}` tool runs, and `mcp` was left out of \
+             this build of sofie-cli; install it again with `--features mcp`"
+        ))),
         _ => None,
     }
 }
@@ -734,5 +766,52 @@ fn run_mcp(root: &Path) -> ExitCode {
     match sofie_cli::serve_mcp(root, std::io::stdin().lock(), std::io::stdout().lock()) {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => failed_with(&format!("sofie mcp: {error}")),
+    }
+}
+
+/// A failed run's answer is its findings, as `sofie check` reports them.
+#[cfg(feature = "mcp")]
+fn print_answer(answer: Result<String, String>) -> ExitCode {
+    match answer {
+        Ok(text) => {
+            println!("{text}");
+            ExitCode::SUCCESS
+        }
+        Err(text) => {
+            println!("{text}");
+            ExitCode::from(FINDINGS)
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Command, parse, usage};
+
+    fn parsed(arguments: &[&str]) -> Option<Command> {
+        let arguments: Vec<String> = arguments
+            .iter()
+            .map(|&argument| argument.to_owned())
+            .collect();
+        parse(&arguments)
+    }
+
+    #[cfg(feature = "mcp")]
+    #[test]
+    fn lint_and_test_are_commands_as_well_as_tools() {
+        assert!(matches!(parsed(&["lint"]), Some(Command::Lint(_))));
+        assert!(matches!(
+            parsed(&["test", "--filter", "orders", "shop"]),
+            Some(Command::Test(Some(filter), root)) if filter == "orders" && root.ends_with("shop")
+        ));
+        assert!(matches!(parsed(&["test"]), Some(Command::Test(None, _))));
+        assert!(usage().contains("sofie test [--filter NAME] [ROOT]"));
+    }
+
+    /// The filter goes to the test binary, so one cargo would read as its own option is refused.
+    #[cfg(feature = "mcp")]
+    #[test]
+    fn a_test_filter_that_reads_as_an_option_is_refused() {
+        assert!(parsed(&["test", "--filter", "--config=build.rustc-wrapper=/tmp/evil"]).is_none());
     }
 }

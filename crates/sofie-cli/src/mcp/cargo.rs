@@ -563,7 +563,11 @@ mod tests {
         );
         assert!(test.get_args().any(|argument| argument == "--no-fail-fast"));
         assert!(build.get_envs().all(|(name, _)| name != key));
-        assert!(build.get_args().all(|argument| argument != "--no-fail-fast"));
+        assert!(
+            build
+                .get_args()
+                .all(|argument| argument != "--no-fail-fast")
+        );
     }
 
     /// Before `--`, a filter such as `--config=build.rustc-wrapper=…` was an option of cargo itself.

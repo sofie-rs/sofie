@@ -40,7 +40,8 @@ impl Outcome for Link {
 impl ReadOnly for Link {}
 
 async fn ticket_link(urls: SignedUrls) -> Result<Link> {
-    urls.sign("/ticket?seat=4", Duration::from_hours(1)).map(Link)
+    urls.sign("/ticket?seat=4", Duration::from_hours(1))
+        .map(Link)
 }
 
 async fn claim_ticket() -> Result<()> {

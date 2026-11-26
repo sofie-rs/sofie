@@ -35,7 +35,12 @@ impl Date {
     /// Today's date is `Date::utc_of(clock.now())`.
     #[must_use]
     pub fn utc_of(instant: Instant) -> Self {
-        Self::from(instant.timestamp().to_zoned_datetime(jiff::tz::TimeZone::UTC).date())
+        Self::from(
+            instant
+                .timestamp()
+                .to_zoned_datetime(jiff::tz::TimeZone::UTC)
+                .date(),
+        )
     }
 
     /// The day `instant` falls on where `zone`'s clocks are.

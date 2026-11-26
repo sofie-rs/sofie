@@ -1740,7 +1740,10 @@ fn leaves_test_and_testing_feature_code_out_of_what_a_function_does() {
         .iter()
         .map(|call| call.path.join("::"))
         .collect();
-    assert!(calls.iter().any(|call| call == "ledger::record"), "{calls:?}");
+    assert!(
+        calls.iter().any(|call| call == "ledger::record"),
+        "{calls:?}"
+    );
     assert!(
         !calls
             .iter()

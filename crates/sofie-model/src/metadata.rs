@@ -89,7 +89,9 @@ pub(crate) fn framework_features(app: &Crate, manifest: &Path) -> Result<Vec<Str
     }
     let cargo = env::var_os("CARGO").unwrap_or_else(|| "cargo".into());
     let output = Command::new(cargo)
-        .args(["tree", "--edges", "normal", "--depth", "0", "--format", "{f}"])
+        .args([
+            "tree", "--edges", "normal", "--depth", "0", "--format", "{f}",
+        ])
         .args(["--invert", FRAMEWORK_PACKAGE, "--manifest-path"])
         .arg(manifest)
         .output()

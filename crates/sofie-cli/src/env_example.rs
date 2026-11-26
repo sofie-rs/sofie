@@ -480,7 +480,9 @@ pub(crate) fn framework_keys(app: &App) -> Vec<ConfigKey> {
 /// The `mail` feature reads its settings at startup even when no module declares a mail;
 /// a feature implying it (`notify`, `mail-web`) is among the resolved ones too.
 fn sends_mail(app: &App) -> bool {
-    app.framework_features.iter().any(|feature| feature == "mail")
+    app.framework_features
+        .iter()
+        .any(|feature| feature == "mail")
         || app.modules.iter().any(|module| !module.mails.is_empty())
 }
 

@@ -261,7 +261,10 @@ fn has_character_reference(text: &str) -> bool {
         let name_length = rest
             .find(|c: char| !c.is_ascii_alphanumeric() && c != '#')
             .unwrap_or(rest.len());
-        name_length > 0 && rest.get(name_length..).is_some_and(|after| after.starts_with(';'))
+        name_length > 0
+            && rest
+                .get(name_length..)
+                .is_some_and(|after| after.starts_with(';'))
     })
 }
 

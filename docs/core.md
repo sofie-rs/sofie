@@ -622,7 +622,9 @@ stays local.
   MODULE NAME` writes the `ADD COLUMN` for a field added to an aggregate.
 - `sofie check` reads the migrations' SQL, without a database, for the rules
   the schema declares: a CHECK per field constraint and per enum column
-  (listing every variant), a unique index per `#[unique]` field.
+  (listing every variant), a unique index per `#[unique]` field, and a
+  column for every aggregate field (`field-column`; `sofie gen migration`
+  writes the missing one).
 - `sofie check` refuses a statement that would lock a table the running
   version still uses (`migration-lock`), since a migration runs while the
   previous version serves: adding a column that fills every row (a volatile
@@ -806,7 +808,7 @@ event. `Writes: Context` marks the contexts that commit.
 | `Session` | `sofie` | The session cookie; `sign_in::<A>` and `sign_out` are written after the commit. sofie-identity's sign-out route also ends the session's record (`sessions`), so a copy of the cookie stops too. Signing in takes a zero-sized `SignInRight`, which only `SignInRight::of::<K>()` mints for a `K: Admitter`; sofie-identity and sofie-tenancy each implement `Admitter` for a private type, so an app's actions sign nobody in unless the app declares an admitter of its own. Who may enter an area is the caller's to check (sofie-identity checks membership) |
 | `Read`, `Clock`, `Features`, `Permissions`, `Listing<T>`, the module's config | `sofie` | The app state |
 | `Flags`, `ShieldBlocks`, `Jobs` | `sofie` | The app state; `FlagRules` and `ActiveBlocks` are their read-only views |
-| `Dep<dyn CustomerDirectory>` | `sofie`, for any contract trait | The app state, filled by the wiring |
+| `Dep<dyn CustomerDirectory>` | `sofie`, for any contract trait | The app state, filled by the wiring; it provides only contract traits, so a module's handler, job or listener taking `Dep` of the module's own struct is a `sofie check` finding (`unprovided-dep`) unless the module calls `provide` itself |
 
 Handlers are plain `async fn`s. A `macro_rules!` in `sofie-db` implements one
 `Call<C, Args>` trait (resolve each argument from context `C`, then call) for

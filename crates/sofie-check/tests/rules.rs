@@ -2207,7 +2207,8 @@ fn constraints_and_enums_of_an_aggregate_need_their_database_rules() {
     catalog.migrations = vec![fixture.write(
         "modules/catalog/migrations/0001_products.sql",
         "CREATE TABLE product_line (id uuid PRIMARY KEY, version bigint, created_at timestamptz, \
-         updated_at timestamptz, name text CHECK (name <> ''), sku text, price bigint, status text, kind text CHECK (kind IN ('PLAIN')));\n\
+         updated_at timestamptz, name text CHECK (name <> ''), sku text, price bigint, \
+         price_currency text, status text, kind text CHECK (kind IN ('PLAIN')), code text);\n\
          CREATE UNIQUE INDEX product_line_sku ON product_line (sku);",
     )];
     catalog.code.enums = vec![EnumDeclaration {
@@ -2249,6 +2250,41 @@ fn constraints_and_enums_of_an_aggregate_need_their_database_rules() {
         "{findings:#?}"
     );
     assert_contains(&findings[3].message, "'GIFT'");
+}
+
+#[test]
+fn a_field_with_no_column_in_the_module_s_migrations_is_reported() {
+    let fixture = Fixture::new();
+    let mut catalog = module("catalog", fixture.root().join("modules/catalog"));
+    catalog.migrations = vec![fixture.write(
+        "modules/catalog/migrations/0001_products.sql",
+        "CREATE TABLE product (id uuid PRIMARY KEY, version bigint, created_at timestamptz, \
+         updated_at timestamptz, name text, price bigint, size_width int);",
+    )];
+    catalog.code.aggregates = vec![aggregate(
+        "Product",
+        vec![
+            constrained("name", "String", &[], 2),
+            constrained("price", "Money", &[], 3),
+            constrained("size", "Dimensions", &[], 4),
+            constrained("note", "Option<String>", &["max"], 5),
+        ],
+        "modules/catalog/src/product.rs",
+    )];
+
+    let findings = check(&fixture.app(vec![catalog]));
+
+    assert_eq!(
+        rule_lines(&findings),
+        [("field-column", 3), ("field-column", 5)],
+        "{findings:#?}"
+    );
+    assert_contains(
+        &findings[0].message,
+        "`Product.price` has no column `price_currency` in the `catalog` module's migrations",
+    );
+    assert_contains(&findings[1].message, "no column `note`");
+    assert_contains(&findings[1].fix, "run `sofie gen migration catalog <name>`");
 }
 
 #[test]

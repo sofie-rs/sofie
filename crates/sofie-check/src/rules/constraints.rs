@@ -1,4 +1,4 @@
-use sofie_model::naming::{behavior_columns, snake_case};
+use sofie_model::naming::{behavior_columns, snake_case, stored_columns};
 use sofie_model::{Aggregate, FieldDeclaration, InputDeclaration, Module, TypeName};
 
 use super::migration::{Migrations, Schema};
@@ -33,6 +33,10 @@ fn check_module(module: &Module, migrations: &Migrations) -> Vec<Finding> {
         let table = snake_case(&aggregate.name);
         findings.extend(missing_behavior_columns(aggregate, &table, &schema));
         for field in &aggregate.fields {
+            if let Some(missing) = missing_field_column(module, aggregate, field, &table, &schema) {
+                findings.push(missing);
+                continue;
+            }
             let site = Site {
                 aggregate,
                 field,
@@ -74,6 +78,62 @@ fn missing_behavior_columns(aggregate: &Aggregate, table: &str, schema: &Schema)
             }
         })
         .collect()
+}
+
+fn missing_field_column(
+    module: &Module,
+    aggregate: &Aggregate,
+    field: &FieldDeclaration,
+    table: &str,
+    schema: &Schema,
+) -> Option<Finding> {
+    if !schema.knows_table(table) {
+        return None;
+    }
+    let name = field.name.as_str();
+    let missing = missing_columns(field, table, schema);
+    if missing.is_empty() {
+        return None;
+    }
+    let package = &module.krate.package;
+    Some(Finding {
+        rule: Rule::FieldColumn,
+        file: aggregate.file.clone(),
+        line: field.line,
+        message: format!(
+            "`{}.{name}` has no column {} in the `{package}` module's migrations, so reading or \
+             writing `{table}` fails",
+            aggregate.name,
+            missing
+                .iter()
+                .map(|column| format!("`{column}`"))
+                .collect::<Vec<_>>()
+                .join(", ")
+        ),
+        fix: format!("run `sofie gen migration {package} <name>` to add it"),
+    })
+}
+
+fn missing_columns(field: &FieldDeclaration, table: &str, schema: &Schema) -> Vec<String> {
+    let name = field.name.as_str();
+    if let Some(columns) = stored_columns(stored_type(&field.ty)) {
+        return columns
+            .iter()
+            .map(|column| format!("{name}{}", column.suffix))
+            .filter(|column| !schema.has_column(table, column))
+            .collect();
+    }
+    // A value of the app's own may store `<field>_<part>` columns the model cannot list.
+    let stores = |column: &&str| {
+        column
+            .strip_prefix(name)
+            .is_some_and(|rest| rest.is_empty() || rest.starts_with('_'))
+    };
+    if schema.columns(table).iter().any(stores) {
+        Vec::new()
+    } else {
+        vec![name.to_owned()]
+    }
 }
 
 /// An input field declaring its own constraints replaces the schema's, yet the database still holds the dropped ones.

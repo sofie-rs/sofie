@@ -615,6 +615,11 @@ stays local.
   every module and the framework's and migrates again, refusing any other
   host. The command is built only with sofie's `development` (`Schema::fresh`,
   sofie-db's `fresh`), so a production binary cannot drop its tables.
+- A field's column is its name, an `Id<T>` included (`customer: Id<Customer>`
+  is `customer`, not `customer_id`); a cast of several columns adds one suffix
+  each (`Money` is `total_minor` and `total_currency`). A migration spelling
+  it otherwise shows in `sofie schema check` as a missing column, and `sofie gen migration
+  MODULE NAME` writes the `ADD COLUMN` for a field added to an aggregate.
 - `sofie check` reads the migrations' SQL, without a database, for the rules
   the schema declares: a CHECK per field constraint and per enum column
   (listing every variant), a unique index per `#[unique]` field.

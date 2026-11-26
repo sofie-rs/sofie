@@ -28,7 +28,7 @@ pub fn write_docs(root: &Path, mode: GenMode) -> Result<Vec<GenOutcome>, GenErro
 
 pub(crate) fn sync_docs(app: &App, mode: GenMode) -> Result<Vec<GenOutcome>, GenError> {
     let pages = render_docs(app);
-    let mut files: Vec<(PathBuf, Option<String>)> = generated_pages(&docs_directory(app))?
+    let mut files: Vec<(PathBuf, Option<String>)> = generated_pages(&docs_directory(&app.root))?
         .into_iter()
         .filter(|existing| !pages.iter().any(|(path, _)| path == existing))
         .map(|existing| (existing, None))
@@ -42,15 +42,15 @@ pub(crate) fn sync_docs(app: &App, mode: GenMode) -> Result<Vec<GenOutcome>, Gen
 }
 
 pub(crate) fn keeps_docs(app: &App) -> bool {
-    docs_directory(app).is_dir()
+    docs_directory(&app.root).is_dir()
 }
 
-fn docs_directory(app: &App) -> PathBuf {
-    app.root.join("docs").join("gen")
+pub(crate) fn docs_directory(root: &Path) -> PathBuf {
+    root.join("docs").join("gen")
 }
 
 pub(crate) fn render_docs(app: &App) -> Vec<(PathBuf, String)> {
-    let directory = docs_directory(app);
+    let directory = docs_directory(&app.root);
     let mut pages = vec![
         (directory.join("README.md"), index(app)),
         (

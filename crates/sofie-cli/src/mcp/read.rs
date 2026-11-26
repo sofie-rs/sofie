@@ -7,7 +7,7 @@ use sofie_model::{App, Crate};
 
 use super::ToolOutput;
 use crate::check_command::check_app;
-use crate::docs::{DOCS_HEADER, render_docs};
+use crate::docs::{DOCS_HEADER, docs_directory, render_docs};
 use crate::explain::{
     aggregate_section, explain as explain_name, module_section, read_model, screen,
 };
@@ -112,7 +112,7 @@ pub(super) fn check(root: &Path) -> ToolOutput {
 
 pub(super) fn docs_page(root: &Path, page: &str) -> ToolOutput {
     with_model(root, |app| {
-        let directory = app.root.join("docs").join("gen");
+        let directory = docs_directory(&app.root);
         let pages = render_docs(app);
         let wanted = directory.join(format!("{page}.md"));
         if let Some((_, text)) = pages.iter().find(|(path, _)| *path == wanted) {

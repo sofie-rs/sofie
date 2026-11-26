@@ -13,6 +13,7 @@ use sofie_model::naming::relative_path;
 use crate::cargo;
 use crate::child_process::{self, ProcessGroup};
 use crate::dev_command::NOT_SOURCES;
+use crate::docs::docs_directory;
 use crate::gen_command::{GenError, io_error};
 use crate::local_app::private_directory;
 
@@ -224,7 +225,8 @@ impl fmt::Display for Change {
 
 impl Change {
     /// Unified hunks with a few lines of context, cut at `SHOWN_LINES_PER_FILE` or, for a file
-    /// created, `SHOWN_LINES_PER_CREATED_FILE`.
+    /// created, `SHOWN_LINES_PER_CREATED_FILE`. Generated documentation is only counted: one
+    /// route rewrites a hundred lines of it, which would bury the code changes.
     pub(super) fn diff(&self) -> String {
         let (Some(before), Some(after)) =
             (lines(self.before.as_deref()), lines(self.after.as_deref()))
@@ -232,6 +234,14 @@ impl Change {
             return format!("{self} (not text)");
         };
         let script = edit_script(&before, &after);
+        if self.path.starts_with(docs_directory(Path::new(""))) {
+            let counted = |edit: Edit| script.iter().filter(|(made, _)| *made == edit).count();
+            return format!(
+                "{self} (+{} -{} lines of generated documentation)",
+                counted(Edit::Added),
+                counted(Edit::Removed)
+            );
+        }
         let mut lines = vec![self.to_string()];
         for range in hunk_ranges(&script) {
             lines.extend(hunk(&script, range));
@@ -549,11 +559,34 @@ mod tests {
     }
 
     fn change(before: Option<&str>, after: Option<&str>) -> Change {
+        change_of("src/queries.rs", before, after)
+    }
+
+    fn change_of(path: &str, before: Option<&str>, after: Option<&str>) -> Change {
         Change {
-            path: PathBuf::from("src/queries.rs"),
+            path: PathBuf::from(path),
             before: before.map(|text| text.as_bytes().to_vec()),
             after: after.map(|text| text.as_bytes().to_vec()),
         }
+    }
+
+    #[test]
+    fn generated_documentation_is_counted_without_its_diff() {
+        let page = change_of(
+            "docs/gen/order.md",
+            Some("# Order\nold route\n"),
+            Some("# Order\nnew route\nanother route\n"),
+        );
+        let created = change_of("docs/gen/README.md", None, Some("# Shop\n"));
+
+        assert_eq!(
+            page.diff(),
+            "change docs/gen/order.md (+2 -1 lines of generated documentation)"
+        );
+        assert_eq!(
+            created.diff(),
+            "create docs/gen/README.md (+1 -0 lines of generated documentation)"
+        );
     }
 
     #[test]

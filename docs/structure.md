@@ -1839,7 +1839,8 @@ it, and `sofie feature` changes the app's features:
   a scratch copy of the app's Cargo workspace and reports the files they
   would create, change or remove, comparing the copy before and after the
   run, so a change made to the app meanwhile (as `sofie dev` regenerating
-  it) cannot hide one; run tools `build`, `test` and `lint` (`cargo fmt` and
+  it) cannot hide one, with each code file's diff and, for `docs/gen/`, only
+  the counts of lines added and removed; run tools `build`, `test` and `lint` (`cargo fmt` and
   clippy, formatting with `write`), which run
   `cargo --offline --message-format short` over the app's packages and
   answer only diagnostics, failures and result lines; `test` answers the

@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 
 use sofie_check::{AllowList, Finding, Rule, missing_gen_exports};
 use sofie_model::naming::relative_path;
-use sofie_model::{App, Module};
+use sofie_model::{App, Crate, Module};
 
 use crate::check_command::check_app;
 use crate::gen_command::{GenError, io_error, regenerate};
@@ -14,6 +14,7 @@ use crate::rustfmt::format_rust;
 use crate::source_edits::{
     add_dependency, append_lines, declare_module, read, with_dependency_line, write,
 };
+use crate::wiring::{crossing_traits, exposed_aggregates};
 
 pub struct FixReport {
     pub applied: Vec<String>,
@@ -208,22 +209,9 @@ pub(crate) fn generated_export_lines(app: &App, module: &Module) -> Vec<String> 
 }
 
 fn add_app_dependencies(app: &App) -> Result<Vec<String>, GenError> {
-    let mut needed: Vec<(&str, &Path)> = Vec::new();
-    for module in &app.modules {
-        needed.push((module.krate.package.as_str(), module.krate.path.as_path()));
-        // The wiring names a contract's areas only to sign their members in.
-        if app.identity.is_some()
-            && !module.defined_areas.is_empty()
-            && let Some(contract) = &module.contract
-        {
-            needed.push((contract.package.as_str(), contract.path.as_path()));
-        }
-    }
-    needed.sort_unstable();
-    needed.dedup();
     let manifest = app.app.path.join("Cargo.toml");
     let mut applied = Vec::new();
-    for (package, path) in needed {
+    for (package, path) in wired_crates(app) {
         if app.depends_on(package) {
             continue;
         }
@@ -239,6 +227,46 @@ fn add_app_dependencies(app: &App) -> Result<Vec<String>, GenError> {
     Ok(applied)
 }
 
+/// Every crate the generated app wiring names by path.
+fn wired_crates(app: &App) -> Vec<(&str, &Path)> {
+    let mut needed: Vec<&Crate> = Vec::new();
+    for module in &app.modules {
+        needed.push(&module.krate);
+        if let Some(contract) = module
+            .contract
+            .as_ref()
+            .filter(|_| wiring_names_contract(app, module))
+        {
+            needed.push(contract);
+        }
+        needed.extend(module.extensions.iter().filter_map(|extension| {
+            let first = extension.contract.first()?;
+            app.modules
+                .iter()
+                .filter_map(|other| other.contract.as_ref())
+                .find(|contract| &contract.crate_name == first)
+        }));
+    }
+    needed.extend(app.split.remote.iter().map(|remote| &remote.contract));
+    let mut needed: Vec<(&str, &Path)> = needed
+        .into_iter()
+        .map(|krate| (krate.package.as_str(), krate.path.as_path()))
+        .collect();
+    needed.sort_unstable();
+    needed.dedup();
+    needed
+}
+
+fn wiring_names_contract(app: &App, module: &Module) -> bool {
+    let signs_members_in = app.identity.is_some() && !module.defined_areas.is_empty();
+    let serves_traits = app.split.serves.contains(&module.krate.crate_name)
+        && crossing_traits(&module.contract_traits).next().is_some();
+    signs_members_in
+        || serves_traits
+        || !module.implementations.is_empty()
+        || exposed_aggregates(module).next().is_some()
+}
+
 fn shown(app: &App, file: &Path) -> String {
     file.strip_prefix(&app.root)
         .unwrap_or(file)
@@ -248,10 +276,50 @@ fn shown(app: &App, file: &Path) -> String {
 
 #[cfg(test)]
 mod tests {
-    use sofie_check::{Finding, Rule};
-    use sofie_model::testing::{TemporaryDirectory, app};
+    use std::path::PathBuf;
 
-    use super::remove_stale_allowances;
+    use sofie_check::{Finding, Rule};
+    use sofie_model::Provision;
+    use sofie_model::testing::{TemporaryDirectory, app, krate, module};
+
+    use super::{remove_stale_allowances, wired_crates};
+
+    fn provision(contract: &str) -> Provision {
+        Provision {
+            contract: contract.split("::").map(str::to_owned).collect(),
+            ty: vec!["Impl".to_owned()],
+            unit: true,
+            file: PathBuf::from("src/lib.rs"),
+            line: 1,
+        }
+    }
+
+    #[test]
+    fn the_app_depends_on_each_contract_its_wiring_provides_or_extends() {
+        let mut payments = module("shop-payments", "modules/payments");
+        payments.contract = Some(krate("payments-contract", "modules/payments/contract"));
+        payments.implementations = vec![provision("payments_contract::Payments")];
+        let mut orders = module("shop-orders", "modules/orders");
+        orders.extensions = vec![provision("payments_contract::Refunds")];
+        let mut idle = module("shop-idle", "modules/idle");
+        idle.contract = Some(krate("idle-contract", "modules/idle/contract"));
+
+        let app = app("/shop", vec![payments, orders, idle]);
+        let packages: Vec<&str> = wired_crates(&app)
+            .into_iter()
+            .map(|(package, _)| package)
+            .collect();
+
+        assert_eq!(
+            packages,
+            [
+                "payments-contract",
+                "shop-idle",
+                "shop-orders",
+                "shop-payments"
+            ]
+        );
+    }
 
     fn stale(file: std::path::PathBuf, line: usize) -> Finding {
         Finding {

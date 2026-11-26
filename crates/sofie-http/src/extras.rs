@@ -51,8 +51,7 @@ impl Endpoints {
             let traceparent = trace
                 .span()
                 .in_scope(sofie_telemetry::current_traceparent)
-                .map(|traceparent| traceparent.to_string())
-                .unwrap_or_default();
+                .map_or_default(|traceparent| traceparent.to_string());
             insert_before(
                 &mut page,
                 "</head>",

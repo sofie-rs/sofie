@@ -248,7 +248,11 @@ impl RouteAnswer<'_> {
             return answer::failure(error, caller);
         };
         if caller == Caller::FormPost {
-            return answer::or_failure(redirect_to(page, &again.parameters), caller);
+            let location = page_location(page, &again.parameters, self.asked.request);
+            return answer::or_failure(
+                location.and_then(|location| answer::redirect(Redirect::SeeOther, &location)),
+                caller,
+            );
         }
         if !self.admits(page) {
             return answer::outcome(Ok(reply), caller);
@@ -412,11 +416,20 @@ fn is_followed(location: &str) -> bool {
 }
 
 /// Cannot fail: the boot check ensures the action has every parameter of the screen's path.
+/// The page at the action's own path keeps the query posted to, so a signed link's signature,
+/// which covers that path and query, opens the page too.
 #[cfg(feature = "engine")]
-fn redirect_to(page: &ScreenRoute, parameters: &[(String, String)]) -> Result<Response> {
-    let location = pattern::fill(&page.path, parameters)
+fn page_location(
+    page: &ScreenRoute,
+    parameters: &[(String, String)],
+    request: &http::request::Parts,
+) -> Result<String> {
+    let path = pattern::fill(&page.path, parameters)
         .ok_or_else(|| Error::internal_message(format!("filling the screen path {}", page.path)))?;
-    answer::redirect(Redirect::SeeOther, &location)
+    match request.uri.path_and_query() {
+        Some(posted) if posted.path() == path => Ok(posted.as_str().to_owned()),
+        _ => Ok(path),
+    }
 }
 
 /// A multipart form arrives as the JSON of its fields; a body that is no form was refused as

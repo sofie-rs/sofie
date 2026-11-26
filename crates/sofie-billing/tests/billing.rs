@@ -551,7 +551,8 @@ async fn a_checkout_and_the_portal_send_the_browser_to_the_provider() {
         "mode=subscription",
         "line_items%5B0%5D%5Bprice%5D=price_pro",
         "line_items%5B0%5D%5Bquantity%5D=2",
-        "success_url=https%3A%2F%2Fapp.test%2Fmembers%2Fplan",
+        "success_url=https%3A%2F%2Fapp.test%2Fmembers%2Fplan&",
+        "cancel_url=https%3A%2F%2Fapp.test%2Fmembers%2Fplan%3Fcheckout%3Dcanceled&",
         &format!("client_reference_id={owner}"),
     ] {
         assert!(form.contains(field), "{field} in {form}");

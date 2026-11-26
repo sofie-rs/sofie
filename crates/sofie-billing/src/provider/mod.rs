@@ -55,6 +55,7 @@ pub(crate) struct Checkout<'a> {
     pub(crate) recurring: bool,
     pub(crate) provider_customer: Option<&'a str>,
     pub(crate) return_url: &'a str,
+    pub(crate) cancel_url: &'a str,
 }
 
 pub(crate) enum Change {

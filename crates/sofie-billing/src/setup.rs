@@ -51,6 +51,7 @@ impl Setup {
     #[doc(hidden)]
     pub fn from_environment() -> Result<Self> {
         let Some(vendor) = variable("PROVIDER")? else {
+            refuse_settings_without_provider(variable)?;
             return Ok(Self::without_provider());
         };
         let vendor = Vendor::parse(&vendor)?;
@@ -131,6 +132,7 @@ impl Setup {
             return Err(Error::invalid("quantity", "must be at least 1"));
         }
         let return_url = self.return_url(return_path)?;
+        let cancel_url = canceled(&return_url);
         let checkout = Checkout {
             subscriber,
             price: self.price_of(name)?,
@@ -138,6 +140,7 @@ impl Setup {
             recurring,
             provider_customer,
             return_url: &return_url,
+            cancel_url: &cancel_url,
         };
         let location = self.provider()?.checkout(&checkout).await?;
         Ok(Link { location })
@@ -183,6 +186,27 @@ pub fn configure(db: &Db, setup: Setup) {
 fn variable(name: &str) -> Result<Option<String>> {
     let key = format!("SOFIE_BILLING_{name}");
     Ok(sofie_core::environment_variable(&key)?.filter(|value| !value.trim().is_empty()))
+}
+
+/// A provider setting without the provider would otherwise leave billing silently unpaid.
+fn refuse_settings_without_provider(lookup: impl Fn(&str) -> Result<Option<String>>) -> Result<()> {
+    for name in ["API_KEY", "WEBHOOK_SECRET", "PRICES", "API_URL"] {
+        if lookup(name)?.is_some() {
+            return Err(Error::internal_message(format!(
+                "SOFIE_BILLING_{name} is set but SOFIE_BILLING_PROVIDER is not; \
+                 set it to `stripe` or `paddle`, or unset SOFIE_BILLING_{name}"
+            )));
+        }
+    }
+    Ok(())
+}
+
+/// Where an owner who left the provider's checkout unpaid lands.
+fn canceled(return_url: &str) -> String {
+    let fragment_at = return_url.find('#').unwrap_or(return_url.len());
+    let (url, fragment) = return_url.split_at(fragment_at);
+    let separator = if url.contains('?') { '&' } else { '?' };
+    format!("{url}{separator}checkout=canceled{fragment}")
 }
 
 fn provider_base_url(
@@ -268,6 +292,31 @@ mod tests {
                 .to_string()
                 .starts_with("neither SOFIE_BILLING_BASE_URL nor SOFIE_BASE_URL is set"),
             "{missing}"
+        );
+    }
+
+    #[test]
+    fn a_provider_setting_without_the_provider_is_refused() {
+        let prices_only = |name: &str| Ok((name == "PRICES").then(|| "pro=price_1".to_owned()));
+        let refused = refuse_settings_without_provider(prices_only).unwrap_err();
+        assert!(
+            refused
+                .to_string()
+                .contains("SOFIE_BILLING_PRICES is set but SOFIE_BILLING_PROVIDER is not"),
+            "{refused}"
+        );
+        assert!(refuse_settings_without_provider(|_| Ok(None)).is_ok());
+    }
+
+    #[test]
+    fn a_canceled_checkout_returns_marked() {
+        assert_eq!(
+            canceled("https://app.test/plan"),
+            "https://app.test/plan?checkout=canceled"
+        );
+        assert_eq!(
+            canceled("https://app.test/plan?tab=seats#top"),
+            "https://app.test/plan?tab=seats&checkout=canceled#top"
         );
     }
 

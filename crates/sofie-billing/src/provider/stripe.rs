@@ -45,7 +45,7 @@ impl Stripe {
             ("line_items[0][price]", checkout.price),
             ("line_items[0][quantity]", quantity.as_str()),
             ("success_url", checkout.return_url),
-            ("cancel_url", checkout.return_url),
+            ("cancel_url", checkout.cancel_url),
             ("client_reference_id", subscriber.as_str()),
             ("metadata[subscriber]", subscriber.as_str()),
             ("metadata[price]", checkout.price),

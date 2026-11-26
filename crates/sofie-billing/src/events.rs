@@ -61,6 +61,12 @@ impl<C: Writes> Resolve<C> for SubscriptionChanged {
     }
 }
 
+impl<C: Writes> Resolve<C> for PurchaseCompleted {
+    fn resolve(context: &mut C) -> impl Future<Output = Result<Self>> + Send {
+        std::future::ready(context.event(Self::NAME).and_then(Self::from_json))
+    }
+}
+
 impl<C: Writes> Resolve<C> for SeatsAsked {
     fn resolve(context: &mut C) -> impl Future<Output = Result<Self>> + Send {
         std::future::ready(context.event(Self::NAME).and_then(Self::from_json))

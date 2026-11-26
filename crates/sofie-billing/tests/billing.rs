@@ -937,3 +937,10 @@ async fn seats_change_only_on_a_plan_billed_per_seat() {
         "refused: The plan held is not billed per seat."
     );
 }
+
+#[test]
+fn a_listener_can_take_each_billing_event() {
+    fn listener_argument<T: sofie_db::Resolve<sofie_db::worker::JobContext>>() {}
+    listener_argument::<SubscriptionChanged>();
+    listener_argument::<PurchaseCompleted>();
+}

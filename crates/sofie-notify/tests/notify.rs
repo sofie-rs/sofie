@@ -150,6 +150,10 @@ async fn chosen(preferences: Preferences) -> Result<Shown> {
         .map_err(|error| sofie_core::Error::internal("serializing preferences", error))
 }
 
+async fn push_browsers(preferences: Preferences) -> Result<Shown> {
+    Ok(Shown(json!(preferences.push_browsers().await?)))
+}
+
 async fn export(me: Principal<Members>, read: sofie_db::Read) -> Result<Shown> {
     sofie_notify::personal_data::exported(&read, me.id().uuid())
         .await
@@ -182,6 +186,7 @@ fn routes(routes: &mut Routes<Members>) {
     routes.post("/push", sofie_notify::subscribe_push::<Members>);
     routes.post("/push/stop", sofie_notify::unsubscribe_push::<Members>);
     routes.get("/push/key", sofie_notify::vapid_key);
+    routes.get("/push/browsers", push_browsers);
     routes.get("/personal-data", export);
     routes.post("/forget", forget);
 }
@@ -463,6 +468,33 @@ const BROWSER_AUTH: &str = "BTBZMqHH6r4Tts7J_aSIgg";
 
 fn registration(endpoint: &str, auth: &str) -> serde_json::Value {
     json!({ "endpoint": endpoint, "keys": { "p256dh": BROWSER_KEY, "auth": auth } })
+}
+
+#[tokio::test]
+async fn a_settings_page_counts_only_its_principal_s_browsers() {
+    let app = start().await;
+    for (member_id, browser) in [(6, "a"), (6, "b"), (7, "c")] {
+        let endpoint = format!("https://push.example.test/send/{browser}");
+        let subscribed = app
+            .as_(&member(member_id))
+            .post("/members/push")
+            .json(&registration(&endpoint, BROWSER_AUTH))
+            .await;
+        assert_eq!(subscribed.status, 204, "{}", subscribed.body);
+    }
+
+    let app = &app;
+    let counted = |member_id| async move {
+        app.as_(&member(member_id))
+            .get("/members/push/browsers")
+            .accept_json()
+            .await
+            .json()
+    };
+
+    assert_eq!(counted(6).await, 2);
+    assert_eq!(counted(7).await, 1);
+    assert_eq!(counted(8).await, 0);
 }
 
 #[tokio::test]

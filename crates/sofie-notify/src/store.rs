@@ -1,7 +1,7 @@
 //! Created by sofie-postgres's `migrations/0010_notify.sql`; each row is its principal's.
 
 use sofie_core::{Cast, ColumnReader, ColumnSpec, Result, SqlType, SqlValue, Timestamp, Uuid};
-use sofie_db::{Aggregate, Column, Field, Meta};
+use sofie_db::{Aggregate, Column, Field, Meta, Read, Select};
 use sofie_values::TimeZone;
 
 use crate::{Channel, Digest, Notice, TimeOfDay};
@@ -299,6 +299,14 @@ impl Aggregate for PushSubscription {
     }
 }
 
+pub(crate) async fn browsers_subscribed(read: &Read, principal: Uuid) -> Result<u64> {
+    PushSubscription::query()
+        .where_(PUSH_PRINCIPAL.eq(principal))
+        .where_(PUSH_GONE_AT.is_null())
+        .count(read)
+        .await
+}
+
 /// What a closing account takes along: sofie-identity's `account_data::Notifications`.
 pub mod personal_data {
     use serde_json::{Value, json};
@@ -309,7 +317,7 @@ pub mod personal_data {
 
     use super::{
         CHOICE_PRINCIPAL, Choice, DIGEST_PRINCIPAL, DIGEST_SENT_AT, DigestItem, INBOX_PRINCIPAL,
-        InboxEntry, PUSH_GONE_AT, PUSH_PRINCIPAL, PushSubscription, SETTINGS_PRINCIPAL, Settings,
+        InboxEntry, PushSubscription, SETTINGS_PRINCIPAL, Settings,
     };
     use crate::digest;
 
@@ -332,11 +340,7 @@ pub mod personal_data {
             .where_(DIGEST_SENT_AT.is_null())
             .all(read)
             .await?;
-        let browsers = PushSubscription::query()
-            .where_(PUSH_PRINCIPAL.eq(principal))
-            .where_(PUSH_GONE_AT.is_null())
-            .count(read)
-            .await?;
+        let browsers = super::browsers_subscribed(read, principal).await?;
         Ok(json!({
             "settings": settings.map(|settings| json!({
                 "zone": settings.zone.as_ref().map(sofie_values::TimeZone::name),

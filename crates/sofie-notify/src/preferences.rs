@@ -10,7 +10,7 @@ use sofie_http::{Area, Principal, RequestContext};
 use sofie_values::{LocalDateTime, TimeZone};
 
 use crate::digest::{self, Due};
-use crate::store::{CHOICE_PRINCIPAL, Choice, SETTINGS_PRINCIPAL, Settings};
+use crate::store::{CHOICE_PRINCIPAL, Choice, SETTINGS_PRINCIPAL, Settings, browsers_subscribed};
 use crate::{Channel, TimeOfDay, Topic};
 use sofie_db::{Context, Resolve};
 
@@ -191,6 +191,11 @@ impl Preferences {
             last,
             ..Changed::default()
         })
+    }
+
+    /// Browsers that still receive this principal's web pushes.
+    pub async fn push_browsers(&self) -> Result<u64> {
+        browsers_subscribed(&self.read(), self.principal).await
     }
 
     fn read(&self) -> Read {

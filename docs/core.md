@@ -1237,7 +1237,10 @@ by default.
 - **Kept in step with a provider.** `SOFIE_BILLING_PROVIDER` (`stripe` or
   `paddle`), `_API_KEY`, `_WEBHOOK_SECRET`, `_BASE_URL` (else `SOFIE_BASE_URL`), `_PRICES`
   (`pro=price_…`), `_API_URL`; without a provider, plans, trials and quotas
-  still work. Its notifications arrive at `/webhooks/billing`, verified by the
+  still work, and any of those settings set without `SOFIE_BILLING_PROVIDER`
+  is refused at startup. A checkout left unpaid returns to the return path
+  with `checkout=canceled` added (Stripe; Paddle returns as its dashboard
+  says). Its notifications arrive at `/webhooks/billing`, verified by the
   provider's HMAC within five minutes and answered once per delivery id. The
   subscription follows trialing, active, past_due and canceled as the
   provider reports them, unless the move is not one the states allow; a
@@ -1283,7 +1286,10 @@ migrations, so nothing is wired per app.
   generated wiring registers as a `PersonalData`.
 - **Web push.** `subscribe_push::<Area>`, `unsubscribe_push::<Area>` (a
   browser signing out stops its principal's pushes) and `vapid_key` are
-  handlers an app routes; `push_worker_route` mounts the service worker as a public
+  handlers an app routes. `vapid_key` takes only `Setup`, so it routes as a
+  GET (`routes.get("/push/key", sofie_notify::vapid_key)`) and answers
+  `{"key": <public key>}`; `Preferences::push_browsers()` counts the
+  principal's subscribed browsers for a settings page. `push_worker_route` mounts the service worker as a public
   `GET /push-worker.js` (`Media::JavaScript`) on the root area. VAPID (RFC 8292) from
   `SOFIE_NOTIFY_VAPID_PUBLIC_KEY`, `_PRIVATE_KEY`, `_SUBJECT`; the message is
   encrypted `aes128gcm` (RFC 8291) with `ring`, and sent through

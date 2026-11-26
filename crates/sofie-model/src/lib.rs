@@ -64,7 +64,7 @@ pub use load::{
 };
 pub use manifest::{MANIFEST_CONSTANT, Manifest, Tier, manifest_file};
 pub use messages::interval_seconds;
-pub use metadata::{framework_features, workspace_root};
+pub use metadata::workspace_root;
 pub use naming::{KnownArea, WiringSide};
 pub use package_routes::{ListedRoute, PackageRoutes, RouteMount, RoutedPackage, ServedRoute};
 pub use routes::check_route_path;
@@ -85,6 +85,8 @@ pub struct App {
     pub split: Split,
     /// Set by `[package.metadata.sofie] structure-ceilings = true`.
     pub structure_ceilings: bool,
+    /// The `sofie-framework` features the app's binary is built with.
+    pub framework_features: Vec<String>,
 }
 
 /// What `sofie split` wrote into the app's `[package.metadata.sofie]`.

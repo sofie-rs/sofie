@@ -191,6 +191,7 @@ pub fn app(root: impl Into<PathBuf>, modules: Vec<Module>) -> App {
         packages: Vec::new(),
         split: crate::Split::default(),
         structure_ceilings: false,
+        framework_features: Vec::new(),
     }
 }
 

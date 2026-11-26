@@ -10,7 +10,7 @@ use crate::identity::IDENTITY_CRATE;
 use crate::manifest::read_manifest;
 use crate::menu::read_menu;
 use crate::messages::Found;
-use crate::metadata::{Package, Packages};
+use crate::metadata::{Package, Packages, framework_features};
 use crate::naming::{
     BILLING_PACKAGE, CONTENT_PACKAGE, GEN_MODULE, IDENTITY_AREA, IDENTITY_PACKAGE, TENANCY_PACKAGE,
     WEBHOOKS_PACKAGE, contract_package, crate_name, file_stem, screen_key, snake_case,
@@ -33,6 +33,7 @@ pub fn load(root: &Path) -> Result<App, ModelError> {
     let app_package = packages.at(&app_manifest)?;
     let split = read_split(app_package, &packages, &app_manifest)?;
     let app = read_crate(app_package, &app_directory, ConditionalWiring::Refused)?;
+    let framework_features = framework_features(&app.krate, &app_manifest)?;
     let modules = module_dirs(&root.join("modules"))?
         .iter()
         .map(|directory| read_module(directory, &packages))
@@ -50,6 +51,7 @@ pub fn load(root: &Path) -> Result<App, ModelError> {
         packages: routed,
         split,
         structure_ceilings: app_package.structure_ceilings,
+        framework_features,
     };
     if app.has_permitted_areas() {
         app.modules

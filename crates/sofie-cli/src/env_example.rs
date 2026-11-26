@@ -448,7 +448,7 @@ pub(crate) fn framework_keys(app: &App) -> Vec<ConfigKey> {
             )
         })
         .collect();
-    if app.modules.iter().any(|module| !module.mails.is_empty()) {
+    if sends_mail(app) {
         keys.extend(
             MAIL_KEYS
                 .iter()
@@ -475,6 +475,13 @@ pub(crate) fn framework_keys(app: &App) -> Vec<ConfigKey> {
         ));
     }
     keys
+}
+
+/// The `mail` feature reads its settings at startup even when no module declares a mail;
+/// a feature implying it (`notify`, `mail-web`) is among the resolved ones too.
+fn sends_mail(app: &App) -> bool {
+    app.framework_features.iter().any(|feature| feature == "mail")
+        || app.modules.iter().any(|module| !module.mails.is_empty())
 }
 
 fn uses_oauth(app: &App) -> bool {
@@ -761,6 +768,19 @@ mod tests {
             );
         }
         assert!(read.len() >= 8, "{read:?}");
+    }
+
+    #[test]
+    fn the_mail_feature_lists_mail_keys_without_a_declared_mail() {
+        let mut shop = app("shop", vec![module("order", "shop/modules/order")]);
+        shop.framework_features = vec!["engine".to_owned(), "mail".to_owned()];
+
+        let from = framework_keys(&shop)
+            .into_iter()
+            .find(|key| key.name == "SOFIE_MAIL_FROM")
+            .expect("SOFIE_MAIL_FROM is listed");
+
+        assert!(from.required);
     }
 
     #[test]

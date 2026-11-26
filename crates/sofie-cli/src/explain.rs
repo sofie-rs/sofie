@@ -39,7 +39,7 @@ pub fn explain(app: &App, name: &str) -> Vec<String> {
     );
     sections.extend(packages::identity_screen(app, name));
     sections.extend(crate::components::component(name, || {
-        sofie_model::framework_features(&app.root).ok()
+        Some(app.framework_features.clone())
     }));
     sections.extend(area(app, name, &sites));
     if app.app.crate_name == name || app.app.package == name {
@@ -508,13 +508,12 @@ pub(crate) fn app_section(app: &App) -> String {
     lines.join("\n")
 }
 
-/// Cargo unifies a package's features across the workspace, so the app and its modules share them.
+/// The app's binary compiles the framework once, so its modules share the app's features.
 fn framework_features_line(app: &App) -> String {
-    match sofie_model::framework_features(&app.root) {
-        Ok(features) if features.is_empty() => "  sofie features: none".to_owned(),
-        Ok(features) => format!("  sofie features: {}", features.join(", ")),
-        Err(error) => format!("  sofie features could not be read: {error}"),
+    if app.framework_features.is_empty() {
+        return "  sofie features: none".to_owned();
     }
+    format!("  sofie features: {}", app.framework_features.join(", "))
 }
 
 pub(crate) fn module_section(app: &App, module: &Module) -> String {

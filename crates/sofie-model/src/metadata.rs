@@ -1,5 +1,5 @@
 use std::cell::OnceCell;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -8,7 +8,7 @@ use std::process::Command;
 use serde_json::Value;
 
 use crate::naming::crate_name;
-use crate::{Dependency, ModelError};
+use crate::{Crate, Dependency, ModelError};
 
 #[derive(Clone)]
 pub(crate) struct Package {
@@ -81,11 +81,44 @@ impl Packages {
 
 const FRAMEWORK_PACKAGE: &str = "sofie-framework";
 
-/// Resolving them reads the whole dependency graph, so they are read only when asked.
-pub fn framework_features(app_root: &Path) -> Result<Vec<String>, ModelError> {
-    let manifest = app_root.join("app").join("Cargo.toml");
-    let metadata = cargo_metadata(&manifest, Graph::WithDependencies)?;
-    Ok(enabled_features(&metadata, FRAMEWORK_PACKAGE))
+/// As the app's binary is built: `cargo metadata` unifies features across every workspace
+/// member and its dev-dependencies, while `cargo tree` resolves them for this package alone.
+pub(crate) fn framework_features(app: &Crate, manifest: &Path) -> Result<Vec<String>, ModelError> {
+    if !app.depends_on(FRAMEWORK_PACKAGE) {
+        return Ok(Vec::new());
+    }
+    let cargo = env::var_os("CARGO").unwrap_or_else(|| "cargo".into());
+    let output = Command::new(cargo)
+        .args(["tree", "--edges", "normal", "--depth", "0", "--format", "{f}"])
+        .args(["--invert", FRAMEWORK_PACKAGE, "--manifest-path"])
+        .arg(manifest)
+        .output()
+        .map_err(|error| {
+            ModelError::in_file(manifest, format!("running `cargo tree` failed: {error}"))
+        })?;
+    if !output.status.success() {
+        return Err(ModelError::in_file(
+            manifest,
+            format!(
+                "`cargo tree` could not resolve the features of `{FRAMEWORK_PACKAGE}`: {}",
+                String::from_utf8_lossy(&output.stderr).trim()
+            ),
+        ));
+    }
+    Ok(printed_features(&String::from_utf8_lossy(&output.stdout)))
+}
+
+/// One comma-separated line per instance of the package in the graph.
+fn printed_features(printed: &str) -> Vec<String> {
+    printed
+        .lines()
+        .flat_map(|line| line.split(','))
+        .map(str::trim)
+        .filter(|feature| !feature.is_empty())
+        .map(str::to_owned)
+        .collect::<BTreeSet<String>>()
+        .into_iter()
+        .collect()
 }
 
 /// As Cargo resolved them for the whole workspace, so as they are compiled.
@@ -275,7 +308,7 @@ fn normal_dependencies(package: &Value, lib_names: &BTreeMap<&str, String>) -> V
 mod tests {
     use serde_json::json;
 
-    use super::enabled_features;
+    use super::{enabled_features, printed_features};
 
     #[test]
     fn enabled_features_are_the_resolved_ones_of_the_named_package() {
@@ -298,5 +331,14 @@ mod tests {
             enabled_features(&metadata, "sofie-identity"),
             Vec::<String>::new()
         );
+    }
+
+    #[test]
+    fn printed_features_join_every_instance_once() {
+        assert_eq!(
+            printed_features("engine,mail,web\nmail,jobs\n\n"),
+            ["engine", "jobs", "mail", "web"]
+        );
+        assert_eq!(printed_features("\n"), Vec::<String>::new());
     }
 }

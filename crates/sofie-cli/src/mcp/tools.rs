@@ -150,7 +150,7 @@ const TOOLS: &[Tool] = &[
                       plus the template syntax around them, and which features this app has on.",
         parameters: &[],
         run: |root, _| {
-            let enabled = sofie_model::framework_features(root).ok();
+            let enabled = sofie_model::load(root).ok().map(|app| app.framework_features);
             ToolOutput::done(crate::component_list(enabled.as_deref()))
         },
     },

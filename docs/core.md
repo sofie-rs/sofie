@@ -1785,7 +1785,8 @@ noted, with the feature that reads them:
   `SOFIE_BILLING_PROVIDER`, `_API_KEY`, `_WEBHOOK_SECRET`, `_BASE_URL`,
   `_PRICES`, `_API_URL` (billing), `SOFIE_NOTIFY_VAPID_PUBLIC_KEY`,
   `_PRIVATE_KEY`, `_SUBJECT` (notify: all three or none).
-- With a mail template: `SOFIE_MAIL_TRANSPORT` (required), `SOFIE_MAIL_FROM`
+- With a mail template or sofie's `mail` feature (`notify` and `mail-web` turn it
+  on): `SOFIE_MAIL_TRANSPORT` (required), `SOFIE_MAIL_FROM`
   (required), `SOFIE_MAIL_BASE_URL`, `SOFIE_MAIL_SMTP_HOST`, `_PORT`,
   `_SECURITY`, `_USERNAME`, `_PASSWORD`, `SOFIE_MAIL_PREVIEW_DIR`,
   `SOFIE_MAIL_POSTMARK_WEBHOOK_AUTH`, `SOFIE_MAIL_MAILGUN_SIGNING_KEY`,

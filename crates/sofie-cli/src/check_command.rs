@@ -5,7 +5,6 @@ use sofie_check::{
 };
 use sofie_model::{App, Crate};
 
-use crate::clients::has_clients;
 use crate::gen_command::{GenError, GenMode, GenOutcome, sync_generated};
 use crate::translations::AppLanguages;
 
@@ -21,19 +20,12 @@ pub(crate) fn check_model(root: &Path, app: &App) -> Result<Vec<Finding>, GenErr
     let mut findings = check_loaded_app(root, app, &Screens::read(&app.modules))?;
     // Not in the build script: a build must not start failing as days pass.
     findings.extend(sofie_check::check_flag_ages(app, Date::today()));
-    findings.extend(client_feature(root, app)?);
+    findings.extend(sofie_check::check_client_feature(
+        app,
+        &app.framework_features,
+    ));
     sofie_check::sort_findings(&mut findings);
     Ok(findings)
-}
-
-/// Resolving the features reads the whole dependency graph, so only an app with a client area
-/// pays for it.
-fn client_feature(root: &Path, app: &App) -> Result<Vec<Finding>, GenError> {
-    if !has_clients(app) {
-        return Ok(Vec::new());
-    }
-    let features = sofie_model::framework_features(root).map_err(GenError::Model)?;
-    Ok(sofie_check::check_client_feature(app, &features))
 }
 
 pub(crate) fn check_loaded_app(

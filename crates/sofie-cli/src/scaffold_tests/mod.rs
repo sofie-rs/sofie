@@ -17,7 +17,7 @@ use sofie_model::{App, Module};
 
 use crate::gen_command::{GenError, io_error};
 use crate::new_command::edits::with_feature_in;
-use crate::new_command::{dependency_line_start, workspace_declaration};
+use crate::new_command::{dependency_line_start, find_module, workspace_declaration};
 use crate::rustfmt::format_rust;
 use crate::sorted;
 use crate::source_edits::{
@@ -110,8 +110,9 @@ struct Written {
     facts: Vec<(String, String)>,
 }
 
-pub fn scaffold_tests(root: &Path) -> Result<ScaffoldedTests, GenError> {
-    scaffold_tests_at(root, Timestamp::now())
+/// `module` limits the run to that module's tests; without it every module's are written.
+pub fn scaffold_tests(root: &Path, module: Option<&str>) -> Result<ScaffoldedTests, GenError> {
+    scaffold_module_tests_at(root, Timestamp::now(), module)
 }
 
 /// A dry run's moment is not the real run's, so its report names the moment's form instead.
@@ -130,8 +131,21 @@ pub(crate) fn without_moment(report: &str, now: Timestamp) -> String {
     )
 }
 
-pub(crate) fn scaffold_tests_at(root: &Path, now: Timestamp) -> Result<ScaffoldedTests, GenError> {
+#[cfg(test)]
+fn scaffold_tests_at(root: &Path, now: Timestamp) -> Result<ScaffoldedTests, GenError> {
+    scaffold_module_tests_at(root, now, None)
+}
+
+pub(crate) fn scaffold_module_tests_at(
+    root: &Path,
+    now: Timestamp,
+    module: Option<&str>,
+) -> Result<ScaffoldedTests, GenError> {
     let app = sofie_model::load(root).map_err(GenError::Model)?;
+    let modules = match module {
+        Some(name) => vec![find_module(&app, name)?],
+        None => sorted::modules(&app),
+    };
     let directory = DIRECTORY
         .iter()
         .fold(app.app.path.clone(), |path, part| path.join(part));
@@ -139,7 +153,7 @@ pub(crate) fn scaffold_tests_at(root: &Path, now: Timestamp) -> Result<Scaffolde
     let screens = Screens::read(&app.modules);
     let mut outcome = ScaffoldedTests::default();
     let mut journal = Journal::default();
-    let scaffolded = sorted::modules(&app)
+    let scaffolded = modules
         .into_iter()
         .try_for_each(|module| {
             scaffold_module(

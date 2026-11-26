@@ -31,7 +31,7 @@ const USAGE_BEFORE_NEW: &str = "usage: sofie gen [--check] [ROOT]\n       \
                      sofie new app NAME\n       \
                      sofie new module NAME [ROOT]";
 const USAGE_AFTER_NEW: &str = "sofie scaffold screen KEY [ROOT]\n       \
-                     sofie scaffold tests [ROOT]\n       \
+                     sofie scaffold tests [--module NAME] [ROOT]\n       \
                      sofie split MODULE [--write] [ROOT]\n       \
                      sofie docs [--check] [ROOT]   (feature `docs`)\n       \
                      sofie openapi [ROOT]          (feature `openapi`)\n       \
@@ -66,7 +66,7 @@ enum Command {
     NewModule(String, PathBuf),
     NewCode(NewCode, PathBuf),
     ScaffoldScreen(String, PathBuf),
-    ScaffoldTests(PathBuf),
+    ScaffoldTests(Option<String>, PathBuf),
     Split(String, bool, PathBuf),
     #[cfg(feature = "docs")]
     Docs(GenMode, PathBuf),
@@ -108,7 +108,7 @@ fn main() -> ExitCode {
         }
         Some(Command::NewCode(code, root)) => run_new_code(&root, &code),
         Some(Command::ScaffoldScreen(key, root)) => run_scaffold_screen(&root, &key),
-        Some(Command::ScaffoldTests(root)) => run_scaffold_tests(&root),
+        Some(Command::ScaffoldTests(module, root)) => run_scaffold_tests(&root, module.as_deref()),
         Some(Command::Split(module, write, root)) => run_split(&root, &module, write),
         #[cfg(feature = "docs")]
         Some(Command::Docs(mode, root)) => {
@@ -228,8 +228,13 @@ fn parse(arguments: &[String]) -> Option<Command> {
             Some(Command::NewModule(name.clone(), root(rest)?))
         }
         ("new", [kind, rest @ ..]) => new_code_command(kind, rest),
+        ("scaffold", [kind, flag, module, rest @ ..])
+            if kind == "tests" && flag == "--module" && !module.starts_with('-') =>
+        {
+            Some(Command::ScaffoldTests(Some(module.clone()), root(rest)?))
+        }
         ("scaffold", [kind, rest @ ..]) if kind == "tests" => {
-            Some(Command::ScaffoldTests(root(rest)?))
+            Some(Command::ScaffoldTests(None, root(rest)?))
         }
         ("scaffold", [kind, key, rest @ ..]) if kind == "screen" && !key.starts_with('-') => {
             Some(Command::ScaffoldScreen(key.clone(), root(rest)?))
@@ -695,8 +700,8 @@ fn run_upgrade(root: &Path, write: bool) -> ExitCode {
     }
 }
 
-fn run_scaffold_tests(root: &Path) -> ExitCode {
-    match scaffold_tests(root) {
+fn run_scaffold_tests(root: &Path, module: Option<&str>) -> ExitCode {
+    match scaffold_tests(root, module) {
         Ok(scaffolded) => {
             print!("{scaffolded}");
             ExitCode::SUCCESS
@@ -806,6 +811,18 @@ mod tests {
         ));
         assert!(matches!(parsed(&["test"]), Some(Command::Test(None, _))));
         assert!(usage().contains("sofie test [--filter NAME] [ROOT]"));
+    }
+
+    #[test]
+    fn scaffold_tests_takes_a_module() {
+        assert!(matches!(
+            parsed(&["scaffold", "tests", "--module", "catalog"]),
+            Some(Command::ScaffoldTests(Some(module), _)) if module == "catalog"
+        ));
+        assert!(matches!(
+            parsed(&["scaffold", "tests"]),
+            Some(Command::ScaffoldTests(None, _))
+        ));
     }
 
     /// The filter goes to the test binary, so one cargo would read as its own option is refused.

@@ -247,11 +247,17 @@ const TOOLS: &[Tool] = &[
                 "List every gap no test can be scaffolded for; without it, gaps of subjects \
                  earlier files already test are counted on one line.",
             ),
+            optional(
+                "module",
+                Kind::Text,
+                "Write only this module's tests; without it, every module's.",
+            ),
         ],
         run: |root, arguments| {
             let generator = Generator::ScaffoldTests {
                 now: Timestamp::now(),
                 all: arguments.flag("all"),
+                module: arguments.optional_text("module").map(str::to_owned),
             };
             generate::run(root, &generator, arguments.flag(DRY_RUN.name))
         },

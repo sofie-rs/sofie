@@ -13,17 +13,18 @@ use crate::fix_command::fix_app;
 use crate::gen_command::{GenError, GenOutcome, regenerate};
 use crate::new_command::{NewCode, new_code, new_module};
 use crate::scaffold_command::scaffold_screen_built_by;
-use crate::scaffold_tests::{scaffold_tests_at, without_moment};
+use crate::scaffold_tests::{scaffold_module_tests_at, without_moment};
 
 pub(super) enum Generator {
     NewModule(String),
     New(NewCode),
     ScaffoldScreen(String),
     EditScreen(ScreenEdit),
-    /// The moment names the file it writes; `all` lists older gaps too.
+    /// The moment names the file it writes; `all` lists older gaps too; `module` limits the run.
     ScaffoldTests {
         now: Timestamp,
         all: bool,
+        module: Option<String>,
     },
     Gen,
     Fix,
@@ -115,8 +116,8 @@ fn step(root: &Path, original: &Path, generator: &Generator) -> Result<String, G
         Generator::EditScreen(edit) => {
             vec![format!("edited {}", replace_once(root, edit)?.display())]
         }
-        Generator::ScaffoldTests { now, all } => {
-            let scaffolded = scaffold_tests_at(root, *now)?;
+        Generator::ScaffoldTests { now, all, module } => {
+            let scaffolded = scaffold_module_tests_at(root, *now, module.as_deref())?;
             return Ok(if *all {
                 scaffolded.to_string()
             } else {
@@ -149,4 +150,52 @@ fn outcome_lines(outcomes: &[GenOutcome]) -> String {
         return format!("  {NOTHING_TO_WRITE}");
     }
     lines.join("\n")
+}
+
+#[cfg(test)]
+mod tests {
+    use sofie_core::Timestamp;
+    use sofie_model::testing::{TemporaryDirectory, manifest};
+
+    use super::{Generator, step};
+
+    fn module_with_an_aggregate(directory: &TemporaryDirectory, name: &str, aggregate: &str) {
+        directory.write(&format!("modules/{name}/Cargo.toml"), &manifest(name, ""));
+        directory.write(
+            &format!("modules/{name}/src/lib.rs"),
+            &format!(
+                "use sofie::prelude::*;\n\n#[derive(Aggregate)]\npub struct {aggregate} {{\n    \
+                 meta: Meta,\n    #[max(40)]\n    name: String,\n}}\n"
+            ),
+        );
+    }
+
+    #[test]
+    fn scaffolding_one_module_writes_only_its_tests() {
+        let directory = TemporaryDirectory::new("sofie-mcp-scaffold-module");
+        directory.write(
+            "Cargo.toml",
+            "[workspace]\nresolver = \"3\"\nmembers = [\"app\", \"modules/*\"]\n",
+        );
+        directory.write(
+            "app/Cargo.toml",
+            &manifest(
+                "shop",
+                "catalog = { path = \"../modules/catalog\" }\nstock = { path = \"../modules/stock\" }\n",
+            ),
+        );
+        directory.write("app/src/main.rs", "fn main() {}\n");
+        module_with_an_aggregate(&directory, "catalog", "Product");
+        module_with_an_aggregate(&directory, "stock", "Shelf");
+        let generator = Generator::ScaffoldTests {
+            now: Timestamp::from_second(1_791_720_000).unwrap(),
+            all: false,
+            module: Some("stock".to_owned()),
+        };
+
+        let report = step(directory.root(), directory.root(), &generator).unwrap();
+
+        assert!(report.contains("scaffolded/stock_"), "{report}");
+        assert!(!report.contains("scaffolded/catalog_"), "{report}");
+    }
 }

@@ -550,13 +550,13 @@ mod tests {
         );
         directory.write("app/Cargo.toml", &manifest("shop", ""));
         directory.write("app/src/main.rs", "fn main() {}\n");
-        directory.write(".env", "SOFIE_MCP_TEST_COMMAND_KEY=local\n");
+        directory.write(".env", "SOFIE_TEST_MCP_COMMAND_KEY=local\n");
         let app = sofie_model::load(directory.root()).unwrap();
 
         let test = cargo_command(directory.root(), &app, CargoCommand::Test, None).unwrap();
         let build = cargo_command(directory.root(), &app, CargoCommand::Build, None).unwrap();
 
-        let key = OsStr::new("SOFIE_MCP_TEST_COMMAND_KEY");
+        let key = OsStr::new("SOFIE_TEST_MCP_COMMAND_KEY");
         assert!(
             test.get_envs()
                 .any(|(name, value)| name == key && value == Some(OsStr::new("local")))

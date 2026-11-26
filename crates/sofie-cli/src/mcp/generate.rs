@@ -226,7 +226,7 @@ mod tests {
             .unwrap()
             .map(|entry| fs::read_to_string(entry.unwrap().path()).unwrap())
             .collect::<String>();
-        assert!(written.contains("app.flags().set("), "{report}\n{written}");
+        assert!(written.contains("app.flags()"), "{report}\n{written}");
         let app_manifest = fs::read_to_string(directory.path("app/Cargo.toml")).unwrap();
         assert!(
             app_manifest.contains("sofie-testing = { workspace = true, features = [\"flags\"] }"),

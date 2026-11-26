@@ -18,7 +18,7 @@ use sofie_http::{Area, Media, Principal, Routes, Text, Web};
 pub use vapid::VapidKeys;
 
 use crate::store::{PUSH_ENDPOINT, PUSH_GONE_AT, PUSH_PRINCIPAL, PushSubscription};
-use crate::{Notice, Notify, Setup};
+use crate::{Notice, Setup};
 
 pub(crate) const JOB: &str = "sofie_notify.push";
 const MAXIMUM_ENDPOINT: usize = 2048;
@@ -169,8 +169,8 @@ impl Outcome for Unsubscribed {
 }
 
 /// A route's handler answering the key a browser subscribes with, as `{"key": …}`.
-pub async fn vapid_key(notify: Notify) -> Result<VapidKey> {
-    let key = notify.vapid_key().ok_or_else(|| {
+pub async fn vapid_key(setup: Setup) -> Result<VapidKey> {
+    let key = setup.vapid_key().ok_or_else(|| {
         Error::internal_message(
             "web push is not set up: set SOFIE_NOTIFY_VAPID_PUBLIC_KEY, _PRIVATE_KEY and _SUBJECT",
         )

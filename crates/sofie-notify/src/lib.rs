@@ -1,7 +1,7 @@
 //! One way to notify a principal: in its inbox, by mail and by web push, held to its
 //! choices, quiet hours and digest, and delivered by jobs queued with the handler's commit.
 
-use sofie_db::{Context, Db, Dep, Jobs, Queued, Resolve, Writes};
+use sofie_db::{Context, Db, Jobs, Queued, Resolve, Writes};
 mod deliver;
 mod digest;
 mod inbox;
@@ -75,6 +75,10 @@ impl Setup {
         };
         Self::new(vapid)
     }
+
+    pub(crate) fn vapid_key(&self) -> Option<&str> {
+        self.vapid.as_deref().map(VapidKeys::public_key)
+    }
 }
 
 fn variable(name: &str) -> Result<Option<String>> {
@@ -105,22 +109,32 @@ pub fn housekeeping(worker: Worker) -> Worker {
     worker.every(retention::JOB, retention::EVERY, retention::prune)
 }
 
+/// Resolves in a read context too, so a GET handler such as `vapid_key` can take it.
+impl<C: Context> Resolve<C> for Setup {
+    fn resolve(context: &mut C) -> impl Future<Output = Result<Self>> + Send {
+        std::future::ready(installed(context.db()).map(|setup| (*setup).clone()))
+    }
+}
+
+fn installed(db: &Db) -> Result<Arc<Setup>> {
+    sofie_db::provided::<Setup>(db).ok_or_else(|| {
+        Error::internal_message(
+            "notifications are not set up: `sofie::run` sets them up with sofie's `notify` \
+             feature, and a test with `sofie_notify::install`",
+        )
+    })
+}
+
 /// Sends notifications from a handler, job or task; each is delivered once the outcome commits.
 pub struct Notify {
-    setup: Dep<Setup>,
+    setup: Arc<Setup>,
     jobs: Jobs,
 }
 
 impl<C: Writes> Resolve<C> for Notify {
     async fn resolve(context: &mut C) -> Result<Self> {
-        let setup = Dep::<Setup>::resolve(context).await.map_err(|_| {
-            Error::internal_message(
-                "notifications are not set up: `sofie::run` sets them up with sofie's `notify` \
-                 feature, and a test with `sofie_notify::install`",
-            )
-        })?;
         Ok(Self {
-            setup,
+            setup: installed(context.db())?,
             jobs: Jobs::resolve(context).await?,
         })
     }
@@ -142,7 +156,7 @@ impl Notify {
 
     #[must_use]
     pub fn vapid_key(&self) -> Option<&str> {
-        self.setup.vapid.as_deref().map(VapidKeys::public_key)
+        self.setup.vapid_key()
     }
 }
 

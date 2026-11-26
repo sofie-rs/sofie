@@ -181,6 +181,7 @@ fn routes(routes: &mut Routes<Members>) {
     routes.get("/preferences", chosen);
     routes.post("/push", sofie_notify::subscribe_push::<Members>);
     routes.post("/push/stop", sofie_notify::unsubscribe_push::<Members>);
+    routes.get("/push/key", sofie_notify::vapid_key);
     routes.get("/personal-data", export);
     routes.post("/forget", forget);
 }
@@ -431,6 +432,29 @@ async fn the_push_worker_is_served_publicly_as_javascript_from_the_root() {
     );
     assert!(worker.body.starts_with("self.addEventListener(\"push\""));
     assert!(worker.body.contains("showNotification"));
+}
+
+#[tokio::test]
+async fn the_vapid_public_key_is_answered_from_a_get() {
+    const PUBLIC: &str =
+        "BAkoNwSR2g7cFxsDM-nAuaPlYqY5wJmHhyw5GJaOR8GTwMMtPwxMsh61NbUxxOvYu_vD3lf-hLMkpZ8rNR34Fng";
+    let app = start().await;
+    let keys = sofie_notify::VapidKeys::new(
+        PUBLIC,
+        "uNMFjW1LmM0DP4NJrkZQUsTZFghT8wzvgrNj7y-VpMo",
+        "mailto:ops@example.test",
+    )
+    .unwrap();
+    sofie_notify::install(app.db(), &sofie_notify::Setup::new(Some(keys)).unwrap());
+
+    let answered = app
+        .as_(&member(1))
+        .get("/members/push/key")
+        .accept_json()
+        .await;
+
+    assert_eq!(answered.status, 200, "{}", answered.body);
+    assert_eq!(answered.json(), json!({ "key": PUBLIC }));
 }
 
 const BROWSER_KEY: &str =

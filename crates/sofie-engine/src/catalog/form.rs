@@ -167,8 +167,8 @@ pub(super) fn render_form<'a>(
     {
         renderer.push_markup(" enctype=\"multipart/form-data\"");
     }
-    renderer.write_url_attribute("action", &form.post);
-    renderer.write_url_attribute("hx-post", &form.post);
+    renderer.write_post_attribute("action", &form.post);
+    renderer.write_post_attribute("hx-post", &form.post);
     if let Some(target) = &form.target {
         target.write(renderer);
     }

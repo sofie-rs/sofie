@@ -501,7 +501,18 @@ fn a_literal_post_a_browser_would_change_is_refused() {
         "<Action post=\"/a?b=1&amp;c=2\" label=\"x\" />",
         1,
         9,
-        "'&'",
+        "character reference",
+    );
+}
+
+#[test]
+fn a_literal_post_with_a_query_is_escaped_so_the_browser_posts_it_unchanged() {
+    assert_eq!(
+        render(
+            "<Action post=\"/x/{data.id}?from=a&expires=1&signature=s\" label=\"Go\" />",
+            &json!({"id": 7})
+        ),
+        "<button type=\"button\" hx-post=\"/x/7?from=a&amp;expires=1&amp;signature=s\" hx-swap=\"outerHTML\">Go</button>"
     );
 }
 

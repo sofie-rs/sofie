@@ -242,6 +242,16 @@ impl<'a> Renderer<'a> {
         self.out.push('"');
     }
 
+    /// Fully escaped, so the browser decodes it back to the written URL and a refused form's post
+    /// still matches the action it renders again.
+    pub(crate) fn write_post_attribute(&mut self, name: &str, post: &'a Expression) {
+        self.open_attribute(name);
+        self.scratch.clear();
+        build_url(&self.scope, &mut self.scratch, post);
+        push_url(&mut self.out, &self.scratch, false);
+        self.out.push('"');
+    }
+
     pub(crate) fn write_url_attribute_with_item(
         &mut self,
         name: &str,

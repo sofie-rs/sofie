@@ -85,7 +85,7 @@ fn render_form<'a>(
     renderer.push_markup("<form");
     renderer.write_id(id);
     renderer.push_markup(" method=\"post\"");
-    renderer.write_url_attribute("action", &action.post);
+    renderer.write_post_attribute("action", &action.post);
     write_htmx_post(action, renderer);
     renderer.write_idempotency_key(action.position)?;
     for field in &action.fields {
@@ -102,7 +102,7 @@ fn render_form<'a>(
 }
 
 fn write_htmx_post<'a>(action: &'a Action, renderer: &mut Renderer<'a>) {
-    renderer.write_url_attribute("hx-post", &action.post);
+    renderer.write_post_attribute("hx-post", &action.post);
     if let Some(target) = &action.target {
         target.write(renderer);
     }

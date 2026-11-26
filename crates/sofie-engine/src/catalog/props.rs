@@ -119,18 +119,27 @@ impl Props {
     /// another URL than the written one and a refused form could not show its page again.
     pub(super) fn required_post(&mut self) -> Result<Expression, LocatedError> {
         let attribute = self.required_attribute("post")?;
-        let unsafe_character = parts_of(&attribute.value)
+        let authored = parts_of(&attribute.value)
             .iter()
-            .find_map(|part| match part {
-                Expression::Authored(text) => text.chars().find(|&c| !is_literal_url_character(c)),
+            .filter_map(|part| match part {
+                Expression::Authored(text) => Some(text.as_str()),
                 _ => None,
             });
-        if let Some(character) = unsafe_character {
-            bail!(
-                attribute.position,
-                "`post` on `{}` has {character:?}, which a browser would change; percent-encode it",
-                self.spec.name
-            );
+        for text in authored {
+            if let Some(character) = text.chars().find(|&c| !is_literal_url_character(c)) {
+                bail!(
+                    attribute.position,
+                    "`post` on `{}` has {character:?}, which a browser would change; percent-encode it",
+                    self.spec.name
+                );
+            }
+            if has_character_reference(text) {
+                bail!(
+                    attribute.position,
+                    "`post` on `{}` has a character reference such as `&amp;`, which is posted as written; write `&` itself",
+                    self.spec.name
+                );
+            }
         }
         Ok(attribute.value)
     }
@@ -240,14 +249,35 @@ pub(crate) fn is_element_id(text: &str) -> bool {
             .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-' || byte == b'_')
 }
 
-/// RFC 3986's unreserved and reserved characters and `%`, less `&`, which HTML may decode.
+/// RFC 3986's unreserved and reserved characters and `%`.
 fn is_literal_url_character(character: char) -> bool {
-    character.is_ascii_alphanumeric() || "-._~!$'()*+,;=:@/?#%".contains(character)
+    character.is_ascii_alphanumeric() || "-._~!$&'()*+,;=:@/?#%".contains(character)
+}
+
+/// A `post` is written escaped, so `&amp;` would reach the server as those five characters.
+fn has_character_reference(text: &str) -> bool {
+    text.match_indices('&').any(|(index, _)| {
+        let rest = text.get(index + 1..).unwrap_or_default();
+        let name_length = rest
+            .find(|c: char| !c.is_ascii_alphanumeric() && c != '#')
+            .unwrap_or(rest.len());
+        name_length > 0 && rest.get(name_length..).is_some_and(|after| after.starts_with(';'))
+    })
 }
 
 #[cfg(test)]
 mod tests {
-    use super::is_element_id;
+    use super::{has_character_reference, is_element_id};
+
+    #[test]
+    fn a_character_reference_is_told_from_a_plain_ampersand() {
+        for reference in ["&amp;", "/a?b=1&lt;c", "&#38;", "&#x26;"] {
+            assert!(has_character_reference(reference), "{reference}");
+        }
+        for plain in ["/x?from=1&expires=2&signature=a", "&", "&;", "a&b"] {
+            assert!(!has_character_reference(plain), "{plain}");
+        }
+    }
 
     #[test]
     fn an_element_id_starts_with_a_letter() {

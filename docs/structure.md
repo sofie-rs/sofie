@@ -2026,10 +2026,15 @@ async fn customer_cancels_own_order(app: TestApp) {
   theirs field by field held to the fields' constraints, and an enum's is
   its first state. `app.fixture::<Product>().owned_by(id).with("name",
   "Mug").await` makes a record through the default factory.
+- The test clock starts at the real now; `SOFIE_TEST_NOW`, an RFC 3339
+  instant (`2026-01-05T09:00:00Z`), pins its start. A value that is no
+  instant fails the test naming the variable.
 - Every test runs on the real database, each on its own; it is dropped on a
   thread of its own, never blocking the test's runtime (a connection left
   half open would hold the drop for a minute), and one a killed test
-  process left is dropped by the next test process.
+  process left is dropped by the next test process. A test process whose
+  liveness connection drops aborts, since it then looks dead and another
+  process could drop its databases mid-test.
 - `sofie-identity-unverified` is a test-only crate that builds sofie-identity
   with `password-reset` and `sign-in-links` but without
   `email-verification`; run it with `cargo test -p

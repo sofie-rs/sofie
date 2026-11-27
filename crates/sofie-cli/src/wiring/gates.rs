@@ -3,6 +3,7 @@ use quote::quote;
 use sofie_model::{App, FeatureDeclaration, Module};
 
 use super::{in_module, rooted, route_key};
+use crate::sorted;
 
 pub(super) struct Gating<'app> {
     app: &'app App,
@@ -77,25 +78,42 @@ impl<'app> Gating<'app> {
             .then(|| quote!(sofie::declare_settings(&flags, MODULES)?;))
     }
 
+    /// A template names a flag alone, so its default rule is known only from its constant.
+    pub(super) fn declared_features(&self) -> Option<TokenStream> {
+        if !self.flags {
+            return None;
+        }
+        let features = sorted::by_text(self.app.modules.iter().flat_map(|module| {
+            module
+                .code
+                .features
+                .declarations
+                .iter()
+                .filter(|declaration| !declaration.variants)
+                .map(move |declaration| feature_path(module, declaration))
+        }));
+        (!features.is_empty()).then(|| quote!(flags.declare_features(&[#(#features),*])?;))
+    }
+
     pub(super) fn tables(&self) -> TokenStream {
         let sites = self.app.route_sites();
         let features = self.flags.then(|| {
-            let entries = sites.iter().filter_map(|site| {
+            let entries = sorted::by_text(sites.iter().filter_map(|site| {
                 let declaration = site.module.code.features.gate_on(&site.route.handler)?;
                 let (method, path) = route_key(self.app, site);
                 let feature = feature_path(site.module, declaration);
                 Some(quote!(RouteFeature { method: #method, path: #path, feature: #feature }))
-            });
+            }));
             quote!(const ROUTE_FEATURES: &[RouteFeature] = &[#(#entries),*];)
         });
         let permissions = self.permissions.then(|| {
-            let entries = sites.iter().filter_map(|site| {
+            let entries = sorted::by_text(sites.iter().filter_map(|site| {
                 let permission = site.permission(self.app)?;
                 let (method, path) = route_key(self.app, site);
                 Some(quote! {
                     RoutePermission { method: #method, path: #path, permission: Permission::new(#permission) }
                 })
-            });
+            }));
             quote!(const ROUTE_PERMISSIONS: &[RoutePermission] = &[#(#entries),*];)
         });
         quote!(#features #permissions)

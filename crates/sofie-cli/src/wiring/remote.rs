@@ -6,16 +6,13 @@ use quote::quote;
 use sofie_model::{App, Module, RemoteModule};
 
 use super::{crossing_traits, exposed_aggregates, path};
+use crate::sorted;
 
 pub(super) fn connections(app: &App) -> Vec<TokenStream> {
-    app.split
-        .remote
-        .iter()
-        .map(|module| {
-            let name = &module.name;
-            quote!(sofie::remote::connect(#name)?;)
-        })
-        .collect()
+    sorted::by_text(app.split.remote.iter().map(|module| {
+        let name = &module.name;
+        quote!(sofie::remote::connect(#name)?;)
+    }))
 }
 
 /// In place of the module's own implementations, which live in its app now.
@@ -44,7 +41,7 @@ pub(super) fn provisions(app: &App) -> Vec<TokenStream> {
                     );
                 }
             });
-            let provided: Vec<TokenStream> = traits.chain(lookups).collect();
+            let provided = sorted::by_text(traits.chain(lookups));
             (!provided.is_empty()).then(|| {
                 quote! {
                     if let Some(app) = sofie::remote::app(#name) {
@@ -72,7 +69,7 @@ pub(super) fn feeds(app: &App, modules: &[&Module]) -> Option<TokenStream> {
         let name = &module.name;
         quote!(.pull(sofie::remote::feed(#name)))
     });
-    let parts: Vec<TokenStream> = published.chain(pulled).collect();
+    let parts = sorted::by_text(published.chain(pulled));
     (!parts.is_empty()).then(|| quote!(sofie::worker::Feeds::default() #(#parts)*))
 }
 
@@ -97,7 +94,7 @@ pub(super) fn serving(app: &App, modules: &[&Module]) -> Option<TokenStream> {
             let dto = path(&format!("{contract}::{}", aggregate.name));
             quote!(.lookup::<#dto>())
         });
-        traits.chain(lookups).collect::<Vec<_>>()
+        sorted::by_text(traits.chain(lookups))
     });
     Some(quote! {
         sofie::remote::Served::default() #(#parts)* .feed().serve(&db)?;

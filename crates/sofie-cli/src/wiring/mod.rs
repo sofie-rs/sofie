@@ -181,14 +181,15 @@ impl<'app> Wiring<'app> {
     /// The forms on the module's own screens.
     fn module_forms(&self, module: &Module) -> Vec<TokenStream> {
         let prefix = format!("{}/", module.krate.crate_name);
-        self.forms
-            .iter()
-            .filter(|form| form.screen.starts_with(&prefix))
-            .map(|form| {
-                let (screen, id, input) = (&form.screen, &form.form, path(&form.input));
-                quote!(sofie::http::Form::of::<#input>(#screen, #id))
-            })
-            .collect()
+        sorted::by_text(
+            self.forms
+                .iter()
+                .filter(|form| form.screen.starts_with(&prefix))
+                .map(|form| {
+                    let (screen, id, input) = (&form.screen, &form.form, path(&form.input));
+                    quote!(sofie::http::Form::of::<#input>(#screen, #id))
+                }),
+        )
     }
 
     fn app(&self) -> TokenStream {
@@ -201,6 +202,7 @@ impl<'app> Wiring<'app> {
         let flags = self.gating.flags_parameter(false);
         let gates = self.gating.app_call();
         let settings = self.gating.declared_settings();
+        let features = self.gating.declared_features();
         let provide = self.provide.is_some().then(|| quote!(provide(&db);));
         let mails = mails::register(self.mails.as_ref());
         let mail_translations = self.mail_translations(&quote!(translations()?));
@@ -229,6 +231,7 @@ impl<'app> Wiring<'app> {
                 #serving
                 #(#configs)*
                 #settings
+                #features
                 #install
                 #content_settings
                 Ok(App::new(db).serving(|serving| serving.named(env!("CARGO_PKG_NAME"))) #gates #billing .screens(screens()?) .modules(MODULES))
@@ -282,17 +285,13 @@ impl<'app> Wiring<'app> {
 
     /// Configs and contracts come from building the app, which a task does first.
     fn tasks(&self) -> Option<TokenStream> {
-        let entries: Vec<TokenStream> = self
-            .modules
-            .iter()
-            .flat_map(|module| {
-                module.tasks.iter().map(move |task| {
-                    let name = task_name(module, &task.function);
-                    let function = in_module(module, &task.function);
-                    quote!(.task(#name, #function))
-                })
+        let entries = sorted::by_text(self.modules.iter().flat_map(|module| {
+            module.tasks.iter().map(move |task| {
+                let name = task_name(module, &task.function);
+                let function = in_module(module, &task.function);
+                quote!(.task(#name, #function))
             })
-            .collect();
+        }));
         if entries.is_empty() {
             return None;
         }
@@ -343,13 +342,10 @@ impl<'app> Wiring<'app> {
 }
 
 fn screen_entries(app: &App, module: &Module) -> Vec<TokenStream> {
-    embedded_screens(module)
-        .into_iter()
-        .map(|(key, file)| {
-            let file = compiled_file(app, file, &format!("screens/{key}.sft"));
-            quote!((#key, #file))
-        })
-        .collect()
+    sorted::by_text(embedded_screens(module).into_iter().map(|(key, file)| {
+        let file = compiled_file(app, file, &format!("screens/{key}.sft"));
+        quote!((#key, #file))
+    }))
 }
 
 /// A template and the program the app's build script wrote to `OUT_DIR` from it.
@@ -360,15 +356,16 @@ pub(crate) fn compiled_file(app: &App, template: &Path, compiled: &str) -> Token
 
 /// Compiled into the screens writing them; a development build rereads them.
 fn components(app: &App) -> TokenStream {
-    let entries = app
-        .modules
-        .iter()
-        .flat_map(|module| &module.components)
-        .map(|file| {
-            let name = file_stem(file);
-            let file = embedded_path(app, file);
-            quote!((#name, concat!(env!("CARGO_MANIFEST_DIR"), "/", #file)))
-        });
+    let entries = sorted::by_text(
+        app.modules
+            .iter()
+            .flat_map(|module| &module.components)
+            .map(|file| {
+                let name = file_stem(file);
+                let file = embedded_path(app, file);
+                quote!((#name, concat!(env!("CARGO_MANIFEST_DIR"), "/", #file)))
+            }),
+    );
     quote! {
         const COMPONENTS: &[(&str, &str)] = &[#(#entries),*];
     }
@@ -398,16 +395,17 @@ pub(crate) fn embedded_screens(module: &Module) -> Vec<(String, &Path)> {
 
 /// Each `MemberArea` a contract defines, where sofie-identity signs members in.
 fn member_areas(app: &App) -> Vec<TokenStream> {
-    app.areas()
-        .iter()
-        .filter(|area| {
-            area.contract.is_some()
-                && area
-                    .definition
-                    .is_some_and(sofie_model::AreaDefinition::is_member_area)
-        })
-        .map(|area| path(&area.type_path))
-        .collect()
+    sorted::by_text(
+        app.areas()
+            .iter()
+            .filter(|area| {
+                area.contract.is_some()
+                    && area
+                        .definition
+                        .is_some_and(sofie_model::AreaDefinition::is_member_area)
+            })
+            .map(|area| path(&area.type_path)),
+    )
 }
 
 fn area_mounts(app: &App, module: &Module) -> Vec<TokenStream> {
@@ -435,15 +433,16 @@ fn area_function(module: &Module, area: &AreaContribution, file: &str) -> TokenS
 }
 
 pub(super) fn route_names(app: &App, module: &Module) -> Vec<TokenStream> {
-    app.route_sites()
-        .into_iter()
-        .filter(|site| site.module.krate.crate_name == module.krate.crate_name)
-        .map(|site| {
-            let (method, path) = route_key(app, &site);
-            let name = site.name();
-            quote!(sofie::http::RouteName { method: #method, path: #path, name: #name })
-        })
-        .collect()
+    sorted::by_text(
+        app.route_sites()
+            .into_iter()
+            .filter(|site| site.module.krate.crate_name == module.krate.crate_name)
+            .map(|site| {
+                let (method, path) = route_key(app, &site);
+                let name = site.name();
+                quote!(sofie::http::RouteName { method: #method, path: #path, name: #name })
+            }),
+    )
 }
 
 fn route_key(app: &App, site: &RouteSite) -> (&'static str, String) {
@@ -466,10 +465,11 @@ fn job_entries(module: &Module, gated: bool) -> Vec<TokenStream> {
         .iter()
         .filter(|schedule| wanted(&schedule.function))
         .map(|schedule| schedule_entry(module, schedule));
-    listeners
-        .chain(schedules)
-        .chain(provided::worker_entries(module, gated))
-        .collect()
+    sorted::by_text(
+        listeners
+            .chain(schedules)
+            .chain(provided::worker_entries(module, gated)),
+    )
 }
 
 fn listener_entry(module: &Module, listener: &Listener) -> TokenStream {
@@ -541,10 +541,10 @@ fn migrations_entry(module: &Module) -> Option<TokenStream> {
     if module.code.aggregates.is_empty() {
         return Some(migrations);
     }
-    let aggregates = module.code.aggregates.iter().map(|aggregate| {
+    let aggregates = sorted::by_text(module.code.aggregates.iter().map(|aggregate| {
         let aggregate = rooted(module, WiringSide::Module, &aggregate.path);
         quote!(sofie::db::AggregateTable::of::<#aggregate>())
-    });
+    }));
     Some(quote!(#migrations.aggregates(const { &[#(#aggregates),*] })))
 }
 

@@ -5,6 +5,7 @@ use sofie_model::{Module, Provision, WiringSide};
 
 use super::gates::job_function;
 use super::{exposed_aggregates, in_module, path, rooted, unbounded_length};
+use crate::sorted;
 
 pub(super) fn provide_function(
     modules: &[&Module],
@@ -14,7 +15,7 @@ pub(super) fn provide_function(
         .iter()
         .flat_map(|module| provisions(module))
         .collect();
-    statements.extend(remote);
+    statements.extend(sorted::by_text(remote));
     if statements.is_empty() {
         return None;
     }
@@ -27,7 +28,7 @@ pub(super) fn provide_function(
     })
 }
 
-fn provisions(module: &Module) -> Vec<TokenStream> {
+fn order_free_provisions(module: &Module) -> Vec<TokenStream> {
     let mut statements: Vec<TokenStream> = module
         .implementations
         .iter()
@@ -35,12 +36,6 @@ fn provisions(module: &Module) -> Vec<TokenStream> {
         .collect();
     statements.extend(lookups(module));
     statements.extend(super::gateways::provided(module));
-    statements.extend(
-        module
-            .extensions
-            .iter()
-            .map(|provision| provided(module, provision, &quote!(extend))),
-    );
     statements.extend(module.jobs.iter().map(|job| {
         let job_name = job_name(module, &job.function);
         let function = in_module(module, &job.function);
@@ -76,6 +71,18 @@ fn lookups(module: &Module) -> Vec<TokenStream> {
             }
         })
         .collect()
+}
+
+/// Extensions run in the order they are added, so theirs is the model's.
+fn provisions(module: &Module) -> Vec<TokenStream> {
+    let mut statements = sorted::by_text(order_free_provisions(module));
+    statements.extend(
+        module
+            .extensions
+            .iter()
+            .map(|provision| provided(module, provision, &quote!(extend))),
+    );
+    statements
 }
 
 /// A mirror's listener is never gated.

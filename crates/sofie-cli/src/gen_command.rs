@@ -13,7 +13,7 @@ use crate::env_example::{ENV_HEADER, render_env_examples};
 use crate::fix_command::wire_generated_code;
 use crate::forms::described_forms;
 use crate::module_roles::{missing_role_migrations, with_role_migrations};
-use crate::rustfmt::format_rust;
+use crate::rustfmt::{format_generated, format_rust};
 use crate::source_edits::write;
 use crate::translations::AppLanguages;
 use crate::wiring::{HEADER, render_module_wiring, render_wiring};
@@ -192,10 +192,12 @@ pub(crate) fn sync_generated(
         .collect();
     let wiring = render_wiring(app, languages, &described_forms(app, screens)?);
     let wiring_file = app.wiring_file();
-    files.push((wiring_file.clone(), Some(formatted(&wiring, &wiring_file)?)));
+    let wiring = format_generated(&wiring, &wiring_file).map_err(GenError::Rustfmt)?;
+    files.push((wiring_file, Some(wiring)));
     for module in &app.modules {
         let file = module.krate.wiring_file();
-        let text = formatted(&render_module_wiring(app, module), &file)?;
+        let text = format_generated(&render_module_wiring(app, module), &file)
+            .map_err(GenError::Rustfmt)?;
         files.push((file, Some(text)));
     }
     let contract_gens = render_contract_gens(app, languages)

@@ -81,7 +81,7 @@ fn area_section(app: &App, module: &Module, area: &AreaContribution) -> String {
         code(&principal),
         owner_scope(app, &area.area)
     );
-    let rows: Vec<[String; 7]> = area
+    let mut rows: Vec<[String; 7]> = area
         .routes
         .iter()
         .map(|route| {
@@ -95,6 +95,7 @@ fn area_section(app: &App, module: &Module, area: &AreaContribution) -> String {
             )
         })
         .collect();
+    rows.sort_by(|left, right| (&left[1], &left[0]).cmp(&(&right[1], &right[0])));
     text.push_str(&table(
         [
             "Method",
@@ -107,11 +108,12 @@ fn area_section(app: &App, module: &Module, area: &AreaContribution) -> String {
         ],
         &rows,
     ));
-    let screens: Vec<String> = area
+    let mut screens: Vec<String> = area
         .screens
         .iter()
         .map(|file| screen_key(&module.krate.crate_name, &area.area, &file_stem(file)))
         .collect();
+    screens.sort();
     let _ = writeln!(text, "\nScreens: {}", codes(&screens));
     text
 }
@@ -143,7 +145,7 @@ fn read_models(module: &Module) -> String {
     if models.is_empty() {
         return String::new();
     }
-    let rows: Vec<[String; 3]> = models
+    let mut rows: Vec<[String; 3]> = models
         .iter()
         .map(|model| {
             let fields: Vec<String> = model
@@ -158,6 +160,7 @@ fn read_models(module: &Module) -> String {
             ]
         })
         .collect();
+    rows.sort();
     format!(
         "## Read models\n\n{}\n",
         table(["Read model", "Reads from", "Fields"], &rows)
@@ -169,7 +172,7 @@ fn inputs(module: &Module) -> String {
     if inputs.is_empty() {
         return String::new();
     }
-    let rows: Vec<[String; 3]> = inputs
+    let mut rows: Vec<[String; 3]> = inputs
         .iter()
         .map(|input| {
             let fields: Vec<String> = input
@@ -193,6 +196,7 @@ fn inputs(module: &Module) -> String {
             ]
         })
         .collect();
+    rows.sort();
     format!(
         "## Inputs\n\n{}\n",
         table(["Input", "Constraints from", "Fields"], &rows)
@@ -203,7 +207,7 @@ fn events(app: &App, module: &Module) -> String {
     if module.events.is_empty() {
         return String::new();
     }
-    let rows: Vec<[String; 3]> = module
+    let mut rows: Vec<[String; 3]> = module
         .events
         .iter()
         .map(|event| {
@@ -214,6 +218,7 @@ fn events(app: &App, module: &Module) -> String {
             ]
         })
         .collect();
+    rows.sort();
     format!(
         "## Events\n\n{}\n",
         table(["Event", "Raised by", "Heard by"], &rows)
@@ -261,6 +266,7 @@ fn jobs_and_schedules(module: &Module) -> String {
     if rows.is_empty() {
         return String::new();
     }
+    rows.sort();
     format!(
         "## Jobs and schedules\n\n{}\n",
         table(["Job", "Runs", "Feature"], &rows)
@@ -281,7 +287,7 @@ fn flags(module: &Module) -> String {
     if declarations.is_empty() {
         return String::new();
     }
-    let rows: Vec<[String; 4]> = declarations
+    let mut rows: Vec<[String; 4]> = declarations
         .iter()
         .map(|declaration| {
             [
@@ -299,6 +305,7 @@ fn flags(module: &Module) -> String {
             ]
         })
         .collect();
+    rows.sort();
     format!(
         "## Feature flags\n\n{}\n",
         table(["Flag", "Constant", "Kind", "Retire after"], &rows)

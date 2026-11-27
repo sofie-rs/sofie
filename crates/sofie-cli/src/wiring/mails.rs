@@ -6,6 +6,7 @@ use quote::quote;
 use sofie_model::{App, MailTemplate, Module};
 
 use super::compiled_file;
+use crate::sorted;
 
 pub(crate) fn embedded_mails<'m>(
     modules: impl IntoIterator<Item = &'m Module>,
@@ -15,13 +16,11 @@ pub(crate) fn embedded_mails<'m>(
 
 /// `None` for an app without mails, whose wiring then names no mail type.
 pub(crate) fn mails_table(app: &App, modules: &[&Module]) -> Option<TokenStream> {
-    let entries: Vec<TokenStream> = embedded_mails(modules.iter().copied())
-        .map(|mail| {
-            let key = &mail.key;
-            let file = compiled_file(app, &mail.file, &format!("mails/{key}.sft"));
-            quote!(sofie::mail::Template::new(#key, #file))
-        })
-        .collect();
+    let entries = sorted::by_text(embedded_mails(modules.iter().copied()).map(|mail| {
+        let key = &mail.key;
+        let file = compiled_file(app, &mail.file, &format!("mails/{key}.sft"));
+        quote!(sofie::mail::Template::new(#key, #file))
+    }));
     if entries.is_empty() {
         return None;
     }

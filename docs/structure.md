@@ -107,7 +107,7 @@ words and no synonyms.
 | **Telemetry** | Traces, logs and metrics, exported over OpenTelemetry. Recorded by the library at every boundary; written by hand only for what a boundary cannot see. | — |
 | **Product event** | A business moment (`order.placed`) counted in full, never sampled, for product analytics beside the technical signals. | A domain event, which other modules react to |
 | **Flow** | The chain a piece of work follows, derived from declarations: entry point → action → aggregate methods → events → listeners → further actions and gateway calls. | A process, which is written; a flow is only drawn |
-| **Generated code** | What `sofie gen` writes: the app's wiring, contracts' exported DTOs and route builders, and non-Rust output. Lives in `app/src/wiring.rs`, each module's `src/wiring.rs` and under `gen/`, committed, never edited, verified by `sofie gen --check`. | A derive's expansion, which is never written to disk |
+| **Generated code** | What `sofie gen` writes: the app's wiring, contracts' exported DTOs and route builders, and non-Rust output. Lives in `app/src/wiring.rs`, each module's `src/wiring.rs` and under `gen/`, committed, never edited, verified by `sofie gen --check`. Its lists are sorted where order means nothing and written one item per line (each item marked `#[rustfmt::skip]` so `cargo fmt` keeps them), so two branches that each add one merge. | A derive's expansion, which is never written to disk |
 | **Database seam** | The traits in `sofie-db` (`Driver`, `Dialect`, `Catalog`) that hold everything one database does differently. Postgres and SQLite implement them. | — |
 
 ## Layout
@@ -1452,7 +1452,11 @@ with the first code that gates on it.
   `sofie::run_with_flags(MODULES, app, worker)`
   instead of `sofie::run`: it starts the flags once per process, for both
   roles, in the environment `SOFIE_ENVIRONMENT` names (such as `production`;
-  required, so a flag meant for staging is never guessed on in production).
+  required, so a flag meant for staging is never guessed on in production;
+  `sofie dev` and `sofie mcp` set `development` when neither the shell nor
+  `.env` names one). Each on-or-off flag's constant is handed to
+  `flags.declare_features(&[…])`, so a template naming a flag follows its
+  default rule.
 - **Traced:** the flags a request evaluated, with their answers, are the
   request span's `feature_flags` attribute (`order.split_payments=on`); a
   skipped job logs its flag. A product event carries those evaluated before
@@ -2168,7 +2172,8 @@ case for modules, functions and screens, Pascal case for types):
   `MemberArea::HOME`). It makes the contract and the app depend on
   sofie-identity and the app on the contract, so `sofie gen` then lists
   sofie-identity's module and migrations and mounts its sign-in routes for
-  each member area. Sign-up stays opt-in through `impl sofie_identity::SignUp`.
+  each member area. Sign-up stays opt-in through `impl sofie_identity::SignUp`;
+  for an `owned` area the command prints a note saying so, with the impl to add.
 
 `sofie scaffold screen <module>/<area>/<screen>` writes a resource's built-in
 screen to `screens/<screen>.html` in the module's area, which then overrides

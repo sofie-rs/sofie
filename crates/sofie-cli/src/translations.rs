@@ -239,23 +239,23 @@ impl AppLanguages {
     /// Built once for the screens and once for mail, as `Screens::translate` takes them whole.
     pub(crate) fn translations_function(&self, app: &App) -> TokenStream {
         let languages = &self.languages;
-        let files = self.files.iter().map(|file| {
+        let files = sorted::by_text(self.files.iter().map(|file| {
             let module = &file.module;
             let file = crate::wiring::embedded_file(app, &file.path);
             quote!((#module, #file))
-        });
-        let enums = app_enums(app).into_iter().map(|(name, variants)| {
+        }));
+        let enums = sorted::by_text(app_enums(app).into_iter().map(|(name, variants)| {
             let variants = variants.into_iter().map(|(variant, tone)| {
                 let tone = format_ident!("{tone}");
                 quote!((#variant, sofie::engine::Tone::#tone))
             });
             quote!((#name, &[#(#variants),*]))
-        });
-        let builtin = self.packages.iter().map(|package| {
+        }));
+        let builtin = sorted::by_text(self.packages.iter().map(|package| {
             let name = &package.crate_name;
             let package = crate::wiring::path(name);
             quote!((#name, #package::TRANSLATIONS))
-        });
+        }));
         let unbounded_length = crate::wiring::unbounded_length();
         quote! {
             #unbounded_length

@@ -18,6 +18,7 @@ use crate::log_buffer::LogBuffer;
 
 const POLL: Duration = Duration::from_millis(300);
 pub(crate) const DEVELOPMENT: &[&str] = &["--features", "sofie/development"];
+const ENVIRONMENT: &str = "SOFIE_ENVIRONMENT";
 pub(crate) const NOT_SOURCES: [&str; 3] = ["target", "node_modules", ".git"];
 
 type Snapshot = BTreeMap<PathBuf, SystemTime>;
@@ -37,6 +38,7 @@ pub fn dev(root: &Path, at: Option<&str>, remote_database: bool) -> Result<(), G
     }
     stop_on_interrupt().map_err(|source| io_error(root, source))?;
     let mut app = DevApp::new(root, at, AppOutput::Terminal);
+    app.default_to_development_environment();
     report_started(app.rebuild().map(Some));
     loop {
         std::thread::sleep(POLL);
@@ -98,6 +100,7 @@ pub(crate) struct DevApp {
     at: Option<String>,
     output: AppOutput,
     variables: Vec<(&'static str, &'static str)>,
+    development_environment: bool,
     process: Option<ChildProcess>,
     /// The running app's `SOFIE_DEV_DIR`.
     directory: Option<PathBuf>,
@@ -114,6 +117,7 @@ impl DevApp {
             at: at.map(str::to_owned),
             output,
             variables: Vec::new(),
+            development_environment: false,
             process: None,
             directory: None,
             generation: 0,
@@ -125,6 +129,11 @@ impl DevApp {
 
     pub(crate) fn set_variable(&mut self, key: &'static str, value: &'static str) {
         self.variables.push((key, value));
+    }
+
+    /// A deploy never runs `sofie dev` or `sofie mcp`; the shell or `.env` still wins.
+    pub(crate) fn default_to_development_environment(&mut self) {
+        self.development_environment = true;
     }
 
     #[cfg(feature = "mcp")]
@@ -224,13 +233,7 @@ impl DevApp {
         )?;
         build_development_clients(app, &directory, self.diagnostics())?;
         self.stop();
-        let mut command = app_command(&self.root, executable)?;
-        command
-            .arg("serve")
-            .args(self.at.iter().flat_map(|at| ["--at", at.as_str()]))
-            .env("SOFIE_MIGRATE", "on")
-            .env("SOFIE_DEV_DIR", &directory)
-            .envs(self.variables.iter().copied());
+        let mut command = self.serve_command(executable, &directory)?;
         let process = ChildProcess::spawn(ProcessGroup::Inherited, &mut command, |command| {
             self.output.spawn(command)
         })
@@ -239,6 +242,20 @@ impl DevApp {
         self.process = Some(process);
         self.directory = Some(directory);
         Ok(pid)
+    }
+
+    fn serve_command(&self, executable: &Path, directory: &Path) -> Result<Command, GenError> {
+        let mut command = app_command(&self.root, executable)?;
+        command
+            .arg("serve")
+            .args(self.at.iter().flat_map(|at| ["--at", at.as_str()]))
+            .env("SOFIE_MIGRATE", "on")
+            .env("SOFIE_DEV_DIR", directory)
+            .envs(self.variables.iter().copied());
+        if self.development_environment {
+            default_environment(&mut command, std::env::var_os(ENVIRONMENT).is_some());
+        }
+        Ok(command)
     }
 
     fn rebuild_islands(&mut self) -> Result<(), GenError> {
@@ -297,6 +314,13 @@ fn build_development_clients(
         diagnostics,
     )
     .map(drop)
+}
+
+fn default_environment(command: &mut Command, set_by_process: bool) {
+    let set_by_env_file = command.get_envs().any(|(key, _)| key == ENVIRONMENT);
+    if !set_by_process && !set_by_env_file {
+        command.env(ENVIRONMENT, "development");
+    }
 }
 
 /// The development binary run once, as `sofie dev` runs it.
@@ -589,6 +613,42 @@ mod tests {
             fs::read_to_string(&bundle)
                 .unwrap()
                 .contains("Second words")
+        );
+    }
+
+    #[test]
+    fn dev_and_mcp_default_the_environment_to_development_below_the_shell_and_env_file() {
+        let environment = |command: &Command| {
+            command
+                .get_envs()
+                .find(|(key, _)| *key == super::ENVIRONMENT)
+                .and_then(|(_, value)| value?.to_str().map(str::to_owned))
+        };
+        let exported_by_shell = std::env::var_os(super::ENVIRONMENT).is_some();
+        let directory = TemporaryDirectory::new("sofie-dev-environment");
+        let mut app = DevApp::new(directory.root(), None, AppOutput::Terminal);
+        let serve = |app: &DevApp| {
+            app.serve_command(Path::new("app"), Path::new("dev"))
+                .unwrap()
+        };
+
+        let generated_traffic = serve(&app);
+        app.default_to_development_environment();
+        let unset = serve(&app);
+        let mut exported = app_command(directory.root(), Path::new("app")).unwrap();
+        super::default_environment(&mut exported, true);
+        directory.write(".env", "SOFIE_ENVIRONMENT=staging\n");
+        let written = serve(&app);
+
+        assert_eq!(environment(&generated_traffic), None);
+        assert_eq!(
+            environment(&unset).as_deref(),
+            (!exported_by_shell).then_some("development")
+        );
+        assert_eq!(environment(&exported), None);
+        assert_eq!(
+            environment(&written).as_deref(),
+            (!exported_by_shell).then_some("staging")
         );
     }
 

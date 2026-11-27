@@ -39,9 +39,7 @@ impl DevSession {
         refuse_remote_database(&self.root, "mcp")?;
         let local = match &mut self.app {
             Some(local) => local,
-            None => self
-                .app
-                .insert(LocalApp::new(&self.root, Arc::clone(&self.log))?),
+            None => self.app.insert(development_app(&self.root, &self.log)?),
         };
         let app = &mut local.app;
         app.exited()?;
@@ -175,4 +173,10 @@ fn tree_list(trees: &[Tree]) -> String {
         .map(|tree| format!("{} {}", tree.trace_id, tree.lines[0]))
         .collect::<Vec<_>>()
         .join("\n")
+}
+
+fn development_app(root: &Path, log: &Arc<LogBuffer>) -> Result<LocalApp, GenError> {
+    let mut local = LocalApp::new(root, Arc::clone(log))?;
+    local.app.default_to_development_environment();
+    Ok(local)
 }

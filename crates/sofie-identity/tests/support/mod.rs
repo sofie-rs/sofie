@@ -19,6 +19,7 @@ impl Area for Member {
 impl MemberArea for Member {
     const HOME: &'static str = "/account";
     const SIGN_UP: Option<&'static str> = Some("/sign-up");
+    const VERIFIED_EMAIL: bool = false;
 }
 
 pub struct Console;
@@ -34,6 +35,7 @@ impl Area for Console {
 impl MemberArea for Console {
     const HOME: &'static str = "/console";
     const SIGN_UP: Option<&'static str> = Some("/console/sign-up");
+    const VERIFIED_EMAIL: bool = false;
 }
 
 pub const PASSWORD: &str = "correct horse battery";

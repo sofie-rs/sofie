@@ -230,10 +230,10 @@ pub trait MemberArea: AccountArea {
     const HOME: &'static str;
     /// Signing up there signs nobody in and answers alike for a new address and a taken one.
     const SIGN_UP: Option<&'static str> = None;
-    /// Without it an unconfirmed account signs in, so signing in with the password one just
+    /// Turned off, an unconfirmed account signs in, so signing in with the password one just
     /// signed up with tells a new address from a taken one.
     #[cfg(feature = "email-verification")]
-    const VERIFIED_EMAIL: bool = false;
+    const VERIFIED_EMAIL: bool = true;
 }
 
 pub trait SignUp: Area {

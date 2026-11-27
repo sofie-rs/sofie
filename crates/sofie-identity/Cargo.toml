@@ -34,7 +34,7 @@ permitted-shield = ["permitted-screens", "shield"]
 
 # Through a single-use link mailed to the account's address.
 password-reset = ["links"]
-# `MemberArea::VERIFIED_EMAIL` signs in only confirmed accounts.
+# Signs in only confirmed accounts, unless an area sets `MemberArea::VERIFIED_EMAIL = false`.
 email-verification = ["links"]
 # `TestMember::member`: an account signed up to an area, for an app's tests.
 testing = ["dep:sofie-testing"]

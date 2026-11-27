@@ -21,6 +21,7 @@ impl Area for Members {
 impl MemberArea for Members {
     const HOME: &'static str = "/members/home";
     const SIGN_UP: Option<&'static str> = Some("/members/sign-up");
+    const VERIFIED_EMAIL: bool = false;
 }
 
 const GERMAN_SUBJECT: &str = "Passwort zurücksetzen";

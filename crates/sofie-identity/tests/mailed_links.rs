@@ -22,6 +22,7 @@ impl Area for Members {
 impl MemberArea for Members {
     const HOME: &'static str = "/members/home";
     const SIGN_UP: Option<&'static str> = Some("/members/sign-up");
+    const VERIFIED_EMAIL: bool = false;
 }
 
 struct Confirmed;
@@ -36,7 +37,6 @@ impl Area for Confirmed {
 impl MemberArea for Confirmed {
     const HOME: &'static str = "/confirmed/home";
     const SIGN_UP: Option<&'static str> = Some("/confirmed/sign-up");
-    const VERIFIED_EMAIL: bool = true;
 }
 
 struct Closed;
@@ -396,7 +396,17 @@ async fn links_expired_over_an_hour_ago_are_pruned() {
 }
 
 #[tokio::test]
-async fn an_area_requiring_a_confirmed_address_signs_in_only_after_its_link() {
+async fn an_area_turning_verification_off_signs_in_an_unconfirmed_account() {
+    let app = started().await;
+    sign_up(&app, "members").await.assert_ok();
+
+    let signed_in = sign_in(&app, "members", PASSWORD).await;
+
+    assert!(signed_in.session().is_some(), "{}", signed_in.body);
+}
+
+#[tokio::test]
+async fn by_default_an_area_signs_in_only_after_its_link() {
     let app = started().await;
 
     let signed_up = sign_up(&app, "confirmed").await;

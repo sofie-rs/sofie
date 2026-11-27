@@ -2779,8 +2779,9 @@ address answers alike: a member of the area is mailed a reset link saying
 someone tried (`sofie_identity/sign_up_repeated`, with `password-reset`), an
 account of another area a link to sign in and join it (`sofie_identity/join`,
 single-use, one hour, only where `SIGN_UP` is set); signing in through it adds
-the membership and confirms the address, within the same hourly limit. An area with `MemberArea::VERIFIED_EMAIL = true` signs in
-only confirmed accounts, by password, passkey or provider alike (a mailed link
+the membership and confirms the address, within the same hourly limit. With
+`email-verification` an area signs in only confirmed accounts unless it sets
+`MemberArea::VERIFIED_EMAIL = false`, by password, passkey or provider alike (a mailed link
 and a provider's new account confirm the address as they sign in; a sign-in
 link or reset that confirms it first also makes its password unmatchable (a
 reset then sets the new one) and ends its sessions, tokens, passkeys, provider

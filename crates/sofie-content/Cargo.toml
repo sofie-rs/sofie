@@ -10,7 +10,7 @@ homepage.workspace = true
 
 [features]
 # `admin_routes`: pages listed, written, published and withdrawn in an area of the app.
-admin = ["sofie/resources"]
+admin = ["sofie/permissions", "sofie/resources"]
 
 [dependencies]
 sofie = { workspace = true, features = ["codes", "content", "contracts", "web"] }

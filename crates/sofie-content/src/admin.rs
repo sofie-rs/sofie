@@ -1,4 +1,6 @@
-use sofie::http::{Area, ListedRoute, Resources};
+use sofie::http::{
+    Access, ActionRoute, Area, AreaPrincipal, ListedRoute, NeedsPermission, Permission, Resources,
+};
 use sofie::prelude::*;
 
 use crate::Page;
@@ -19,13 +21,26 @@ pub const ROUTES: &[ListedRoute] = &[
 /// Pages listed, written and changed in `A` (best a `Permitted` area), published and withdrawn.
 pub fn admin_routes<A: Area>(routes: &mut Routes<A>) {
     routes.resource::<Page>();
-    routes
-        .post("/pages/{page}/publish", publish)
-        .name("publish");
-    routes
-        .post("/pages/{page}/withdraw", withdraw)
-        .name("withdraw");
+    permitted(
+        routes
+            .post("/pages/{page}/publish", publish)
+            .name("publish"),
+    );
+    permitted(
+        routes
+            .post("/pages/{page}/withdraw", withdraw)
+            .name("withdraw"),
+    );
 }
+
+/// Publishing changes the page as editing does; only a `Permitted` area reads grants.
+fn permitted<A: Area>(route: &mut ActionRoute<'_, A>) {
+    if <A::Principal as AreaPrincipal>::ACCESS == Access::Permitted {
+        route.permission(UPDATE);
+    }
+}
+
+const UPDATE: Permission = Permission::new("sofie_content.page.*.update");
 
 async fn publish(mut page: Page, clock: Clock) -> Result<Page> {
     page.publish(clock.now());

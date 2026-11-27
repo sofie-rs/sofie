@@ -1363,7 +1363,8 @@ The `sofie-content` crate, which an app depends on like sofie-identity;
   area of the app resource screens to list, write and change pages, and
   actions to publish and withdraw one (`/pages/{page}/publish`, `/withdraw`);
   mounted by the app as `.area::<A>("sofie_content", sofie_content::admin_routes::<A>)`,
-  best in a `Permitted` area, whose routes then each need a permission.
+  best in a `Permitted` area, where each route needs `sofie_content.page.*.<action>`
+  (`read`, `create`, `update`; publishing and withdrawing need `update`).
 
 ### Contracts and gateways: `dyn` at the boundary
 

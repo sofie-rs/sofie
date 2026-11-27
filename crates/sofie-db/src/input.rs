@@ -75,13 +75,31 @@ impl InputFields {
         Err(Error::Invalid(errors))
     }
 
-    /// A form posts every value as a string, so one that is not a `T` is reread as what it spells.
+    /// A form posts strings, and a list's name once for one ticked box; both are reread as a `T`.
     fn read<T: DeserializeOwned>(&mut self, name: &str, value: &Value) -> Result<T> {
         let error = match T::deserialize(value) {
             Ok(read) => return Ok(read),
             Err(error) => error,
         };
-        if let Some(Ok(read)) = scalar_literal(value).map(T::deserialize) {
+        let reread = match value {
+            Value::String(_) => vec![
+                scalar_literal(value),
+                Some(Value::Array(vec![value.clone()])),
+                scalar_literal(value).map(|literal| Value::Array(vec![literal])),
+            ],
+            Value::Array(items) => vec![Some(Value::Array(
+                items
+                    .iter()
+                    .map(|item| scalar_literal(item).unwrap_or_else(|| item.clone()))
+                    .collect(),
+            ))],
+            _ => Vec::new(),
+        };
+        if let Some(read) = reread
+            .into_iter()
+            .flatten()
+            .find_map(|value| T::deserialize(value).ok())
+        {
             return Ok(read);
         }
         Err(self.refuse(FieldError::invalid(name, error.to_string())))
@@ -197,6 +215,47 @@ mod tests {
         assert_eq!(fields.optional::<f64>("ratio").unwrap(), Some(0.5));
         assert_eq!(fields.take::<String>("name").unwrap(), "7");
         assert!(fields.finish().is_ok());
+    }
+
+    #[test]
+    fn a_list_posted_once_by_a_form_reads_as_one_item() {
+        let posted = json!({ "colours": "red", "sizes": "3", "name": "Ada" });
+        let mut fields = InputFields::new(posted).unwrap();
+
+        assert_eq!(fields.take::<Vec<String>>("colours").unwrap(), ["red"]);
+        assert_eq!(fields.take::<Vec<i64>>("sizes").unwrap(), [3]);
+        assert_eq!(fields.take::<String>("name").unwrap(), "Ada");
+        assert!(fields.finish().is_ok());
+    }
+
+    #[test]
+    fn list_items_a_form_posts_as_strings_read_as_what_they_spell() {
+        let posted =
+            json!({ "sizes": ["3", "4"], "gifts": ["true", "false"], "codes": ["7", "x"] });
+        let mut fields = InputFields::new(posted).unwrap();
+
+        assert_eq!(fields.take::<Vec<i64>>("sizes").unwrap(), [3, 4]);
+        assert_eq!(fields.take::<Vec<bool>>("gifts").unwrap(), [true, false]);
+        assert_eq!(fields.take::<Vec<String>>("codes").unwrap(), ["7", "x"]);
+        assert!(fields.finish().is_ok());
+    }
+
+    #[test]
+    fn a_list_item_that_spells_no_number_is_refused() {
+        let mut fields = InputFields::new(json!({ "sizes": ["3", "large"] })).unwrap();
+
+        assert!(fields.take::<Vec<i64>>("sizes").is_err());
+        let errors = invalid_fields(fields.finish());
+        assert_eq!(errors[0].0, "sizes");
+    }
+
+    #[test]
+    fn a_missing_list_is_still_required() {
+        let mut fields = InputFields::new(json!({})).unwrap();
+
+        assert!(fields.take::<Vec<String>>("colours").is_err());
+        assert_eq!(fields.optional::<Vec<String>>("sizes").unwrap(), None);
+        assert_eq!(invalid_fields(fields.finish())[0].1, "is required");
     }
 
     #[test]

@@ -42,9 +42,10 @@ impl<'app> Gating<'app> {
         (http, flags)
     }
 
-    pub(super) fn flags_parameter(&self, borrowed: bool) -> Option<TokenStream> {
+    pub(super) fn flags_parameter(&self, borrowed: bool, used: bool) -> Option<TokenStream> {
         let reference = borrowed.then(|| quote!(&));
-        self.flags.then(|| quote!(, flags: #reference Flags))
+        let name = if used { quote!(flags) } else { quote!(_flags) };
+        self.flags.then(|| quote!(, #name: #reference Flags))
     }
 
     pub(super) fn app_call(&self) -> Option<TokenStream> {

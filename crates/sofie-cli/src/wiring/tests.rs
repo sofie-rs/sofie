@@ -811,3 +811,19 @@ fn lists_the_webhooks_module_when_the_app_depends_on_it() {
         "{text}"
     );
 }
+
+#[test]
+fn names_the_worker_s_flags_unused_when_no_job_is_gated() {
+    let mut order = module("order", "shop/modules/order");
+    order.areas.push(area(&order, "web", vec![index()]));
+    order.listeners = vec![audit_listener("OrderPlaced")];
+    order.code.features.declarations = vec![split_flag()];
+    let app = app("shop", vec![order]);
+
+    let wiring = formatted(&app);
+
+    assert!(
+        wiring.contains("pub fn worker(db: Db, _flags: &Flags) -> Worker {\n"),
+        "{wiring}"
+    );
+}

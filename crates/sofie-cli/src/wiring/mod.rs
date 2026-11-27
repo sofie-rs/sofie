@@ -199,7 +199,7 @@ impl<'app> Wiring<'app> {
             let config_type = path(&format!("{name}::config::{}", config.type_name));
             Some(quote!(sofie::config::load::<#config_type>(#name)?;))
         });
-        let flags = self.gating.flags_parameter(false);
+        let flags = self.gating.flags_parameter(false, true);
         let gates = self.gating.app_call();
         let settings = self.gating.declared_settings();
         let features = self.gating.declared_features();
@@ -252,16 +252,17 @@ impl<'app> Wiring<'app> {
     }
 
     fn worker(&self) -> TokenStream {
-        let gated = self
+        let gated: Vec<TokenStream> = self
             .modules
             .iter()
-            .flat_map(|module| job_entries(module, true));
+            .flat_map(|module| job_entries(module, true))
+            .collect();
         let worker = quote!(sofie::http::worker(db, MODULES) #(#gated)*);
         let worker = match remote::feeds(self.app, &self.modules) {
             Some(feeds) => quote!(#feeds.attach(#worker)),
             None => worker,
         };
-        let flags = self.gating.flags_parameter(true);
+        let flags = self.gating.flags_parameter(true, !gated.is_empty());
         let provide = self.provide.is_some().then(|| quote!(provide(&db);));
         let mails = mails::register(self.mails.as_ref());
         let mail_translations = self.mail_translations(&quote!(

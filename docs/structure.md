@@ -166,6 +166,10 @@ web/
 A module needs only `module.rs` and one aggregate folder to start. Every other folder
 appears when its first file does.
 
+`examples/shop` is the benchmarked app in this layout; `examples/saas`, a team task
+tracker, shows sofie-identity, sofie-tenancy, sofie-billing, sofie-content and
+sofie-webhooks working together in one app.
+
 ## Roles and what each one buys
 
 | Role | Location | The framework generates or enforces |

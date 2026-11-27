@@ -217,6 +217,7 @@ catalog above, step by step, in about ten minutes.
 | 💡 [Why Sofie](https://sofie.rs/why/philosophy/) | The problem, the principles and what they cost |
 | 🏛️ [Architecture](https://sofie.rs/architecture/overview/) | Modules, contracts, aggregates and areas |
 | 🛒 [`examples/shop`](examples/shop) | The benchmarked shop: accounts, owned orders, events, an audit listener and an hourly job |
+| 🗂️ [`examples/saas`](examples/saas) | A team task tracker sold by subscription: sign-up, teams with roles, plans and a trial, a live board, pages, staff impersonation and outgoing webhooks |
 | 📐 [`docs/structure.md`](docs/structure.md) · [`docs/core.md`](docs/core.md) | The structure every app follows, and how the framework implements it |
 
 ## Road to 1.0

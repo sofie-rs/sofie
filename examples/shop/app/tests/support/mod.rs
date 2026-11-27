@@ -23,7 +23,6 @@ pub async fn customer(shop: &TestApp, email: &str) -> TestSession {
     sofie_identity::testing::signed_up::<Customer>(shop, email, PASSWORD).await
 }
 
-/// A workspace build turns on sofie-identity's mailed links, which ask for a confirmed address.
 pub async fn confirmed(shop: &TestApp, email: &str) {
     sofie_identity::testing::confirm_where_asked::<Customer>(shop, email).await;
 }

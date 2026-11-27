@@ -220,7 +220,6 @@ async fn a_wrong_password_and_an_unknown_email_are_refused_alike(app: TestApp) {
         app.post("/sign-in").json(&unknown).await,
     ];
 
-    // A workspace build's mailed links add a hint about confirming to the same refusal.
     assert_eq!(refusals[0].body, refusals[1].body);
     for refused in refusals {
         assert_eq!(refused.status, 422);

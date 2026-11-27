@@ -575,6 +575,16 @@ principal), `kind` (`exists`, `count`, `guard`) and `outcome` (`matched` or
 `across` calls, by aggregate and caller, under "Cross-owner checks" on its page
 in `docs/gen`.
 
+#### Records two parties read
+
+A record has one owner, so the other side of a message, booking or trade cannot
+read it. Keep a row per party instead: the action commits the sender's record
+and raises an event, and a listener in the same module commits the recipient's
+copy, owned by the recipient. Each party then reads and lists its own rows
+through the ordinary owner filter, and a change one side makes reaches the
+other through the next event. The copy is eventually consistent: it appears
+once the listener's job runs.
+
 #### Casts
 
 A value encodes to the framework's own neutral `SqlValue` (null, bool,

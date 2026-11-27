@@ -104,7 +104,19 @@ macro_rules! show {
 show! {
     bool => |flag| Shown::Bool(*flag), String => |text| Shown::Text(text),
     i64 => |number| Shown::Integer(*number), i32 => |number| Shown::Integer(i64::from(*number)),
+    u32 => |number| Shown::Integer(i64::from(*number)),
     u64 => |number| i64::try_from(*number).map_or(Shown::Formatted(number), Shown::Integer),
     f64 => |number| Shown::Float(*number), Uuid => |uuid| Shown::Uuid(*uuid),
     Timestamp => |timestamp| Shown::Instant(Instant::from(*timestamp)), jiff::civil::Date => |day| Shown::Formatted(day),
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn unsigned_counts_show_as_integers() {
+        assert!(matches!(u32::MAX.show(), Shown::Integer(n) if n == i64::from(u32::MAX)));
+        assert!(matches!(7_u64.show(), Shown::Integer(7)));
+    }
 }

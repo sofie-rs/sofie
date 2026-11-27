@@ -1,0 +1,12 @@
+[package]
+name = "tracker"
+edition.workspace = true
+version.workspace = true
+publish.workspace = true
+
+[dependencies]
+tracker-contract = { path = "contract" }
+sofie = { workspace = true, features = ["config"] }
+
+[lints]
+workspace = true

@@ -1012,6 +1012,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf54715a573b99ac80df0bc206da022bcd442c974952c7b9720069370852e21f"
 
 [[package]]
+name = "saas"
+version = "0.5.0"
+dependencies = [
+ "sofie-cli",
+ "sofie-framework",
+ "sofie-identity",
+ "sofie-tenancy",
+ "tracker",
+ "tracker-contract",
+]
+
+[[package]]
 name = "scopeguard"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1769,6 +1781,23 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "db97caf9d906fbde555dd62fa95ddba9eecfd14cb388e4f491a66d74cd5fb79a"
 dependencies = [
  "once_cell",
+]
+
+[[package]]
+name = "tracker"
+version = "0.5.0"
+dependencies = [
+ "sofie-framework",
+ "tracker-contract",
+]
+
+[[package]]
+name = "tracker-contract"
+version = "0.5.0"
+dependencies = [
+ "sofie-framework",
+ "sofie-identity",
+ "sofie-tenancy",
 ]
 
 [[package]]

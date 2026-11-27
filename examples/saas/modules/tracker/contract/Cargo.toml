@@ -1,0 +1,15 @@
+[package]
+name = "tracker-contract"
+description = "The tracker module's areas, events and the webhook events teams hear."
+edition.workspace = true
+rust-version.workspace = true
+version.workspace = true
+publish = false
+
+[dependencies]
+sofie.workspace = true
+sofie-identity = { workspace = true, features = ["permissions"] }
+sofie-tenancy.workspace = true
+
+[lints]
+workspace = true

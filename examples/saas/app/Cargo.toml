@@ -1,0 +1,20 @@
+[package]
+name = "saas"
+description = "Example app: a team task tracker sold by subscription, on every SaaS package."
+edition.workspace = true
+rust-version.workspace = true
+version.workspace = true
+publish = false
+
+[dependencies]
+sofie-tenancy.workspace = true
+tracker-contract = { path = "../modules/tracker/contract" }
+sofie-identity = { workspace = true, features = ["impersonation"] }
+tracker = { path = "../modules/tracker" }
+sofie.workspace = true
+
+[build-dependencies]
+sofie-cli.workspace = true
+
+[lints]
+workspace = true

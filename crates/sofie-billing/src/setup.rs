@@ -131,6 +131,7 @@ impl Setup {
         if quantity == 0 {
             return Err(Error::invalid("quantity", "must be at least 1"));
         }
+        let provider = self.provider()?;
         let return_url = self.return_url(return_path)?;
         let cancel_url = canceled(&return_url);
         let checkout = Checkout {
@@ -142,16 +143,14 @@ impl Setup {
             return_url: &return_url,
             cancel_url: &cancel_url,
         };
-        let location = self.provider()?.checkout(&checkout).await?;
+        let location = provider.checkout(&checkout).await?;
         Ok(Link { location })
     }
 
     pub(crate) async fn portal(&self, provider_customer: &str, return_path: &str) -> Result<Link> {
+        let provider = self.provider()?;
         let return_url = self.return_url(return_path)?;
-        let location = self
-            .provider()?
-            .portal(provider_customer, &return_url)
-            .await?;
+        let location = provider.portal(provider_customer, &return_url).await?;
         Ok(Link { location })
     }
 
@@ -251,6 +250,7 @@ fn checked_base_url(url: &str) -> Result<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use sofie_core::Uuid;
 
     #[test]
     fn prices_pair_names_with_price_ids() {
@@ -293,6 +293,23 @@ mod tests {
                 .starts_with("neither SOFIE_BILLING_BASE_URL nor SOFIE_BASE_URL is set"),
             "{missing}"
         );
+    }
+
+    #[tokio::test]
+    async fn checkout_without_a_provider_names_the_missing_provider() {
+        let setup = Setup::without_provider();
+        let subscriber = Subscriber::new(Uuid::from_u128(1));
+        let checkout = setup
+            .checkout(subscriber, None, "pro", 1, true, "/billing")
+            .await
+            .unwrap_err();
+        let portal = setup.portal("cus_1", "/billing").await.unwrap_err();
+        for refused in [checkout, portal] {
+            assert!(
+                refused.to_string().contains("SOFIE_BILLING_PROVIDER"),
+                "{refused}"
+            );
+        }
     }
 
     #[test]

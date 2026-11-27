@@ -20,6 +20,7 @@ impl Area for Member {
 
 impl MemberArea for Member {
     const HOME: &'static str = "/account/organizations";
+    const VERIFIED_EMAIL: bool = false;
     const SIGN_UP: Option<&'static str> = Some("/sign-up");
 }
 

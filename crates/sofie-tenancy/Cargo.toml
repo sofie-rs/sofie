@@ -29,8 +29,8 @@ sofie-tenancy = { path = ".", features = ["account-data", "billing"] }
 sofie = { package = "sofie-framework", path = "../sofie", features = ["capture", "sqlite"] }
 # Committed changes read to see which screens a closing refreshes.
 sofie-db = { path = "../sofie-db", features = ["live"] }
-# Confirms an account between signing up and in where an area asks for it.
-sofie-identity = { workspace = true, features = ["testing"] }
+# Its member area signs in unconfirmed, so invitations are what confirm an address.
+sofie-identity = { workspace = true, features = ["email-verification", "testing"] }
 serde_json.workspace = true
 sofie-testing = { path = "../sofie-testing", features = ["mail"] }
 tokio = { workspace = true, features = ["macros"] }

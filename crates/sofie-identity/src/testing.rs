@@ -33,10 +33,7 @@ pub async fn signed_up<A: MemberArea>(app: &TestApp, email: &str, password: &str
         A::SIGN_UP.unwrap_or_else(|| panic!("area `{}` has no `SIGN_UP` to join it at", A::NAME));
     let credentials = json!({ "email": email, "password": password });
     app.post(sign_up).json(&credentials).await.assert_ok();
-    #[cfg(feature = "email-verification")]
-    if A::VERIFIED_EMAIL {
-        confirm(app, email).await;
-    }
+    confirm_where_asked::<A>(app, email).await;
     let signed_in = app.post(A::SIGN_IN).json(&credentials).await;
     signed_in.session().unwrap_or_else(|| {
         panic!(
@@ -46,6 +43,17 @@ pub async fn signed_up<A: MemberArea>(app: &TestApp, email: &str, password: &str
             signed_in.body
         )
     })
+}
+
+/// Confirms the account of `email` as its mailed link would, where `A` asks for a confirmed
+/// address before signing in; otherwise does nothing, so a test reads the same either way.
+pub async fn confirm_where_asked<A: MemberArea>(app: &TestApp, email: &str) {
+    #[cfg(feature = "email-verification")]
+    if A::VERIFIED_EMAIL {
+        confirm(app, email).await;
+    }
+    #[cfg(not(feature = "email-verification"))]
+    let _ = (app, email);
 }
 
 /// Written directly rather than through the mailed link, so a test needs no worker running.

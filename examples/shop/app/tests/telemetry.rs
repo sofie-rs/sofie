@@ -54,6 +54,7 @@ async fn a_request_and_the_listener_it_starts_share_one_trace_without_personal_d
     let telemetry = sofie::telemetry::capture();
     let credentials = json!({ "email": EMAIL, "password": support::PASSWORD });
     app.post("/sign-up").json(&credentials).await;
+    support::confirmed(&app, EMAIL).await;
     let signed_in = app.post("/sign-in").json(&credentials).await;
     let customer = signed_in.session().unwrap();
     let cookie = signed_in.header("set-cookie").split(';').next().unwrap();

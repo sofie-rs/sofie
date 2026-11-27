@@ -2,7 +2,7 @@ mod support;
 
 use serde_json::json;
 use sofie_testing::{TestApp, test_app};
-use support::{PASSWORD, customer};
+use support::{PASSWORD, confirmed, customer};
 
 const HOME: &str = "/account/orders";
 
@@ -31,6 +31,7 @@ async fn signing_up_signs_nobody_in_and_the_account_then_signs_in(app: TestApp) 
         "{}",
         signed_up.header("location")
     );
+    confirmed(&app, "ada@example.com").await;
     assert_eq!(sign_in_toward(&app, HOME).await, HOME);
 }
 

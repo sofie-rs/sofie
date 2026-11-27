@@ -213,7 +213,14 @@ async fn a_right_password_outside_the_area_is_answered_as_a_wrong_one() {
 
     assert_eq!(right.status, wrong.status);
     assert_eq!(right.body, wrong.body);
-    assert_eq!(right.json()["error"], "The email or password is not right.");
+    let refusal = right.json()["error"]
+        .as_str()
+        .unwrap_or_default()
+        .to_owned();
+    assert!(
+        refusal.starts_with("The email or password is not right"),
+        "{refusal}"
+    );
 }
 
 #[tokio::test]

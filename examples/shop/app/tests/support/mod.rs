@@ -1,6 +1,6 @@
 #![allow(dead_code, reason = "each test file uses its own part of this module")]
 
-use serde_json::json;
+use order_contract::area::Customer;
 use sofie::db::Db;
 use sofie::http::App;
 use sofie_testing::{TestApp, TestSession};
@@ -20,12 +20,10 @@ async fn migrated(db: Db) -> sofie::core::Result<App> {
 }
 
 pub async fn customer(shop: &TestApp, email: &str) -> TestSession {
-    let credentials = json!({ "email": email, "password": PASSWORD });
-    let signed_up = shop.post("/sign-up").json(&credentials).await;
-    assert_eq!(signed_up.status, 204, "{}", signed_up.body);
-    let signed_in = shop.post("/sign-in").json(&credentials).await;
-    assert_eq!(signed_in.status, 204, "{}", signed_in.body);
-    signed_in
-        .session()
-        .expect("signing in sets the session cookie")
+    sofie_identity::testing::signed_up::<Customer>(shop, email, PASSWORD).await
+}
+
+/// A workspace build turns on sofie-identity's mailed links, which ask for a confirmed address.
+pub async fn confirmed(shop: &TestApp, email: &str) {
+    sofie_identity::testing::confirm_where_asked::<Customer>(shop, email).await;
 }

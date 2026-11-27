@@ -1353,6 +1353,66 @@ async fn a_form_refused_without_javascript_comes_back_filled_in_on_its_own_page(
     assert_contains(&refused.body, "value=\"kept\"");
 }
 
+const NEW_ORDER_POSTING_ELSEWHERE: &str = r#"<Section title="New order">
+  <Form id="order" post="/orders/place"><Field name="status" required /><Field name="note" /><Submit label="Place" /></Form>
+</Section>
+"#;
+
+fn placing_screens() -> Screens {
+    sofie_http::screens_from_sources(&[
+        ("shop/web/orders", ORDERS_SCREEN),
+        ("shop/web/new", NEW_ORDER_POSTING_ELSEWHERE),
+    ])
+    .unwrap()
+}
+
+#[tokio::test]
+async fn a_form_refused_without_javascript_comes_back_on_the_screen_its_route_names() {
+    let app = empty_app()
+        .screens(placing_screens())
+        .area("shop", |routes: &mut Routes<Web>| {
+            routes.screen("/orders", "orders", list_orders);
+            routes.screen("/orders/new", "new", blank_order);
+            routes
+                .post("/orders/place", invalid_order)
+                .on_refused("new")
+                .then_redirect("/orders");
+        });
+    let server = TestServer::start(app).await;
+
+    let refused = server
+        .post("/orders/place")
+        .header("sec-fetch-site", "same-origin")
+        .header("accept", "text/html")
+        .form(&[("status", ""), ("note", "kept")])
+        .await;
+
+    assert_eq!(refused.status, StatusCode::UNPROCESSABLE_ENTITY);
+    assert_contains(&refused.body, "<h2>New order</h2>");
+    assert_contains(&refused.body, "value=\"kept\"");
+    assert_contains(
+        &refused.body,
+        "id=\"order-status-error\" aria-live=\"polite\">is required</p>",
+    );
+}
+
+#[tokio::test]
+async fn a_refused_screen_no_route_renders_fails_to_serve() {
+    let app = empty_app()
+        .screens(placing_screens())
+        .area("shop", |routes: &mut Routes<Web>| {
+            routes.screen("/orders", "orders", list_orders);
+            routes
+                .post("/orders/place", invalid_order)
+                .on_refused("new")
+                .then_redirect("/orders");
+        });
+
+    let expected =
+        "POST /orders/place shows when refused screen shop/web/new, but no screen route renders it";
+    assert_fails_to_serve(app, expected).await;
+}
+
 #[cfg(feature = "tokens")]
 mod tokens {
     use sofie_http::{Area, Routes, Visitor};

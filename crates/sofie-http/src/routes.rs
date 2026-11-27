@@ -164,6 +164,8 @@ pub(crate) struct RouteRules {
     pub(crate) queues: bool,
     #[cfg(all(feature = "csv", feature = "listing"))]
     pub(crate) exports: Option<std::sync::Arc<str>>,
+    #[cfg(feature = "engine")]
+    pub(crate) refused_screen: Option<String>,
 }
 
 /// Handlers are plain `async fn`s whose arguments all resolve in `A`; a GET's in its `ReadContext`.
@@ -360,6 +362,13 @@ impl<A: Area> ActionRoute<'_, A> {
             fragment: fragment.to_owned(),
         };
         self.route.view = View::Refresh(refresh);
+    }
+
+    /// A form refused without JavaScript comes back filled in on screen `name` of this area.
+    #[cfg(feature = "engine")]
+    pub fn on_refused(&mut self, name: &str) -> &mut Self {
+        let key = screen_key(self.route.module, A::NAME, name);
+        self.rule(|rules| rules.refused_screen = Some(key))
     }
 
     /// JSON callers still get the action's reply. Each `{name}` in `location` is the route's

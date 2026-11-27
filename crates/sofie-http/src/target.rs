@@ -21,7 +21,7 @@ pub(crate) struct Target {
     /// Where a form posted without JavaScript comes back to.
     #[cfg(feature = "engine")]
     pub(crate) page: Option<ScreenRoute>,
-    /// The screen at the action's own path, holding its form: a refused form comes back there.
+    /// Where a refused form comes back: `on_refused`'s screen, or the one at the action's path.
     #[cfg(feature = "engine")]
     pub(crate) form_page: Option<ScreenRoute>,
     /// Telemetry names a request by its pattern, never the path with its ids.
@@ -82,7 +82,7 @@ pub(crate) fn route_table(
             #[cfg(feature = "engine")]
             page: page_of(route, routes, screens)?,
             #[cfg(feature = "engine")]
-            form_page: form_page_of(route, routes),
+            form_page: form_page_of(route, routes, screens)?,
             pattern: route.path.clone(),
             name,
             module: route.module,
@@ -229,22 +229,35 @@ fn page_of(route: &Route, routes: &[Route], screens: &Screens) -> Result<Option<
         View::Json | View::Document(_) => Ok(None),
         View::Screen(screen) => require_loaded(route, &screen.key, screens).map(|()| None),
         View::Refresh(refresh) => {
-            require_loaded(route, &refresh.screen, screens)?;
-            let page = screen_route_of(route, &refresh.screen, routes)?;
-            require_fillable(route, &page)?;
-            Ok(Some(page))
+            screen_route_for(route, &refresh.screen, routes, screens, "refreshes").map(Some)
         }
         View::Redirect(_) | View::Follow | View::RedirectOrFollow(_) => Ok(page_at(route, routes)),
     }
 }
 
-/// A redirecting action's page is already the one at its path.
 #[cfg(feature = "engine")]
-fn form_page_of(route: &Route, routes: &[Route]) -> Option<ScreenRoute> {
-    match &route.view {
+fn form_page_of(route: &Route, routes: &[Route], screens: &Screens) -> Result<Option<ScreenRoute>> {
+    if let Some(key) = &route.rules.refused_screen {
+        return screen_route_for(route, key, routes, screens, "shows when refused").map(Some);
+    }
+    Ok(match &route.view {
         View::Refresh(_) => page_at(route, routes),
         _ => None,
-    }
+    })
+}
+
+#[cfg(feature = "engine")]
+fn screen_route_for(
+    route: &Route,
+    key: &str,
+    routes: &[Route],
+    screens: &Screens,
+    purpose: &str,
+) -> Result<ScreenRoute> {
+    require_loaded(route, key, screens)?;
+    let page = screen_route_of(route, key, routes, purpose)?;
+    require_fillable(route, &page, purpose)?;
+    Ok(page)
 }
 
 #[cfg(feature = "engine")]
@@ -302,8 +315,13 @@ fn page_at(route: &Route, routes: &[Route]) -> Option<ScreenRoute> {
 }
 
 #[cfg(feature = "engine")]
-/// Exactly one, or the refresh could not tell which loader's data to show.
-fn screen_route_of(route: &Route, key: &str, routes: &[Route]) -> Result<ScreenRoute> {
+/// Exactly one, or the action could not tell which loader's data to show.
+fn screen_route_of(
+    route: &Route,
+    key: &str,
+    routes: &[Route],
+    purpose: &str,
+) -> Result<ScreenRoute> {
     let mut screen_routes = routes.iter().filter_map(|candidate| match &candidate.view {
         View::Screen(screen) if screen.key == key => Some((candidate, screen)),
         _ => None,
@@ -313,18 +331,18 @@ fn screen_route_of(route: &Route, key: &str, routes: &[Route]) -> Result<ScreenR
         (Some(_), None) => Err(route_error(
             route,
             format_args!(
-                "refreshes screen {key}, whose route is signed or in another area, which this \
+                "{purpose} screen {key}, whose route is signed or in another area, which this \
                  action is not"
             ),
         )),
         (None, _) => Err(route_error(
             route,
-            format_args!("refreshes screen {key}, but no screen route renders it"),
+            format_args!("{purpose} screen {key}, but no screen route renders it"),
         )),
         (Some(_), Some(_)) => Err(route_error(
             route,
             format_args!(
-                "refreshes screen {key}, which several screen routes render; give each a screen of its own"
+                "{purpose} screen {key}, which several screen routes render; give each a screen of its own"
             ),
         )),
     }
@@ -332,7 +350,7 @@ fn screen_route_of(route: &Route, key: &str, routes: &[Route]) -> Result<ScreenR
 
 #[cfg(feature = "engine")]
 /// The screen's path is filled from the action's own parameters.
-fn require_fillable(route: &Route, page: &ScreenRoute) -> Result<()> {
+fn require_fillable(route: &Route, page: &ScreenRoute, purpose: &str) -> Result<()> {
     let available = pattern::parameter_names(&route.path);
     let missing = pattern::parameter_names(&page.path)
         .into_iter()
@@ -343,7 +361,7 @@ fn require_fillable(route: &Route, page: &ScreenRoute) -> Result<()> {
     Err(route_error(
         route,
         format_args!(
-            "refreshes the screen at {}, whose `{{{missing}}}` it does not have",
+            "{purpose} the screen at {}, whose `{{{missing}}}` it does not have",
             page.path
         ),
     ))

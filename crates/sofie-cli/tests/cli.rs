@@ -149,7 +149,7 @@ fn a_key_one_language_lacks_is_a_finding_and_its_files_are_wired_once_complete()
 
     let wiring = fixture.read("app/src/wiring.rs");
     for expected in [
-        "        &[\"en\", \"tr\"],\n",
+        "        &[\n            \"en\",\n            \"tr\",\n        ],\n",
         "(\"order\", sofie::db::embed!(\"../modules/order/lang/tr.toml\"))",
     ] {
         assert!(wiring.contains(expected), "missing {expected} in {wiring}");
@@ -774,6 +774,34 @@ fn a_new_area_of_each_access_passes_check_and_brings_identity_for_members() {
         .output()
         .unwrap();
     assert_eq!(refused.status.code(), Some(2));
+}
+
+#[test]
+fn a_new_owned_area_says_sign_up_stays_closed_and_shows_the_impl_opening_it() {
+    let directory = TemporaryDirectory::new("sofie-cli-new-area-sign-up");
+    let sofie = |arguments: &[&str], in_directory: &Path| {
+        stdout(
+            &Command::new(env!("CARGO_BIN_EXE_sofie"))
+                .args(arguments)
+                .current_dir(in_directory)
+                .output()
+                .unwrap(),
+        )
+    };
+    sofie(&["new", "app", "demo"], directory.root());
+    let root = directory.path("demo");
+    sofie(&["new", "module", "billing"], &root);
+
+    let owned = sofie(&["new", "area", "billing", "member", "owned"], &root);
+    let permitted = sofie(&["new", "area", "billing", "console", "permitted"], &root);
+
+    let hint = "note: sign-up to area `member` stays closed until the app implements \
+                `sofie_identity::SignUp` for it; to open it, add to \
+                modules/billing/contract/src/area.rs:\n\
+                impl sofie_identity::SignUp for Member {\n    \
+                const PATH: &'static str = \"/member/sign-up\";\n}\n";
+    assert!(owned.contains(hint), "{owned}");
+    assert!(!permitted.contains("SignUp"), "{permitted}");
 }
 
 #[test]

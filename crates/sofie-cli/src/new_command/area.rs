@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use sofie_model::naming::pascal_case;
 use sofie_model::{App, Crate};
 
@@ -68,6 +70,11 @@ pub(super) fn new_area(
     refuse_taken_type_name(app, contract, name, &type_name)?;
     write_definition(edits, contract, name, &type_name, access)?;
     depend_on_principal(edits, app, contract, access)?;
+    if access == AreaAccess::Owned {
+        let file = module_file(contract, "area");
+        let file = file.strip_prefix(&app.root).unwrap_or(&file);
+        edits.note(sign_up_hint(file, &type_name, name));
+    }
     let reloaded = sofie_model::load(&app.root).map_err(GenError::Model)?;
     new_route(
         edits,
@@ -84,6 +91,18 @@ pub(super) fn new_area(
             title: None,
             back: None,
         },
+    )
+}
+
+/// A permitted area is reached by a grant, so only an owned area is told how to open sign-up.
+fn sign_up_hint(file: &Path, type_name: &str, name: &str) -> String {
+    format!(
+        "sign-up to area `{name}` stays closed until the app implements \
+         `sofie_identity::SignUp` for it; to open it, add to {}:\n\
+         impl sofie_identity::SignUp for {type_name} {{\n    \
+         const PATH: &'static str = \"{}/sign-up\";\n}}",
+        file.display(),
+        prefix(name)
     )
 }
 

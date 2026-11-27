@@ -1016,9 +1016,12 @@ name = "saas"
 version = "0.5.0"
 dependencies = [
  "sofie-cli",
+ "sofie-content",
  "sofie-framework",
  "sofie-identity",
  "sofie-tenancy",
+ "sofie-testing",
+ "sofie-webhooks",
  "tracker",
  "tracker-contract",
 ]
@@ -1788,6 +1791,8 @@ name = "tracker"
 version = "0.5.0"
 dependencies = [
  "sofie-framework",
+ "sofie-tenancy",
+ "sofie-webhooks",
  "tracker-contract",
 ]
 
@@ -1798,6 +1803,7 @@ dependencies = [
  "sofie-framework",
  "sofie-identity",
  "sofie-tenancy",
+ "sofie-webhooks",
 ]
 
 [[package]]

@@ -1,0 +1,15 @@
+<Section id="billing" title="Billing">
+  <p>Plan: {data.plan}, {data.open_tasks} of {data.open_task_limit} open tasks.</p>
+  {#if data.status}
+    <p>Subscription: {data.status}</p>
+  {/if}
+  <Form id="start-trial" post="/team/billing/trial" target="billing">
+    <Submit label="Try Pro for 14 days" />
+  </Form>
+  <Form id="upgrade" post="/team/billing/upgrade">
+    <Submit label="Upgrade to Pro" />
+  </Form>
+  <Form id="portal" post="/team/billing/portal">
+    <Submit label="Manage billing" />
+  </Form>
+</Section>

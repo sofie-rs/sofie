@@ -1,3 +1,7 @@
 use sofie::prelude::*;
 
-pub fn routes(_routes: &mut Routes<Web>) {}
+use crate::queries;
+
+pub fn routes(routes: &mut Routes<Web>) {
+    routes.screen("/pricing", "pricing", queries::list_plans);
+}

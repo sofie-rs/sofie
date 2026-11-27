@@ -2,7 +2,8 @@
 
 use sofie::core::Result;
 use sofie::db::Db;
-use sofie::http::{App, Gates, Module, Permission, RoutePermission, Screens};
+use sofie::flags::Flags;
+use sofie::http::{App, Gates, Module, Permission, RouteFeature, RoutePermission, Screens};
 use sofie::worker::Worker;
 
 #[rustfmt::skip]
@@ -11,16 +12,12 @@ pub static MODULES: &[Module] = &[
         sofie_identity::member::<tracker_contract::area::Member>,
         sofie_identity::member::<tracker_contract::area::Staff>,
     ]),
+    sofie::billing::MODULE,
+    sofie_content::MODULE,
     sofie_tenancy::MODULE,
+    sofie_webhooks::MODULE,
     Module {
         screens: &[
-            (
-                "tracker/member/home",
-                sofie::db::embed!(
-                    "../modules/tracker/src/areas/member/screens/home.html",
-                    compiled = "screens/tracker/member/home.sft"
-                ),
-            ),
             (
                 "tracker/staff/home",
                 sofie::db::embed!(
@@ -28,21 +25,57 @@ pub static MODULES: &[Module] = &[
                     compiled = "screens/tracker/staff/home.sft"
                 ),
             ),
+            (
+                "tracker/team/billing",
+                sofie::db::embed!(
+                    "../modules/tracker/src/areas/team/screens/billing.html",
+                    compiled = "screens/tracker/team/billing.sft"
+                ),
+            ),
+            (
+                "tracker/team/tasks",
+                sofie::db::embed!(
+                    "../modules/tracker/src/areas/team/screens/tasks.html",
+                    compiled = "screens/tracker/team/tasks.sft"
+                ),
+            ),
+            (
+                "tracker/web/pricing",
+                sofie::db::embed!(
+                    "../modules/tracker/src/areas/web/screens/pricing.html",
+                    compiled = "screens/tracker/web/pricing.sft"
+                ),
+            ),
+        ],
+        forms: &[
+            sofie::http::Form::of::<tracker::actions::NewTask>("tracker/team/tasks", "new-task"),
         ],
         ..tracker::module::MODULE
     },
 ];
 
 #[rustfmt::skip]
-pub fn app(db: Db) -> Result<App> {
+pub fn app(db: Db, flags: Flags) -> Result<App> {
     sofie::config::load::<tracker::config::TrackerConfig>("tracker")?;
+    flags.declare_features(&[tracker::module::REOPENING])?;
+    let billing = sofie::billing::install(&db, &tracker::plans::PLANS).checked()?;
+    sofie_content::install(&db, sofie_content::Settings::from_environment()?);
     Ok(App::new(db)
         .serving(|serving| serving.named(env!("CARGO_PKG_NAME")))
-        .gates(Gates::default().route_permissions(ROUTE_PERMISSIONS))
+        .gates(
+            Gates::default()
+                .features(flags)
+                .route_features(ROUTE_FEATURES)
+                .route_permissions(ROUTE_PERMISSIONS)
+                .entitlements(billing.clone()),
+        )
+        .area::<sofie::http::Web>("sofie_billing", |routes| billing.routes(routes))
         .screens(screens()?)
         .modules(MODULES))
 }
 
+#[rustfmt::skip]
+const ROUTE_FEATURES: &[RouteFeature] = &[];
 #[rustfmt::skip]
 const ROUTE_PERMISSIONS: &[RoutePermission] = &[
     RoutePermission {
@@ -54,7 +87,8 @@ const ROUTE_PERMISSIONS: &[RoutePermission] = &[
 
 #[must_use]
 #[rustfmt::skip]
-pub fn worker(db: Db) -> Worker {
+pub fn worker(db: Db, _flags: &Flags) -> Worker {
+    sofie::billing::install(&db, &tracker::plans::PLANS);
     sofie::http::worker(db, MODULES)
 }
 

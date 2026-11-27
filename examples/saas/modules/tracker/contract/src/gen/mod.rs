@@ -4,28 +4,116 @@ impl sofie_identity::MemberArea for crate::area::Staff {
     const HOME: &'static str = "/staff/home";
 }
 
-impl sofie_identity::MemberArea for crate::area::Member {
-    const HOME: &'static str = "/member/home";
-    const SIGN_UP: Option<&'static str> =
-        Some(<crate::area::Member as sofie_identity::SignUp>::PATH);
+pub mod pruned {
+    #[derive(sofie::Event)]
+    pub struct TaskPruned {
+        pub id: sofie::db::Uuid,
+        pub version: i64,
+    }
 }
 
 pub mod routes {
-    pub mod member {
-        #[must_use]
-        pub fn member_home() -> sofie::http::RoutePath {
-            sofie::http::RoutePath::new(sofie::http::Method::GET, "/member/home".to_owned())
-        }
-    }
     pub mod staff {
         #[must_use]
         pub fn staff_home() -> sofie::http::RoutePath {
             sofie::http::RoutePath::new(sofie::http::Method::GET, "/staff/home".to_owned())
         }
     }
+    pub mod team {
+        #[must_use]
+        pub fn list_tasks() -> sofie::http::RoutePath {
+            sofie::http::RoutePath::new(sofie::http::Method::GET, "/team/tasks".to_owned())
+        }
+        #[must_use]
+        pub fn create_task() -> sofie::http::RoutePath {
+            sofie::http::RoutePath::new(sofie::http::Method::POST, "/team/tasks".to_owned())
+        }
+        #[must_use]
+        pub fn complete_task<Task: sofie::db::Aggregate>(
+            task: sofie::db::Id<Task>,
+        ) -> sofie::http::RoutePath {
+            const { sofie::http::require_aggregate::<Task>("tracker", "task") };
+            sofie::http::RoutePath::new(
+                sofie::http::Method::POST,
+                format!("/team/tasks/{}/complete", sofie::http::path_segment(&task)),
+            )
+        }
+        #[must_use]
+        pub fn reopen_task<Task: sofie::db::Aggregate>(
+            task: sofie::db::Id<Task>,
+        ) -> sofie::http::RoutePath {
+            const { sofie::http::require_aggregate::<Task>("tracker", "task") };
+            sofie::http::RoutePath::new(
+                sofie::http::Method::POST,
+                format!("/team/tasks/{}/reopen", sofie::http::path_segment(&task)),
+            )
+        }
+        #[must_use]
+        pub fn billing_overview() -> sofie::http::RoutePath {
+            sofie::http::RoutePath::new(sofie::http::Method::GET, "/team/billing".to_owned())
+        }
+        #[must_use]
+        pub fn start_trial() -> sofie::http::RoutePath {
+            sofie::http::RoutePath::new(sofie::http::Method::POST, "/team/billing/trial".to_owned())
+        }
+        #[must_use]
+        pub fn upgrade() -> sofie::http::RoutePath {
+            sofie::http::RoutePath::new(
+                sofie::http::Method::POST,
+                "/team/billing/upgrade".to_owned(),
+            )
+        }
+        #[must_use]
+        pub fn manage_billing() -> sofie::http::RoutePath {
+            sofie::http::RoutePath::new(
+                sofie::http::Method::POST,
+                "/team/billing/portal".to_owned(),
+            )
+        }
+    }
+    pub mod web {
+        #[must_use]
+        pub fn list_plans() -> sofie::http::RoutePath {
+            sofie::http::RoutePath::new(sofie::http::Method::GET, "/pricing".to_owned())
+        }
+    }
 }
 
 pub mod permissions {
+    pub const BILLING_MANAGE: sofie::http::Permission =
+        sofie::http::Permission::new("tracker.billing.*.manage");
     pub const HOME_READ: sofie::http::Permission =
         sofie::http::Permission::new("tracker.home.*.read");
+    pub const OVERVIEW_READ: sofie::http::Permission =
+        sofie::http::Permission::new("tracker.overview.*.read");
+    pub const PLAN_READ: sofie::http::Permission =
+        sofie::http::Permission::new("tracker.plan.*.read");
+    pub const TASK_COMPLETE: sofie::http::Permission =
+        sofie::http::Permission::new("tracker.task.*.complete");
+    pub const TASK_CREATE: sofie::http::Permission =
+        sofie::http::Permission::new("tracker.task.*.create");
+    pub const TASK_DELETE: sofie::http::Permission =
+        sofie::http::Permission::new("tracker.task.*.delete");
+    pub const TASK_READ: sofie::http::Permission =
+        sofie::http::Permission::new("tracker.task.*.read");
+    pub const TASK_REOPEN: sofie::http::Permission =
+        sofie::http::Permission::new("tracker.task.*.reopen");
+    pub const TASK_UPDATE: sofie::http::Permission =
+        sofie::http::Permission::new("tracker.task.*.update");
+    pub const TASK_ORGANIZATION_READ: sofie::http::Permission =
+        sofie::http::Permission::new("tracker.task.organization.read");
+    pub const TASK_ORGANIZATION_UPDATE: sofie::http::Permission =
+        sofie::http::Permission::new("tracker.task.organization.update");
+    pub const TASK_STATUS_READ: sofie::http::Permission =
+        sofie::http::Permission::new("tracker.task.status.read");
+    pub const TASK_STATUS_UPDATE: sofie::http::Permission =
+        sofie::http::Permission::new("tracker.task.status.update");
+    pub const TASK_TITLE_READ: sofie::http::Permission =
+        sofie::http::Permission::new("tracker.task.title.read");
+    pub const TASK_TITLE_UPDATE: sofie::http::Permission =
+        sofie::http::Permission::new("tracker.task.title.update");
+    pub const TRIAL_START: sofie::http::Permission =
+        sofie::http::Permission::new("tracker.trial.*.start");
+    pub const UPGRADE_UPGRADE: sofie::http::Permission =
+        sofie::http::Permission::new("tracker.upgrade.*.upgrade");
 }

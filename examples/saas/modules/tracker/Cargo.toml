@@ -1,12 +1,16 @@
 [package]
 name = "tracker"
+description = "Example module: a team's tasks, its plans, and the webhook announcing a finished task."
 edition.workspace = true
+rust-version.workspace = true
 version.workspace = true
-publish.workspace = true
+publish = false
 
 [dependencies]
+sofie = { workspace = true, features = ["billing", "config", "factories"] }
+sofie-tenancy.workspace = true
+sofie-webhooks.workspace = true
 tracker-contract = { path = "contract" }
-sofie = { workspace = true, features = ["config"] }
 
 [lints]
 workspace = true

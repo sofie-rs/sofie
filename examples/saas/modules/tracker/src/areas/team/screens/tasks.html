@@ -1,0 +1,11 @@
+<Section id="tasks" title="Tasks">
+  <Form id="new-task" post="/team/tasks" target="tasks">
+    <Submit label="Add task" />
+  </Form>
+  <Table id="task-list" of={data} columns="title status" as="task">
+    <Action post="/team/tasks/{task.id}/complete" label="Done" target="tasks" when={task.status_to.DONE} />
+    {#if enabled("tracker.reopening")}
+      <Action post="/team/tasks/{task.id}/reopen" label="Reopen" target="tasks" when={task.status_to.OPEN} />
+    {/if}
+  </Table>
+</Section>

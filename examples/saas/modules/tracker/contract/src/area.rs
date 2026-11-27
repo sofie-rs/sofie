@@ -24,6 +24,11 @@ impl sofie_identity::SignUp for Member {
     const PATH: &'static str = "/member/sign-up";
 }
 
+impl sofie_identity::MemberArea for Member {
+    const HOME: &'static str = "/member/organizations";
+    const SIGN_UP: Option<&'static str> = Some(<Self as sofie_identity::SignUp>::PATH);
+}
+
 pub struct Team;
 
 impl Area for Team {

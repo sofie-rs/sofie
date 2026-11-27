@@ -7,14 +7,21 @@ version.workspace = true
 publish = false
 
 [dependencies]
-sofie-tenancy.workspace = true
-tracker-contract = { path = "../modules/tracker/contract" }
+sofie = { workspace = true, features = ["feature-flags", "live"] }
+sofie-content = { workspace = true, features = ["admin"] }
 sofie-identity = { workspace = true, features = ["impersonation"] }
+# Members and invitations held to the seats of the team's plan.
+sofie-tenancy = { workspace = true, features = ["billing"] }
+sofie-webhooks.workspace = true
 tracker = { path = "../modules/tracker" }
-sofie.workspace = true
+tracker-contract = { path = "../modules/tracker/contract" }
 
 [build-dependencies]
 sofie-cli.workspace = true
 
 [lints]
 workspace = true
+
+[dev-dependencies]
+sofie-identity = { workspace = true, features = ["testing", "permissions"] }
+sofie-testing = { workspace = true, features = ["flags"] }

@@ -4,26 +4,82 @@ use sofie::http::Module;
 
 #[rustfmt::skip]
 pub(crate) const GENERATED: Module = Module {
+    migrations: Some(
+        sofie::db::Migrations::new(
+            "tracker",
+            &[
+                sofie::db::embed!("migrations/0000_module_role.sql"),
+                sofie::db::embed!("migrations/0001_create_task.sql"),
+            ],
+        )
+        .aggregates(const { &[sofie::db::AggregateTable::of::<crate::Task>()] }),
+    ),
     route_names: &[
         sofie::http::RouteName {
             method: "GET",
-            path: "/member/home",
-            name: "tracker.member.member_home",
+            path: "/pricing",
+            name: "tracker.web.list_plans",
         },
         sofie::http::RouteName {
             method: "GET",
             path: "/staff/home",
             name: "tracker.staff.staff_home",
         },
+        sofie::http::RouteName {
+            method: "GET",
+            path: "/team/billing",
+            name: "tracker.team.billing_overview",
+        },
+        sofie::http::RouteName {
+            method: "GET",
+            path: "/team/tasks",
+            name: "tracker.team.list_tasks",
+        },
+        sofie::http::RouteName {
+            method: "POST",
+            path: "/team/billing/portal",
+            name: "tracker.team.manage_billing",
+        },
+        sofie::http::RouteName {
+            method: "POST",
+            path: "/team/billing/trial",
+            name: "tracker.team.start_trial",
+        },
+        sofie::http::RouteName {
+            method: "POST",
+            path: "/team/billing/upgrade",
+            name: "tracker.team.upgrade",
+        },
+        sofie::http::RouteName {
+            method: "POST",
+            path: "/team/tasks",
+            name: "tracker.team.create_task",
+        },
+        sofie::http::RouteName {
+            method: "POST",
+            path: "/team/tasks/{task}/complete",
+            name: "tracker.team.complete_task",
+        },
+        sofie::http::RouteName {
+            method: "POST",
+            path: "/team/tasks/{task}/reopen",
+            name: "tracker.team.reopen_task",
+        },
     ],
     areas: &[
         |app, module| {
-            app.area::<tracker_contract::area::Member>(module, crate::areas::member::routes::routes)
+            app.area::<tracker_contract::area::Staff>(module, crate::areas::staff::routes::routes)
         },
         |app, module| {
-            app.area::<tracker_contract::area::Staff>(module, crate::areas::staff::routes::routes)
+            app.area::<tracker_contract::area::Team>(module, crate::areas::team::routes::routes)
         },
         |app, module| app.area::<sofie::http::Web>(module, crate::areas::web::routes::routes),
     ],
+    jobs: |worker| {
+        worker.on::<tracker_contract::TaskCompleted, _>(
+            "tracker.listeners.announce_completion",
+            crate::listeners::announce_completion,
+        )
+    },
     ..Module::new("tracker")
 };

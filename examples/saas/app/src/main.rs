@@ -1,3 +1,3 @@
 fn main() -> sofie::core::Result<()> {
-    sofie::run(saas::MODULES, saas::app, saas::worker)
+    sofie::run_with_flags(saas::MODULES, saas::app, saas::worker)
 }

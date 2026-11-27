@@ -10,6 +10,7 @@ publish = false
 sofie.workspace = true
 sofie-identity = { workspace = true, features = ["permissions"] }
 sofie-tenancy.workspace = true
+sofie-webhooks.workspace = true
 
 [lints]
 workspace = true

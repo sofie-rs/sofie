@@ -6,7 +6,7 @@ Written by `sofie gen` from the code; `sofie check` reports it stale when the co
 
 ## Modules
 
-- `tracker` (Core) in `modules/tracker/`; areas `member`, `staff`, `web`; contract `tracker-contract`
+- `tracker` (Core) in `modules/tracker/`; areas `staff`, `team`, `web`; aggregates `Task`; events `TaskCompleted`; contract `tracker-contract`
 
 ## Areas
 

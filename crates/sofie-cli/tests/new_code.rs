@@ -1060,6 +1060,7 @@ fn a_new_area_refuses_a_prefix_or_a_type_name_already_taken() {
         module: "billing".to_owned(),
         name: name.to_owned(),
         access: AreaAccess::Public,
+        member: None,
     };
 
     let prefix = usage(&app, &area("account"));
@@ -1080,6 +1081,99 @@ fn a_new_area_refuses_a_prefix_or_a_type_name_already_taken() {
         principal.starts_with("`Visitor`, the type area `visitor` would define, is a name"),
         "{principal}"
     );
+}
+
+fn organization_area(member: Option<&str>) -> NewCode {
+    NewCode::Area {
+        module: "billing".to_owned(),
+        name: "team".to_owned(),
+        access: AreaAccess::Organization,
+        member: member.map(str::to_owned),
+    }
+}
+
+fn app_with_member_area() -> TemporaryDirectory {
+    let app = billing_app();
+    app.write("modules/billing/contract/src/lib.rs", "pub mod area;\n");
+    app.write(
+        "modules/billing/contract/src/area.rs",
+        "pub struct Member;\n\nimpl Area for Member {\n    \
+         const NAME: &'static str = \"member\";\n    const PREFIX: &'static str = \"/account\";\n    \
+         const SIGN_IN: &'static str = \"/account/sign-in\";\n    \
+         type Principal = sofie_identity::Account;\n}\n",
+    );
+    app.write(
+        "app/src/lib.rs",
+        "mod wiring;\n\npub async fn app(db: Db) -> Result<App> {\n    wiring::app(db)\n}\n",
+    );
+    app
+}
+
+#[test]
+fn an_organization_area_is_entered_from_its_member_area_and_mounts_tenancy() {
+    let app = app_with_member_area();
+
+    generate(&app, &organization_area(Some("member")));
+
+    let area: String = read(&app, "modules/billing/contract/src/area.rs")
+        .split_whitespace()
+        .collect();
+    for expected in [
+        "usesofie_tenancy::{Organization,OrganizationArea};",
+        "constSIGN_IN:&'staticstr=\"/account/organizations\";typePrincipal=Organization;",
+        "implOrganizationAreaforTeam{constHOME:&'staticstr=\"/team/home\";}",
+    ] {
+        assert!(area.contains(expected), "{expected}: {area}");
+    }
+    let library: String = read(&app, "app/src/lib.rs").split_whitespace().collect();
+    assert!(
+        library.contains("sofie_tenancy::member_routes::<billing_contract::area::Member,billing_contract::area::Team,>"),
+        "{library}"
+    );
+    assert!(
+        library.contains("sofie_tenancy::organization_routes::<billing_contract::area::Team,billing_contract::area::Member,>"),
+        "{library}"
+    );
+    assert!(
+        read(&app, "modules/billing/contract/Cargo.toml")
+            .contains("sofie-tenancy.workspace = true")
+    );
+    let manifest = read(&app, "app/Cargo.toml");
+    assert!(
+        manifest.contains("sofie-tenancy.workspace = true"),
+        "{manifest}"
+    );
+    assert!(
+        manifest.contains("billing-contract = { path = \"../modules/billing/contract\" }"),
+        "{manifest}"
+    );
+    assert!(
+        app.path("modules/billing/src/areas/team/routes.rs")
+            .is_file()
+    );
+}
+
+#[test]
+fn an_organization_area_needs_a_member_area_of_accounts_and_only_it_takes_one() {
+    let app = app_with_member_area();
+    let public_with_member = NewCode::Area {
+        module: "billing".to_owned(),
+        name: "docs".to_owned(),
+        access: AreaAccess::Public,
+        member: Some("member".to_owned()),
+    };
+
+    let without = usage(&app, &organization_area(None));
+    let unknown = usage(&app, &organization_area(Some("staff")));
+    let public = usage(&app, &public_with_member);
+
+    assert!(without.contains("name it with `--member`"), "{without}");
+    assert!(
+        unknown.starts_with("the app defines no area `staff` of sofie-identity's `Account`"),
+        "{unknown}"
+    );
+    assert!(public.contains("a public area takes none"), "{public}");
+    assert!(!app.path("modules/billing/src/areas/team").exists());
 }
 
 #[test]

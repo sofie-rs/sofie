@@ -2178,8 +2178,13 @@ case for modules, functions and screens, Pascal case for types):
   (`contract/src/area.rs`, declared in its `lib.rs`) under the prefix
   `/<name>`. ACCESS, one of `Access`'s variants, sets its principal:
   `public` (`sofie::http::Visitor`, `SIGN_IN` `/`), `owned`
-  (`sofie_identity::Account`) or `permitted` (`sofie_identity::Permitted`,
-  turning on sofie-identity's `permissions` in the contract). A member area
+  (`sofie_identity::Account`), `permitted` (`sofie_identity::Permitted`,
+  turning on sofie-identity's `permissions` in the contract) or
+  `organization --member MEMBER_AREA` (`sofie_tenancy::Organization`, with
+  `OrganizationArea::HOME` at its first page and `SIGN_IN` at the `owned`
+  member area's `/organizations`; the contract and the app depend on
+  sofie-tenancy, and both areas' tenancy routes are mounted in the app's `app`
+  as `sofie new tenancy` mounts them). A member area
   signs in at `/<name>/sign-in`, and its first page is written as `sofie new
   route MODULE NAME get /home <name>_home --screen home` would write it, in
   `src/areas/<name>/`; members land there after signing in (the generated

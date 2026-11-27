@@ -48,6 +48,8 @@ pub enum NewCode {
         module: String,
         name: String,
         access: AreaAccess,
+        /// For an organization area: the member area listing and entering organizations.
+        member: Option<String>,
     },
     /// Signing in as a member of `member`, for a permitted principal of `permitted`.
     Impersonation {
@@ -305,7 +307,8 @@ fn generate(edits: &mut Edits, app: &App, code: &NewCode) -> Result<(), GenError
             module,
             name,
             access,
-        } => area::new_area(edits, app, module, name, *access),
+            member,
+        } => area::new_area(edits, app, module, name, *access, member.as_deref()),
         NewCode::AccountScreen { area, screen } => {
             account_screen::new_account_screen(edits, app, area, *screen)
         }

@@ -3,6 +3,7 @@ use std::path::Path;
 use sofie_model::naming::pascal_case;
 use sofie_model::{App, Crate};
 
+use super::account_screen::new_tenancy;
 use super::edits::module_file;
 use super::route::{NewRoute, file_names, new_route};
 use super::{Edits, checked_name, checked_type_name, find_module};
@@ -14,10 +15,16 @@ pub enum AreaAccess {
     Public,
     Owned,
     Permitted,
+    Organization,
 }
 
 impl AreaAccess {
-    pub const ALL: [Self; 3] = [Self::Public, Self::Owned, Self::Permitted];
+    pub const ALL: [Self; 4] = [
+        Self::Public,
+        Self::Owned,
+        Self::Permitted,
+        Self::Organization,
+    ];
 
     #[must_use]
     pub fn parse(name: &str) -> Option<Self> {
@@ -30,16 +37,13 @@ impl AreaAccess {
             Self::Public => ("public", "sofie::http", "Visitor"),
             Self::Owned => ("owned", "sofie_identity", "Account"),
             Self::Permitted => ("permitted", "sofie_identity", "Permitted"),
+            Self::Organization => ("organization", TENANCY, "Organization"),
         }
     }
 
     #[must_use]
     pub fn name(self) -> &'static str {
         self.parts().0
-    }
-
-    fn signs_in(self) -> bool {
-        self != Self::Public
     }
 }
 
@@ -50,6 +54,7 @@ pub(super) fn new_area(
     module: &str,
     name: &str,
     access: AreaAccess,
+    member: Option<&str>,
 ) -> Result<(), GenError> {
     let name = checked_name(name)?;
     let type_name = pascal_case(name);
@@ -68,7 +73,8 @@ pub(super) fn new_area(
     })?;
     refuse_taken_prefix(app, name)?;
     refuse_taken_type_name(app, contract, name, &type_name)?;
-    write_definition(edits, contract, name, &type_name, access)?;
+    let sign_in = sign_in(app, name, access, member)?;
+    write_definition(edits, contract, name, &type_name, access, &sign_in)?;
     depend_on_principal(edits, app, contract, access)?;
     if access == AreaAccess::Owned {
         let file = module_file(contract, "area");
@@ -76,6 +82,9 @@ pub(super) fn new_area(
         edits.note(sign_up_hint(file, &type_name, name));
     }
     let reloaded = sofie_model::load(&app.root).map_err(GenError::Model)?;
+    if let Some(member) = member {
+        new_tenancy(edits, &reloaded, name, member)?;
+    }
     new_route(
         edits,
         &reloaded,
@@ -112,6 +121,54 @@ const HOME: &str = "/home";
 
 fn prefix(name: &str) -> String {
     format!("/{}", name.replace('_', "-"))
+}
+
+/// An organization area is entered from its member area's list of organizations, which is
+/// where a visitor without one is sent.
+fn sign_in(
+    app: &App,
+    name: &str,
+    access: AreaAccess,
+    member: Option<&str>,
+) -> Result<String, GenError> {
+    match (access, member) {
+        (AreaAccess::Public, None) => Ok("/".to_owned()),
+        (AreaAccess::Owned | AreaAccess::Permitted, None) => {
+            Ok(format!("{}/sign-in", prefix(name)))
+        }
+        (AreaAccess::Organization, Some(member)) => Ok(format!(
+            "{}/organizations",
+            account_area_prefix(app, member)?
+        )),
+        (AreaAccess::Organization, None) => Err(GenError::Usage(format!(
+            "an organization area is entered from a member area; name it with `--member`, \
+             as `sofie new area MODULE {name} organization --member member`"
+        ))),
+        (_, Some(_)) => Err(GenError::Usage(format!(
+            "`--member` names the member area of an organization area; a {} area takes none",
+            access.name()
+        ))),
+    }
+}
+
+fn account_area_prefix(app: &App, member: &str) -> Result<String, GenError> {
+    app.areas()
+        .into_iter()
+        .filter(|area| area.name == member)
+        .find_map(|area| {
+            let definition = area.definition?;
+            let owned = definition
+                .principal
+                .last()
+                .is_some_and(|principal| principal == "Account");
+            owned.then(|| definition.prefix.clone()).flatten()
+        })
+        .ok_or_else(|| {
+            GenError::Usage(format!(
+                "the app defines no area `{member}` of sofie-identity's `Account` to list and \
+                 enter organizations from; make one with `sofie new area MODULE {member} owned`"
+            ))
+        })
 }
 
 fn refuse_taken_prefix(app: &App, name: &str) -> Result<(), GenError> {
@@ -166,30 +223,37 @@ fn write_definition(
     name: &str,
     type_name: &str,
     access: AreaAccess,
+    sign_in: &str,
 ) -> Result<(), GenError> {
     let (_, principal_crate, principal) = access.parts();
     let prefix = prefix(name);
-    let sign_in = if access.signs_in() {
-        format!("{prefix}/sign-in")
-    } else {
-        "/".to_owned()
-    };
-    let definition = format!(
+    let area = format!(
         "pub struct {type_name};\n\nimpl Area for {type_name} {{\n    \
          const NAME: &'static str = \"{name}\";\n    const PREFIX: &'static str = \"{prefix}\";\n    \
          const SIGN_IN: &'static str = \"{sign_in}\";\n    type Principal = {principal};\n}}\n"
     );
-    let file = module_file(contract, "area");
-    let imports = [
+    let principal_import = format!("use {principal_crate}");
+    let mut imports = vec![
         ("use sofie::http", "Area"),
-        (&format!("use {principal_crate}"), principal),
+        (principal_import.as_str(), principal),
     ];
+    let mut definition = vec![area];
+    if access == AreaAccess::Organization {
+        definition.push(format!(
+            "\nimpl OrganizationArea for {type_name} {{\n    \
+             const HOME: &'static str = \"{prefix}{HOME}\";\n}}\n"
+        ));
+        imports.push((principal_import.as_str(), "OrganizationArea"));
+    }
+    let definition = definition.concat();
+    let file = module_file(contract, "area");
     edits.append(&file, &imports, &definition)?;
     edits.declare(contract, &["area"])
 }
 
 /// `sofie gen` then adds sofie-identity's module, sign-in routes and `MemberArea` for an
-/// area members sign in to.
+/// area members sign in to; an organization area's principal comes from sofie-tenancy, which
+/// `new_tenancy` makes the app depend on.
 fn depend_on_principal(
     edits: &mut Edits,
     app: &App,
@@ -201,12 +265,17 @@ fn depend_on_principal(
         AreaAccess::Public => return Ok(()),
         AreaAccess::Owned => edits.depend_on_workspace(contract, IDENTITY)?,
         AreaAccess::Permitted => edits.enable_feature(contract, IDENTITY, "permissions")?,
+        AreaAccess::Organization => {
+            edits.depend_on_workspace(contract, "sofie-tenancy")?;
+            return edits.depend(&app.app, contract);
+        }
     }
     edits.depend_on_workspace(&app.app, IDENTITY)?;
     edits.depend(&app.app, contract)
 }
 
 const IDENTITY: &str = "sofie-identity";
+const TENANCY: &str = "sofie_tenancy";
 
 #[cfg(test)]
 mod tests {

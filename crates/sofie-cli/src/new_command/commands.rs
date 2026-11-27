@@ -313,8 +313,10 @@ pub const NEW_COMMANDS: &[NewCommand] = &[
         description: "`sofie new area`: an area in the module's `contract/src/area.rs` under the \
                       prefix `/<name>`, whose principal fixes its access: `public` (a `Visitor`), \
                       `owned` (a sofie-identity `Account`, on its own records) or `permitted` \
-                      (sofie-identity's `Permitted`, each route with its permission). Its first \
-                      page is a `get /home` with a screen in `src/areas/<name>/`, where members \
+                      (sofie-identity's `Permitted`, each route with its permission) or \
+                      `organization` (a sofie-tenancy `Organization`, entered from the `member` \
+                      area's list of organizations, whose routes and the area's are mounted in the \
+                      app's `app`). Its first page is a `get /home` with a screen in `src/areas/<name>/`, where members \
                       land after signing in. An area members sign in to makes the contract and \
                       the app depend on sofie-identity, whose module and sign-in routes the \
                       wiring then adds. Then `sofie gen` and `sofie check`.",
@@ -325,7 +327,16 @@ pub const NEW_COMMANDS: &[NewCommand] = &[
                 "NAME",
                 "The area's name in snake case, as `console`.",
             ),
-            required("access", "ACCESS", "`public`, `owned` or `permitted`."),
+            required(
+                "access",
+                "ACCESS",
+                "`public`, `owned`, `permitted` or `organization`.",
+            ),
+            optional(
+                "member",
+                "MEMBER_AREA",
+                "For an `organization` area: the `owned` area of accounts entering it, as `member`.",
+            ),
         ],
         build: |values| {
             let access = AreaAccess::parse(&values.text("access")).ok_or_else(|| {
@@ -336,6 +347,7 @@ pub const NEW_COMMANDS: &[NewCommand] = &[
                 module: values.text("module"),
                 name: values.text("name"),
                 access,
+                member: values.optional("member"),
             })
         },
     },
@@ -402,8 +414,9 @@ pub const NEW_COMMANDS: &[NewCommand] = &[
         tool: "new_tenancy",
         description: "`sofie new tenancy`: organizations that own records, members with roles and \
                       invitations by email (sofie-tenancy). The organization area's principal \
-                      is `sofie_tenancy::OrganizationId` and it implements \
-                      `sofie_tenancy::OrganizationArea`; the member area lists, founds and enters \
+                      is `sofie_tenancy::Organization` and it implements \
+                      `sofie_tenancy::OrganizationArea`, as `sofie new area` writes an \
+                      `organization` area, which mounts both itself; the member area lists, founds and enters \
                       organizations and accepts invitations. Mounts both and makes the app depend \
                       on sofie-tenancy, whose migrations the wiring then adds. Then `sofie gen` and \
                       `sofie check`.",
@@ -603,7 +616,7 @@ mod tests {
         );
         assert_eq!(
             refused.as_deref(),
-            Some("`access` is one of public, owned, permitted")
+            Some("`access` is one of public, owned, permitted, organization")
         );
     }
 

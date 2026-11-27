@@ -113,8 +113,8 @@ impl<'a> Language<'a> {
         self.language.field_error(key, &arguments, english)
     }
 
-    pub(crate) fn label(self, module: Option<&str>, field: &str) -> String {
-        self.language.field_label(module.unwrap_or_default(), field)
+    pub(crate) fn field_label(self, module: Option<&str>, field: &str) -> String {
+        sofie_engine::field_label(self.language, module.unwrap_or_default(), field)
     }
 
     pub(crate) fn script_notices(self) -> sofie_engine::ScriptNotices<'a> {
@@ -178,8 +178,8 @@ mod tests {
             negotiated: true,
         };
 
-        assert_eq!(language.label(Some("order"), "status"), "Durum");
-        assert_eq!(language.label(None, "placed_at"), "Placed at");
+        assert_eq!(language.field_label(Some("order"), "status"), "Durum");
+        assert_eq!(language.field_label(None, "placed_at"), "Placed at");
         let error =
             FieldError::new("total", "validation.max", "must be at most 5").with("max", "5");
         assert_eq!(language.field_error(&error), "en fazla 5 olmalı");

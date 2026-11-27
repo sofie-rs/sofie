@@ -20,7 +20,8 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use sofie_values::Locale;
 
-pub(crate) use self::call::{Argument, Call, CountedKeys, Format, label};
+pub use self::call::field_label;
+pub(crate) use self::call::{Argument, Call, CountedKeys, Format, label, label_text};
 #[cfg(feature = "parse")]
 pub use self::check::{Gap, GapKind};
 use self::entries::{Entries, Origin};

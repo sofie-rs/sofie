@@ -28,6 +28,7 @@ pub(crate) struct ScreenPage<'a> {
     pub(crate) template: &'a Template,
     pub(crate) title: &'a str,
     pub(crate) language: Language<'a>,
+    pub(crate) module: &'a str,
     pub(crate) content_security: &'a AreaContentSecurity,
     #[cfg(feature = "islands")]
     pub(crate) islands: Option<sofie_engine::islands::IslandLinks>,
@@ -111,7 +112,6 @@ pub(crate) fn refused_page(
     asked: Asked<'_>,
     screen: &ScreenPage<'_>,
     input: &Value,
-    module: &str,
 ) -> Response {
     let errors = refusal.field_errors(screen.language);
     let submitted = Submitted {
@@ -123,7 +123,7 @@ pub(crate) fn refused_page(
         input,
         errors: &errors,
     };
-    let notice = refusal.messages(screen.language, Some(module));
+    let notice = refusal.messages(screen.language, Some(screen.module));
     let rendered = read(screen, result, |data| {
         page(screen, data, &notice, Some(&submitted))
     })

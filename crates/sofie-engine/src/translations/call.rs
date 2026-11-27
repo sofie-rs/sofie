@@ -1,3 +1,4 @@
+use super::{Language, Message};
 use crate::label::humanize;
 use crate::message::Recorded;
 use crate::syntax::{Expression, Position};
@@ -106,6 +107,28 @@ pub(crate) fn label(name: &str, module: Option<&str>, position: Position) -> Exp
         humanized: humanize(name),
         position,
     }))
+}
+
+/// A field's label in `module`'s own words, else the app-wide ones, else humanized.
+#[must_use]
+pub fn field_label(language: Language<'_>, module: &str, field: &str) -> String {
+    let humanized = humanize(field);
+    let scoped = module_label_key(module, field);
+    label_text(language, Some(&scoped), &label_key(field), &humanized).to_owned()
+}
+
+/// The viewer's language comes first: its app-wide label beats the source language's module one.
+pub(crate) fn label_text<'m>(
+    language: Language<'m>,
+    scoped: Option<&str>,
+    key: &str,
+    humanized: &'m str,
+) -> &'m str {
+    let keys = || scoped.into_iter().chain([key]);
+    keys()
+        .find_map(|key| language.own_message(key).and_then(Message::plain))
+        .or_else(|| keys().find_map(|key| language.message(key).and_then(Message::plain)))
+        .unwrap_or(humanized)
 }
 
 pub(crate) fn label_key(field: &str) -> String {

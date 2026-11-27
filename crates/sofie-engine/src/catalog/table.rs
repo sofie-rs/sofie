@@ -3,6 +3,7 @@ use sofie_core::Shown;
 use super::money::money_of;
 use super::props::{Props, is_field_name};
 use crate::escape::push_escaped;
+use crate::language::label;
 use crate::render::{Renderer, Resolved, field_of, items_of, push_display, write_escaped};
 use crate::syntax::{Expression, LocatedError, Op, Position};
 
@@ -47,7 +48,7 @@ pub(super) fn build_table(
     }
     let labels = columns
         .iter()
-        .map(|column| props.label(column, columns_position))
+        .map(|column| label(column, props.module, columns_position))
         .collect();
     Ok(Table {
         #[cfg(feature = "listing")]

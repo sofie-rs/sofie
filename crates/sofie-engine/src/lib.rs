@@ -85,7 +85,9 @@ pub use crate::label::humanize;
 pub use crate::page::{NOTICE_TARGET, Page, ScriptNotices, notice, with_cleared_notice};
 pub use crate::template::{Template, form_fields};
 #[cfg(feature = "i18n")]
-pub use crate::translations::{CURRENCY_SYMBOLS, Language, Tone, TranslationError, Translations};
+pub use crate::translations::{
+    CURRENCY_SYMBOLS, Language, Tone, TranslationError, Translations, field_label,
+};
 #[cfg(all(feature = "i18n", feature = "parse"))]
 pub use crate::translations::{
     Gap, GapKind, KeyKind, KeyUse, check_translations, translation_keys,

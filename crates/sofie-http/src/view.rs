@@ -169,10 +169,10 @@ impl RouteAnswer<'_> {
             Err(error) => {
                 #[cfg(feature = "clients")]
                 if caller == Caller::Screen {
-                    let language = self.language();
+                    let refusal = answer::Refusal::of(error);
                     return crate::client_page::refused(
-                        &answer::Refusal::of(error),
-                        language,
+                        &refusal,
+                        self.language(),
                         self.target.module,
                     );
                 }
@@ -292,14 +292,7 @@ impl RouteAnswer<'_> {
         let shown = async {
             let loaded = (page.loader)(self.db.clone(), again).await;
             self.on_screen(&page.screen, |screen| {
-                screen::refused_page(
-                    loaded,
-                    &refusal,
-                    self.asked,
-                    screen,
-                    input,
-                    self.target.module,
-                )
+                screen::refused_page(loaded, &refusal, self.asked, screen, input)
             })
         };
         // A commit that failed lifted the deadline too.
@@ -319,12 +312,8 @@ impl RouteAnswer<'_> {
             .as_deref()
             .zip(trigger)
             .and_then(|(template, form)| sofie_engine::form_fields(template, form));
-        answer::Refusal::of(error).notice(
-            trigger,
-            shown.as_deref(),
-            language,
-            Some(self.target.module),
-        )
+        let module = Some(self.target.module);
+        answer::Refusal::of(error).notice(trigger, shown.as_deref(), language, module)
     }
 
     #[cfg_attr(
@@ -354,6 +343,7 @@ impl RouteAnswer<'_> {
             template: &template,
             title: &view.title,
             language: self.language(),
+            module: self.target.module,
             content_security: &self.target.admission.area.content_security,
             #[cfg(feature = "islands")]
             islands: self.screens.islands.links(self.target.audience.name),

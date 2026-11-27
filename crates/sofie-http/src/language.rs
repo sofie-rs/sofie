@@ -34,7 +34,7 @@ impl Language<'_> {
         rule.message.clone()
     }
 
-    pub(crate) fn label(self, _module: Option<&str>, field: &str) -> String {
+    pub(crate) fn field_label(self, _module: Option<&str>, field: &str) -> String {
         sofie_engine::humanize(field)
     }
 

@@ -511,7 +511,7 @@ pub(crate) fn in_language(result: Result<Reply>, language: Language<'_>) -> Resu
 fn told(field: &FieldError, language: Language<'_>, module: Option<&str>) -> String {
     format!(
         "{}: {}",
-        language.label(module, &field.field),
+        language.field_label(module, &field.field),
         language.field_error(field)
     )
 }

@@ -146,7 +146,10 @@ pub(crate) fn constant_label(
                 key,
                 humanized,
                 ..
-            } => Some(language.label(scoped.as_deref(), key, humanized).to_owned()),
+            } => Some(
+                crate::translations::label_text(language, scoped.as_deref(), key, humanized)
+                    .to_owned(),
+            ),
             _ => None,
         },
         _ => {
@@ -171,7 +174,7 @@ pub(super) fn build_field(props: &mut Props, position: Position) -> Result<Field
     Ok(Field {
         label: props
             .optional("label")
-            .unwrap_or_else(|| props.label(&name, position)),
+            .unwrap_or_else(|| label(&name, props.module, position)),
         described: None,
         value: props.take("value"),
         options: props.take("options"),

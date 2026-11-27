@@ -13,7 +13,7 @@ use sofie_core::{Instant, Shown};
 use super::props::{Props, is_element_id, is_field_name};
 use super::table::{Table, render_body};
 use crate::escape::push_escaped;
-use crate::language::Language;
+use crate::language::{Language, label};
 use crate::render::{
     Renderer, Resolved, each_field, field_of, fields_of, items_of, push_display, str_of, text_of,
 };
@@ -40,7 +40,7 @@ pub(super) fn build(
     let filters = names(props, "filter")?
         .into_iter()
         .map(|name| {
-            let label = props.label(&name, position);
+            let label = label(&name, props.module, position);
             (name, label)
         })
         .collect();

@@ -15,10 +15,11 @@ mod schema_migration;
 mod search;
 pub(crate) mod task;
 mod topic;
+mod workspace;
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
-use sofie_model::naming::{contract_package, crate_name, snake_case};
+use sofie_model::naming::{contract_package, crate_name, relative_path, snake_case};
 use sofie_model::{App, Module};
 
 use crate::fix_command::generated_export_lines;
@@ -111,25 +112,53 @@ pub enum NewCode {
 
 const KEEP: &str = ".gitkeep";
 
+/// Inside a cargo workspace the app's crates join it; elsewhere the app is a workspace of its own.
 pub fn new_app(parent: &Path, name: &str) -> Result<Vec<GenOutcome>, GenError> {
     let name = checked_app_name(name)?;
     let root = parent.join(name);
     refuse_existing(&root)?;
-    let crate_name = crate_name(name);
-    let [build, library, main] = app_sources(&crate_name);
-    let files = [
-        ("Cargo.toml", workspace_manifest()),
-        (".gitignore", "/target\n/.env\n".to_owned()),
-        ("app/Cargo.toml", app_manifest(name)),
-        build,
-        library,
-        main,
-        (&format!("modules/{KEEP}"), String::new()),
-    ];
     let mut journal = Journal::default();
-    let written =
-        write_all(&mut journal, &root, &files).and_then(|()| gen_app(&root, GenMode::Write));
+    let written = match workspace::owning_workspace(parent)? {
+        Some(workspace) => write_member_app(&mut journal, parent, name, &workspace),
+        None => write_standalone_app(&mut journal, &root, name),
+    }
+    .and_then(|()| gen_app(&root, GenMode::Write));
     journal.finish(written)
+}
+
+fn write_standalone_app(journal: &mut Journal, root: &Path, name: &str) -> Result<(), GenError> {
+    let workspace = workspace_manifest();
+    let files = [
+        ("Cargo.toml", workspace.clone()),
+        (".gitignore", "/target\n/.env\n".to_owned()),
+    ];
+    write_all(journal, root, &files)?;
+    write_all(journal, root, &app_files(name, &workspace))
+}
+
+fn write_member_app(
+    journal: &mut Journal,
+    parent: &Path,
+    name: &str,
+    workspace: &Path,
+) -> Result<(), GenError> {
+    let prefix = workspace::member_prefix(workspace, parent)? + name;
+    let text = read(workspace)?;
+    let members = [format!("{prefix}/app"), format!("{prefix}/modules/*")];
+    let joined = workspace::joined(workspace, &text, &members)?;
+    journal.write(workspace, &joined)?;
+    write_all(journal, &parent.join(name), &app_files(name, &joined))
+}
+
+fn app_files(name: &str, workspace: &str) -> Vec<(String, String)> {
+    let [build, library, main] = app_sources(&crate_name(name));
+    vec![
+        ("app/Cargo.toml".to_owned(), app_manifest(name, workspace)),
+        (build.0.to_owned(), build.1),
+        (library.0.to_owned(), library.1),
+        (main.0.to_owned(), main.1),
+        (format!("modules/{KEEP}"), String::new()),
+    ]
 }
 
 /// The app crate's code besides its manifest, which only `sofie gen`'s wiring adds to.
@@ -164,9 +193,17 @@ pub fn new_module(root: &Path, name: &str) -> Result<Vec<GenOutcome>, GenError> 
     }
     let crate_name = crate_name(name);
     let config = sofie_model::config_type_name(&crate_name);
+    let workspace = workspace::owning_workspace(root)?;
+    let workspace_text = match &workspace {
+        Some(manifest) => read(manifest)?,
+        None => workspace_manifest(),
+    };
     let files = [
-        ("Cargo.toml", module_manifest(name)),
-        ("contract/Cargo.toml", contract_manifest(name)),
+        ("Cargo.toml", module_manifest(name, &workspace_text)),
+        (
+            "contract/Cargo.toml",
+            contract_manifest(name, &workspace_text),
+        ),
         (
             "contract/src/lib.rs",
             format!("//! What other modules may use of module `{name}`.\n"),
@@ -187,7 +224,7 @@ pub fn new_module(root: &Path, name: &str) -> Result<Vec<GenOutcome>, GenError> 
     ];
     let mut journal = Journal::default();
     let written = write_all(&mut journal, &directory, &files)
-        .and_then(|()| include_contracts(&mut journal, &root.join("Cargo.toml")))
+        .and_then(|()| include_contracts(&mut journal, workspace.as_deref(), root))
         .and_then(|()| {
             let manifest = root.join("app").join("Cargo.toml");
             let dependency = path_dependency(name, &format!("../modules/{name}"));
@@ -348,20 +385,24 @@ fn refuse_prelude_type(name: &str) -> Result<(), GenError> {
 }
 
 /// Cargo refuses a member glob matching nothing, so contracts join the workspace only once a module has one.
-fn include_contracts(journal: &mut Journal, workspace: &Path) -> Result<(), GenError> {
-    const MODULES: &str = "\"modules/*\"";
-    const CONTRACTS: &str = "\"modules/*/contract\"";
-    if !workspace.is_file() {
+fn include_contracts(
+    journal: &mut Journal,
+    workspace: Option<&Path>,
+    root: &Path,
+) -> Result<(), GenError> {
+    let Some(workspace) = workspace else {
         return Ok(());
-    }
+    };
+    let prefix = workspace::member_prefix(workspace, root)?;
     let text = read(workspace)?;
-    if text.contains(CONTRACTS) || !text.contains(MODULES) {
+    if !text.contains(&format!("\"{prefix}modules/*\"")) {
         return Ok(());
     }
-    journal.write(
-        workspace,
-        text.replacen(MODULES, &format!("{MODULES}, {CONTRACTS}"), 1),
-    )
+    let contracts = format!("{prefix}modules/*/contract");
+    match workspace::with_members(&text, &[contracts]) {
+        Some(edited) if edited != text => journal.write(workspace, edited),
+        _ => Ok(()),
+    }
 }
 
 /// Rust 2024's strict and reserved words: a generated `mod`, `fn` or crate cannot take one.
@@ -536,7 +577,7 @@ pub(crate) fn refuse_existing(directory: &Path) -> Result<(), GenError> {
 pub(crate) fn write_all(
     journal: &mut Journal,
     directory: &Path,
-    files: &[(&str, String)],
+    files: &[(impl AsRef<Path>, String)],
 ) -> Result<(), GenError> {
     for (relative, text) in files {
         journal.write(&directory.join(relative), text)?;
@@ -577,7 +618,24 @@ fn source_of(package: &str, origin: &Origin) -> String {
     }
 }
 
+/// As `framework_source`, but a checkout named by a path relative to `workspace`.
+fn framework_source_in(package: &str, workspace: &Path) -> String {
+    let origin = Origin::of_this_binary();
+    let relative = matches!(origin, Origin::Checkout)
+        .then(|| relative_path(workspace, &checkout_directory(package)))
+        .flatten();
+    relative.map_or_else(
+        || source_of(package, &origin),
+        |path| format!("path = \"{}\"", toml_escaped(&path)),
+    )
+}
+
 fn checkout_path(package: &str) -> String {
+    let path = checkout_directory(package).display().to_string();
+    format!("path = \"{}\"", toml_escaped(&path))
+}
+
+fn checkout_directory(package: &str) -> PathBuf {
     let crates = Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
         .map_or_default(Path::to_path_buf);
@@ -586,15 +644,27 @@ fn checkout_path(package: &str) -> String {
     } else {
         package
     };
-    let path = crates.join(directory).display().to_string();
-    format!("path = \"{}\"", toml_escaped(&path))
+    crates.join(directory)
+}
+
+/// The framework is `sofie` to every app, whatever its package is called.
+fn framework_declaration(package: &str, source: &str) -> String {
+    if package == "sofie-framework" {
+        return format!("sofie = {{ package = \"sofie-framework\", {source} }}");
+    }
+    format!("{package} = {{ {source} }}")
 }
 
 fn workspace_manifest() -> String {
+    let package: Vec<String> = workspace::PACKAGE_DEFAULTS
+        .iter()
+        .map(|(key, value)| format!("{key} = {value}\n"))
+        .collect();
+    let package = package.concat();
     format!(
         "[workspace]\nresolver = \"3\"\nmembers = [\"app\", \"modules/*\"]\n\n\
-         [workspace.package]\nedition = \"2024\"\nversion = \"0.1.0\"\npublish = false\n\n\
-         [workspace.dependencies]\nsofie = {{ package = \"sofie-framework\", {} }}\nsofie-cli = {{ {} }}\n\n\
+         [workspace.package]\n{package}\n\
+         [workspace.dependencies]\n{}\n{}\n\n\
          [workspace.lints.rust]\nunsafe_code = \"forbid\"\n\n\
          [workspace.lints.clippy]\nall = {{ level = \"warn\", priority = -1 }}\n\
          pedantic = {{ level = \"warn\", priority = -1 }}\nmissing_errors_doc = \"allow\"\n\
@@ -602,32 +672,33 @@ fn workspace_manifest() -> String {
          their body awaits.\nunused_async = \"allow\"\n\n\
          # What `sofie build` builds with: about half the binary and less CPU per request.\n\
          [profile.dist]\ninherits = \"release\"\nlto = \"fat\"\ncodegen-units = 1\nstrip = \"symbols\"\n",
-        framework_source("sofie-framework"),
-        framework_source("sofie-cli"),
+        framework_declaration("sofie-framework", &framework_source("sofie-framework")),
+        framework_declaration("sofie-cli", &framework_source("sofie-cli")),
     )
 }
 
-fn app_manifest(name: &str) -> String {
+fn app_manifest(name: &str, workspace: &str) -> String {
     format!(
-        "[package]\nname = \"{name}\"\nedition.workspace = true\nversion.workspace = true\n\
-         publish.workspace = true\n\n[dependencies]\nsofie.workspace = true\n\n\
-         [build-dependencies]\nsofie-cli.workspace = true\n\n[lints]\nworkspace = true\n"
+        "{}\n[dependencies]\nsofie.workspace = true\n\n\
+         [build-dependencies]\nsofie-cli.workspace = true\n{}",
+        workspace::package_section(name, workspace),
+        workspace::lints_section(workspace)
     )
 }
 
-fn module_manifest(name: &str) -> String {
+fn module_manifest(name: &str, workspace: &str) -> String {
     format!(
-        "[package]\nname = \"{name}\"\nedition.workspace = true\nversion.workspace = true\n\
-         publish.workspace = true\n\n[dependencies]\n\
-         sofie = {{ workspace = true, features = [\"config\"] }}\n\n[lints]\nworkspace = true\n"
+        "{}\n[dependencies]\nsofie = {{ workspace = true, features = [\"config\"] }}\n{}",
+        workspace::package_section(name, workspace),
+        workspace::lints_section(workspace)
     )
 }
 
-fn contract_manifest(name: &str) -> String {
+fn contract_manifest(name: &str, workspace: &str) -> String {
     format!(
-        "[package]\nname = \"{}\"\nedition.workspace = true\n\
-         version.workspace = true\npublish.workspace = true\n\n[lints]\nworkspace = true\n",
-        contract_package(name)
+        "{}{}",
+        workspace::package_section(&contract_package(name), workspace),
+        workspace::lints_section(workspace)
     )
 }
 

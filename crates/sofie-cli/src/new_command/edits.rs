@@ -319,18 +319,23 @@ pub(crate) fn workspace_declaration(
     directory: &Path,
     package: &str,
 ) -> Result<Option<(PathBuf, String)>, GenError> {
-    const WORKSPACE_DEPENDENCIES: &str = "[workspace.dependencies]";
     let Some(manifest) = workspace_manifest(directory) else {
         return Ok(None);
     };
     let text = read(&manifest)?;
     let line = format!("{package} = {{ {} }}", framework_source(package));
-    let Some((start, end)) = toml_section(&text, WORKSPACE_DEPENDENCIES) else {
+    Ok(with_workspace_dependency(&text, package, &line).map(|text| (manifest, text)))
+}
+
+/// `line` declaring `key` last in `[workspace.dependencies]`, or `None` when it is declared.
+pub(super) fn with_workspace_dependency(text: &str, key: &str, line: &str) -> Option<String> {
+    const WORKSPACE_DEPENDENCIES: &str = "[workspace.dependencies]";
+    let Some((start, end)) = toml_section(text, WORKSPACE_DEPENDENCIES) else {
         let table = format!("\n{WORKSPACE_DEPENDENCIES}\n{line}\n");
-        return Ok(Some((manifest, insert_at(&text, None, &table))));
+        return Some(insert_at(text, None, &table));
     };
-    if dependency_line_start(&text[start..end], package).is_some() {
-        return Ok(None);
+    if dependency_line_start(&text[start..end], key).is_some() {
+        return None;
     }
     let body = text[start..end].trim_end();
     let at = start + body.len();
@@ -339,14 +344,11 @@ pub(crate) fn workspace_declaration(
     } else {
         format!("\n{line}")
     };
-    Ok(Some((
-        manifest,
-        format!("{}{inserted}{}", &text[..at], &text[at..]),
-    )))
+    Some(format!("{}{inserted}{}", &text[..at], &text[at..]))
 }
 
 /// The nearest manifest at or above `directory` with a `[workspace]` table, as Cargo finds it.
-fn workspace_manifest(directory: &Path) -> Option<PathBuf> {
+pub(super) fn workspace_manifest(directory: &Path) -> Option<PathBuf> {
     directory
         .ancestors()
         .map(|directory| directory.join("Cargo.toml"))

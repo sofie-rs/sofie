@@ -2082,11 +2082,16 @@ changed. Still to come: a missing translation key drafted in every language.
 
 `sofie new app <name>` creates the app's workspace (depending on the framework
 by path until it is published, with the release profile `sofie build` uses),
-its `app/` crate and an empty `modules/`;
+its `app/` crate and an empty `modules/`. Made inside a cargo workspace (the
+nearest ancestor `Cargo.toml` with `[workspace]`), it writes only the crates
+and lists `<path>/app` and `<path>/modules/*` in that workspace's members,
+declaring `sofie` and `sofie-cli` there when missing (a checkout by a relative
+path); its crates inherit what the workspace declares and state the rest;
 `sofie new module <name>`, run in an app, adds the module with its manifest,
 contract crate, config, a `web` area with an empty `routes.rs` and a
 `screens/` folder, and folders for migrations and translations, then makes
-the app depend on it. Both end by running `sofie gen`, so the result passes
+the app depend on it, listing `modules/*/contract` in the workspace that owns
+the app. Both end by running `sofie gen`, so the result passes
 `sofie check` and compiles.
 
 Inside a module, `sofie new` writes stubs that compile and are wired, then runs

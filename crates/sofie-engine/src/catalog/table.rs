@@ -3,8 +3,6 @@ use sofie_core::Shown;
 use super::money::money_of;
 use super::props::{Props, is_field_name};
 use crate::escape::push_escaped;
-use crate::language::label;
-use crate::program::Program;
 use crate::render::{Renderer, Resolved, field_of, items_of, push_display, write_escaped};
 use crate::syntax::{Expression, LocatedError, Op, Position};
 
@@ -12,10 +10,10 @@ use crate::syntax::{Expression, LocatedError, Op, Position};
 pub(crate) struct Table {
     pub rows: Expression,
     pub columns: Vec<String>,
+    pub labels: Vec<Expression>,
     /// Where each row's first cell links to, read with the row named by `as`.
     pub link: Option<Expression>,
     pub row_content: Vec<Op>,
-    pub header: Vec<Op>,
     #[cfg(feature = "listing")]
     pub listing: super::listing::Listing,
 }
@@ -47,15 +45,18 @@ pub(super) fn build_table(
             "`Table` needs `as=\"…\"` to name the row its content is rendered for"
         );
     }
-    let header = header_ops(&columns, !row_content.is_empty(), columns_position);
+    let labels = columns
+        .iter()
+        .map(|column| props.label(column, columns_position))
+        .collect();
     Ok(Table {
         #[cfg(feature = "listing")]
         listing: super::listing::build(props, &columns, columns_position)?,
         rows,
         columns,
+        labels,
         link,
         row_content,
-        header,
     })
 }
 
@@ -79,21 +80,6 @@ fn parse_columns(literal: &str, position: Position) -> Result<Vec<String>, Locat
     Ok(columns)
 }
 
-fn header_ops(columns: &[String], has_row_content: bool, position: Position) -> Vec<Op> {
-    let mut header = Program::default();
-    header.push_markup("<thead><tr>");
-    for column in columns {
-        header.push_markup("<th scope=\"col\">");
-        header.push_text(label(column, position));
-        header.push_markup("</th>");
-    }
-    if has_row_content {
-        header.push_markup("<th scope=\"col\"></th>");
-    }
-    header.push_markup("</tr></thead>");
-    header.into_ops()
-}
-
 pub(super) fn render_table<'a>(
     table: &'a Table,
     id: Option<&'a Expression>,
@@ -106,10 +92,23 @@ pub(super) fn render_table<'a>(
     renderer.push_markup("<table");
     renderer.write_id(id);
     renderer.push_markup(">");
-    renderer.render_ops(&table.header)?;
+    render_header(table, renderer);
     render_body(table, renderer.resolve(&table.rows), renderer)?;
     renderer.push_markup("</table>");
     Ok(())
+}
+
+fn render_header<'a>(table: &'a Table, renderer: &mut Renderer<'a>) {
+    renderer.push_markup("<thead><tr>");
+    for label in &table.labels {
+        renderer.push_markup("<th scope=\"col\">");
+        renderer.write_text(label);
+        renderer.push_markup("</th>");
+    }
+    if !table.row_content.is_empty() {
+        renderer.push_markup("<th scope=\"col\"></th>");
+    }
+    renderer.push_markup("</tr></thead>");
 }
 
 pub(super) fn render_body<'a>(

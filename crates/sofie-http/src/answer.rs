@@ -133,7 +133,7 @@ impl Refusal {
     fn answer(self, caller: Caller<'_>) -> Response {
         match caller {
             #[cfg(feature = "engine")]
-            Caller::Htmx { trigger, .. } => self.notice(trigger, None, Language::plain()),
+            Caller::Htmx { trigger, .. } => self.notice(trigger, None, Language::plain(), None),
             Caller::Page | Caller::FormPost => self.page(),
             _ => self.json(),
         }
@@ -449,11 +449,14 @@ pub(crate) fn secure(mut response: Response) -> Response {
 
 #[cfg(feature = "engine")]
 impl Refusal {
-    pub(crate) fn messages(&self, language: Language<'_>) -> Vec<String> {
+    pub(crate) fn messages(&self, language: Language<'_>, module: Option<&str>) -> Vec<String> {
         match self {
             Self::Message(_, text) => vec![text.clone()],
             Self::Rule(rule) => vec![language.rule(rule)],
-            Self::Fields(fields) => fields.iter().map(|field| told(field, language)).collect(),
+            Self::Fields(fields) => fields
+                .iter()
+                .map(|field| told(field, language, module))
+                .collect(),
         }
     }
 
@@ -464,10 +467,13 @@ impl Refusal {
         form: Option<&str>,
         shown: Option<&[&str]>,
         language: Language<'_>,
+        module: Option<&str>,
     ) -> Response {
         let html = match (self, form) {
-            (Self::Fields(fields), Some(form)) => fields_notice(fields, form, shown, language),
-            _ => sofie_engine::notice(&self.messages(language)),
+            (Self::Fields(fields), Some(form)) => {
+                fields_notice(fields, form, shown, language, module)
+            }
+            _ => sofie_engine::notice(&self.messages(language, module)),
         };
         let mut response = response(self.status(), Some(HTML), html);
         let headers = response.headers_mut();
@@ -502,10 +508,10 @@ pub(crate) fn in_language(result: Result<Reply>, language: Language<'_>) -> Resu
 }
 
 #[cfg(feature = "engine")]
-fn told(field: &FieldError, language: Language<'_>) -> String {
+fn told(field: &FieldError, language: Language<'_>, module: Option<&str>) -> String {
     format!(
         "{}: {}",
-        language.label(&field.field),
+        language.label(module, &field.field),
         language.field_error(field)
     )
 }
@@ -516,6 +522,7 @@ fn fields_notice(
     form: &str,
     shown: Option<&[&str]>,
     language: Language<'_>,
+    module: Option<&str>,
 ) -> String {
     let (placed, unplaced): (Vec<&FieldError>, Vec<&FieldError>) = fields
         .iter()
@@ -524,7 +531,10 @@ fn fields_notice(
     if !placed.is_empty() {
         html.push_str(&language.fields_notice(placed.len()));
     }
-    let told: Vec<String> = unplaced.iter().map(|field| told(field, language)).collect();
+    let told: Vec<String> = unplaced
+        .iter()
+        .map(|field| told(field, language, module))
+        .collect();
     html.push_str(&sofie_engine::notice(&told));
     let errors: Vec<(&str, String)> = placed
         .iter()

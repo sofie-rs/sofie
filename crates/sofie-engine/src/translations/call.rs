@@ -23,6 +23,7 @@ pub(crate) enum Call {
         position: Position,
     },
     Label {
+        scoped: Option<String>,
         key: String,
         humanized: String,
         position: Position,
@@ -98,12 +99,21 @@ pub(crate) enum Format {
     Date,
 }
 
-pub(crate) fn label(name: &str, position: Position) -> Expression {
+pub(crate) fn label(name: &str, module: Option<&str>, position: Position) -> Expression {
     Expression::Call(Box::new(Call::Label {
-        key: format!("label.{name}"),
+        scoped: module.map(|module| module_label_key(module, name)),
+        key: label_key(name),
         humanized: humanize(name),
         position,
     }))
+}
+
+pub(crate) fn label_key(field: &str) -> String {
+    format!("label.{field}")
+}
+
+pub(crate) fn module_label_key(module: &str, field: &str) -> String {
+    format!("{module}.label.{field}")
 }
 
 #[cfg(feature = "parse")]

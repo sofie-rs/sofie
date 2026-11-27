@@ -2,30 +2,38 @@ pub use sofie_core::is_field_name;
 
 use super::spec::ComponentSpec;
 use crate::escape::check_authored_url;
+use crate::language::label;
 use crate::render::parts_of;
 use crate::syntax::{Attribute, Expression, LocatedError, Op, Position};
 
-pub(super) struct Props {
+pub(super) struct Props<'m> {
     spec: &'static ComponentSpec,
     attributes: Vec<Attribute>,
     position: Position,
+    module: Option<&'m str>,
 }
 
-impl Props {
+impl<'m> Props<'m> {
     pub(super) fn new(
         spec: &'static ComponentSpec,
         attributes: Vec<Attribute>,
         position: Position,
+        module: Option<&'m str>,
     ) -> Self {
         Self {
             spec,
             attributes,
             position,
+            module,
         }
     }
 
     pub(super) fn position(&self) -> Position {
         self.position
+    }
+
+    pub(super) fn label(&self, field: &str, position: Position) -> Expression {
+        label(field, self.module, position)
     }
 
     pub(super) fn take(&mut self, name: &str) -> Option<Attribute> {

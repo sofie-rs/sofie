@@ -117,7 +117,9 @@ fn walk_component<'t>(component: &'t Component, visitor: &mut impl Visit<'t>) {
             }
             walk(&table.row_content, visitor);
             visitor.leave_items(false);
-            walk(&table.header, visitor);
+            for label in &table.labels {
+                visitor.expression(label);
+            }
             #[cfg(feature = "listing")]
             for (_, label) in &table.listing.filters {
                 visitor.expression(label);

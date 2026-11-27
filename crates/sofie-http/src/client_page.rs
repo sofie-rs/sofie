@@ -95,7 +95,7 @@ fn links(bundle: &ClientBundle) -> ClientLinks {
 
 /// Field messages and the notice are translated as a refused page would show them; each error
 /// keeps its key and arguments, as a 422 answers them.
-pub(crate) fn refused(refusal: &Refusal, language: Language<'_>) -> Response {
+pub(crate) fn refused(refusal: &Refusal, language: Language<'_>, module: &str) -> Response {
     let errors: Vec<Value> = match refusal {
         Refusal::Fields(fields) => fields
             .iter()
@@ -103,7 +103,7 @@ pub(crate) fn refused(refusal: &Refusal, language: Language<'_>) -> Response {
             .collect(),
         Refusal::Message(..) | Refusal::Rule(_) => Vec::new(),
     };
-    let body = json!({ "errors": errors, "notice": refusal.messages(language) });
+    let body = json!({ "errors": errors, "notice": refusal.messages(language, Some(module)) });
     answer::response(refusal.status(), Some(JSON), body.to_string())
 }
 
@@ -153,7 +153,7 @@ mod tests {
         let error =
             FieldError::new("code", "validation.max_length", "must be at most 4").with("max", "4");
 
-        let response = refused(&Refusal::Fields(vec![error]), Language::plain());
+        let response = refused(&Refusal::Fields(vec![error]), Language::plain(), "order");
 
         let body: Value =
             serde_json::from_slice(&response.into_body().into_inner().unwrap()).unwrap();

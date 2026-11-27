@@ -111,6 +111,7 @@ pub(crate) fn refused_page(
     asked: Asked<'_>,
     screen: &ScreenPage<'_>,
     input: &Value,
+    module: &str,
 ) -> Response {
     let errors = refusal.field_errors(screen.language);
     let submitted = Submitted {
@@ -122,7 +123,7 @@ pub(crate) fn refused_page(
         input,
         errors: &errors,
     };
-    let notice = refusal.messages(screen.language);
+    let notice = refusal.messages(screen.language, Some(module));
     let rendered = read(screen, result, |data| {
         page(screen, data, &notice, Some(&submitted))
     })

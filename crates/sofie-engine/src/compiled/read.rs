@@ -201,6 +201,11 @@ impl Reader<'_> {
                 position: self.position()?,
             },
             _ => Call::Label {
+                scoped: match self.byte()? {
+                    0 => None,
+                    1 => Some(self.text()?),
+                    _ => return Err(damaged("a label")),
+                },
                 key: self.text()?,
                 humanized: self.text()?,
                 position: self.position()?,

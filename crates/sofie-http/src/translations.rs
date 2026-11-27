@@ -113,12 +113,8 @@ impl<'a> Language<'a> {
         self.language.field_error(key, &arguments, english)
     }
 
-    pub(crate) fn label(self, field: &str) -> String {
-        let key = format!("label.{field}");
-        match self.language.field_message(&key) {
-            text if text == key => sofie_engine::humanize(field),
-            text => text.to_owned(),
-        }
+    pub(crate) fn label(self, module: Option<&str>, field: &str) -> String {
+        self.language.field_label(module.unwrap_or_default(), field)
     }
 
     pub(crate) fn script_notices(self) -> sofie_engine::ScriptNotices<'a> {
@@ -182,11 +178,52 @@ mod tests {
             negotiated: true,
         };
 
-        assert_eq!(language.label("status"), "Durum");
-        assert_eq!(language.label("placed_at"), "Placed at");
+        assert_eq!(language.label(Some("order"), "status"), "Durum");
+        assert_eq!(language.label(None, "placed_at"), "Placed at");
         let error =
             FieldError::new("total", "validation.max", "must be at most 5").with("max", "5");
         assert_eq!(language.field_error(&error), "en fazla 5 olmalı");
+    }
+
+    #[test]
+    fn a_refused_field_is_named_by_its_route_s_module_label_first() {
+        let translations = translations(
+            &["en", "tr"],
+            &[
+                (
+                    "order",
+                    File::new("lang/tr.toml", b"[label]\nstatus = \"Durum\"\n"),
+                ),
+                (
+                    "shipping",
+                    File::new(
+                        "lang/tr.toml",
+                        b"[shipping.label]\nstatus = \"Kargo durumu\"\n",
+                    ),
+                ),
+            ],
+            &[],
+            &[],
+        )
+        .unwrap();
+        let language = Language {
+            language: translations.negotiate(None, Some("tr")),
+            negotiated: true,
+        };
+        let refusal = crate::answer::Refusal::Fields(vec![FieldError::new(
+            "status",
+            "validation.invalid",
+            "is not valid",
+        )]);
+
+        assert_eq!(
+            refusal.messages(language, Some("shipping")),
+            ["Kargo durumu: is not valid"]
+        );
+        assert_eq!(
+            refusal.messages(language, Some("order")),
+            ["Durum: is not valid"]
+        );
     }
 
     #[test]
@@ -240,7 +277,7 @@ mod tests {
 
         let json = crate::answer::in_language(Err(shipped()), language).unwrap_err();
         let json = crate::answer::failure(json, crate::caller::Caller::Browser);
-        let notice = crate::answer::Refusal::of(shipped()).messages(language);
+        let notice = crate::answer::Refusal::of(shipped()).messages(language, None);
 
         assert_eq!(json.status(), http::StatusCode::UNPROCESSABLE_ENTITY);
         let body = json.into_body().into_inner().unwrap();

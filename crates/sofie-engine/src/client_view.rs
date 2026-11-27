@@ -288,7 +288,10 @@ impl<'t> Found<'t> {
                 ..
             } => self.translation(key, arguments, recorded.as_ref()),
             Call::Format { value, .. } => self.expression(value),
-            Call::Label { key, .. } => {
+            Call::Label { scoped, key, .. } => {
+                if let Some(scoped) = scoped {
+                    self.keys.insert(scoped);
+                }
                 self.keys.insert(key);
             }
         }

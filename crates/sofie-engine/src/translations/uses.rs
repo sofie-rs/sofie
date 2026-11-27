@@ -67,7 +67,9 @@ impl Walker {
             }
             Content::Table(table) => {
                 refuse_calls([table.link.as_ref()])?;
-                self.ops(&table.header)?;
+                for label in &table.labels {
+                    self.text(label);
+                }
                 self.ops(&table.row_content)
             }
             Content::Money(_) => Ok(()),
@@ -159,7 +161,7 @@ impl Walker {
                 }
                 (key, KeyKind::Message { arguments: names })
             }
-            Call::Label { key, .. } => (key, KeyKind::Label),
+            Call::Label { scoped, key, .. } => (scoped.as_ref().unwrap_or(key), KeyKind::Label),
             Call::Format { .. } => return,
         };
         self.uses.push(KeyUse {

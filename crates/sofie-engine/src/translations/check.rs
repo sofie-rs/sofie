@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 use std::fmt;
 
+use super::call::label_key;
 use super::language::PluralRule;
 use super::{KeyKind, KeyUse, Translations};
 
@@ -140,6 +141,7 @@ fn gaps_of(translations: &Translations, key: &str, requirement: Required, gaps: 
     for (index, definition) in defined.iter().enumerate() {
         let kind = match (definition, &expected) {
             (None, _) if index == 0 && requirement == Required::BesidesSource => continue,
+            (None, _) if has_other_label_form(translations, key, index) => continue,
             (None, _) => GapKind::Missing,
             (Some(definition), Some(expected)) => {
                 let found = definition.message.arguments();
@@ -229,4 +231,27 @@ fn is_humanized(key: &str) -> bool {
     HUMANIZED_PREFIXES
         .iter()
         .any(|prefix| key.starts_with(prefix))
+        || labelled_field(key).is_some()
+}
+
+fn labelled_field(key: &str) -> Option<(Option<&str>, &str)> {
+    if let Some(field) = key.strip_prefix("label.") {
+        return Some((None, field));
+    }
+    let (module, rest) = key.split_once('.')?;
+    let field = rest.strip_prefix("label.")?;
+    (!field.contains('.')).then_some((Some(module), field))
+}
+
+/// A module's label falls back to the app-wide one, so either form gives a language the text.
+fn has_other_label_form(translations: &Translations, key: &str, index: usize) -> bool {
+    let is_defined = |other: &str| translations.entries.get(other, index).is_some();
+    match labelled_field(key) {
+        None => false,
+        Some((Some(_), field)) => is_defined(&label_key(field)),
+        Some((None, field)) => translations.entries.keys().any(|other| {
+            matches!(labelled_field(other), Some((Some(_), other_field)) if other_field == field)
+                && is_defined(other)
+        }),
+    }
 }

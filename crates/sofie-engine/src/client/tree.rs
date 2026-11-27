@@ -264,7 +264,7 @@ mod tests {
 
     fn ops(source: &str) -> Vec<Op> {
         let written = crate::parse::parse(source, &crate::Components::default()).unwrap();
-        crate::catalog::build_all(written).unwrap()
+        crate::catalog::build_all(written, None).unwrap()
     }
 
     #[test]

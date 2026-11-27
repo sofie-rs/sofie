@@ -117,7 +117,11 @@ impl Form {
         })
     }
 
-    pub(super) fn describe(&mut self, fields: &'static [FormField]) -> Result<(), LocatedError> {
+    pub(super) fn describe(
+        &mut self,
+        fields: &'static [FormField],
+        module: Option<&str>,
+    ) -> Result<(), LocatedError> {
         let mut written = Vec::new();
         let mut submits = Vec::new();
         for part in std::mem::take(&mut self.parts) {
@@ -132,7 +136,7 @@ impl Form {
                 .position(|field| field.name == described.name)
             {
                 Some(index) => written.swap_remove(index),
-                None => Box::new(Field::of(described, self.position)),
+                None => Box::new(Field::of(described, module, self.position)),
             };
             field.describe(described)?;
             self.parts.push(FormPart::Field(field));

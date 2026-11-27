@@ -170,7 +170,11 @@ impl RouteAnswer<'_> {
                 #[cfg(feature = "clients")]
                 if caller == Caller::Screen {
                     let language = self.language();
-                    return crate::client_page::refused(&answer::Refusal::of(error), language);
+                    return crate::client_page::refused(
+                        &answer::Refusal::of(error),
+                        language,
+                        self.target.module,
+                    );
                 }
                 #[cfg(feature = "engine")]
                 if let (Caller::FormPost, Some(page)) = (
@@ -288,7 +292,14 @@ impl RouteAnswer<'_> {
         let shown = async {
             let loaded = (page.loader)(self.db.clone(), again).await;
             self.on_screen(&page.screen, |screen| {
-                screen::refused_page(loaded, &refusal, self.asked, screen, input)
+                screen::refused_page(
+                    loaded,
+                    &refusal,
+                    self.asked,
+                    screen,
+                    input,
+                    self.target.module,
+                )
             })
         };
         // A commit that failed lifted the deadline too.
@@ -308,7 +319,12 @@ impl RouteAnswer<'_> {
             .as_deref()
             .zip(trigger)
             .and_then(|(template, form)| sofie_engine::form_fields(template, form));
-        answer::Refusal::of(error).notice(trigger, shown.as_deref(), language)
+        answer::Refusal::of(error).notice(
+            trigger,
+            shown.as_deref(),
+            language,
+            Some(self.target.module),
+        )
     }
 
     #[cfg_attr(

@@ -141,23 +141,24 @@ pub(crate) fn describe_forms(
     ops: &mut [Op],
     form_id: &str,
     fields: &'static [FormField],
+    module: Option<&str>,
 ) -> Result<bool, LocatedError> {
     let mut found = false;
     for op in ops {
         found |= match op {
             Op::Component(component) => match &mut component.content {
                 Content::Form(form) if form.id == form_id => {
-                    form.describe(fields)?;
+                    form.describe(fields, module)?;
                     true
                 }
-                content => describe_forms(content.children_mut(), form_id, fields)?,
+                content => describe_forms(content.children_mut(), form_id, fields, module)?,
             },
             Op::Identified { body, .. } | Op::Each(Loop { body, .. }) => {
-                describe_forms(body, form_id, fields)?
+                describe_forms(body, form_id, fields, module)?
             }
             Op::If(conditional) => {
-                describe_forms(&mut conditional.then_branch, form_id, fields)?
-                    | describe_forms(&mut conditional.else_branch, form_id, fields)?
+                describe_forms(&mut conditional.then_branch, form_id, fields, module)?
+                    | describe_forms(&mut conditional.else_branch, form_id, fields, module)?
             }
             Op::Markup(_) | Op::Text(_) | Op::Url(_) => false,
         };
@@ -204,42 +205,45 @@ impl Content {
     }
 }
 
-pub(crate) fn build_all(ops: Vec<Op<Written>>) -> Result<Vec<Op>, LocatedError> {
-    ops.into_iter().map(build_op).collect()
+pub(crate) fn build_all(
+    ops: Vec<Op<Written>>,
+    module: Option<&str>,
+) -> Result<Vec<Op>, LocatedError> {
+    ops.into_iter().map(|op| build_op(op, module)).collect()
 }
 
-fn build_op(op: Op<Written>) -> Result<Op, LocatedError> {
+fn build_op(op: Op<Written>, module: Option<&str>) -> Result<Op, LocatedError> {
     Ok(match op {
         Op::Markup(markup) => Op::Markup(markup),
         Op::Text(text) => Op::Text(text),
         Op::Url(url) => Op::Url(url),
         Op::Identified { id, body } => Op::Identified {
             id,
-            body: build_all(body)?,
+            body: build_all(body, module)?,
         },
-        Op::Component(written) => Op::Component(build(written)?),
+        Op::Component(written) => Op::Component(build(written, module)?),
         Op::If(conditional) => Op::If(Conditional {
             condition: conditional.condition,
-            then_branch: build_all(conditional.then_branch)?,
-            else_branch: build_all(conditional.else_branch)?,
+            then_branch: build_all(conditional.then_branch, module)?,
+            else_branch: build_all(conditional.else_branch, module)?,
         }),
         Op::Each(each) => Op::Each(Loop {
             list: each.list,
             has_index: each.has_index,
-            body: build_all(each.body)?,
+            body: build_all(each.body, module)?,
         }),
     })
 }
 
-fn build(written: Written) -> Result<Component, LocatedError> {
+fn build(written: Written, module: Option<&str>) -> Result<Component, LocatedError> {
     let Written {
         kind,
         attributes,
         children,
         position,
     } = written;
-    let children = build_all(children)?;
-    let mut props = Props::new(kind.spec(), attributes, position);
+    let children = build_all(children, module)?;
+    let mut props = Props::new(kind.spec(), attributes, position, module);
     if !kind.takes_children() {
         props.refuse_children(&children)?;
     }

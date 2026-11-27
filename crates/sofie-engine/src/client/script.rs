@@ -82,8 +82,17 @@ fn call_value(call: &crate::translations::Call) -> String {
             };
             format!("S.{function}(view, {})", value(formatted))
         }
-        Call::Label { key, humanized, .. } => {
-            format!("S.label(view, {}, {})", literal(key), literal(humanized))
+        Call::Label {
+            scoped,
+            key,
+            humanized,
+            ..
+        } => {
+            let label = format!("S.label(view, {}, {})", literal(key), literal(humanized));
+            match scoped {
+                Some(scoped) => format!("S.label(view, {}, {label})", literal(scoped)),
+                None => label,
+            }
         }
     }
 }

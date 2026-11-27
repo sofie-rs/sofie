@@ -1,11 +1,10 @@
 use std::borrow::Cow;
 
-use crate::catalog::Component;
 use crate::escape::push_escaped;
 use crate::syntax::{Expression, Op};
 
 #[derive(Debug)]
-pub(crate) struct Program<C = Component> {
+pub(crate) struct Program<C> {
     ops: Vec<Op<C>>,
     pub(crate) markup: String,
 }

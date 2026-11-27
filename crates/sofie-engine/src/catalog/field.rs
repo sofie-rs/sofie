@@ -104,10 +104,10 @@ impl Field {
         Ok(())
     }
 
-    pub(super) fn of(field: &'static FormField, position: Position) -> Self {
+    pub(super) fn of(field: &'static FormField, module: Option<&str>, position: Position) -> Self {
         Self {
             name: field.name.to_owned(),
-            label: label(field.name, position),
+            label: label(field.name, module, position),
             described: Some(field),
             value: None,
             options: None,
@@ -143,9 +143,12 @@ pub(crate) fn constant_label(
         Expression::Authored(text) => Some(text.clone()),
         #[cfg(feature = "i18n")]
         Expression::Call(call) => match call.as_ref() {
-            crate::translations::Call::Label { key, humanized, .. } => {
-                Some(language.text(key, humanized).to_owned())
-            }
+            crate::translations::Call::Label {
+                scoped,
+                key,
+                humanized,
+                ..
+            } => Some(language.label(scoped.as_deref(), key, humanized).to_owned()),
             _ => None,
         },
         _ => {
@@ -166,7 +169,7 @@ pub(super) fn build_field(props: &mut Props, position: Position) -> Result<Field
     Ok(Field {
         label: props
             .optional("label")
-            .unwrap_or_else(|| label(&name, position)),
+            .unwrap_or_else(|| props.label(&name, position)),
         described: None,
         value: props.take("value"),
         options: props.take("options"),

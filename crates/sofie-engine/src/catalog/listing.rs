@@ -13,7 +13,7 @@ use sofie_core::{Instant, Shown};
 use super::props::{Props, is_element_id, is_field_name};
 use super::table::{Table, render_body};
 use crate::escape::push_escaped;
-use crate::language::{Language, label};
+use crate::language::Language;
 use crate::render::{
     Renderer, Resolved, each_field, field_of, fields_of, items_of, push_display, str_of, text_of,
 };
@@ -23,7 +23,6 @@ use crate::syntax::{Expression, LocatedError, Position};
 pub(crate) struct Listing {
     pub(crate) sortable: Vec<String>,
     pub(crate) filters: Vec<(String, Expression)>,
-    labels: Vec<Expression>,
 }
 
 pub(super) fn build(
@@ -41,16 +40,11 @@ pub(super) fn build(
     let filters = names(props, "filter")?
         .into_iter()
         .map(|name| {
-            let label = label(&name, position);
+            let label = props.label(&name, position);
             (name, label)
         })
         .collect();
-    let labels = columns.iter().map(|name| label(name, position)).collect();
-    Ok(Listing {
-        sortable,
-        filters,
-        labels,
-    })
+    Ok(Listing { sortable, filters })
 }
 
 fn names(props: &mut Props, prop: &str) -> Result<Vec<String>, LocatedError> {
@@ -217,7 +211,7 @@ fn render_header<'a>(
     renderer: &mut Renderer<'a>,
 ) {
     renderer.push_markup("<thead><tr>");
-    for (column, label) in table.columns.iter().zip(&table.listing.labels) {
+    for (column, label) in table.columns.iter().zip(&table.labels) {
         let sorted = match listed.sort {
             Some(sort) if sort == column => Some("ascending"),
             Some(sort) if sort.strip_prefix('-') == Some(column) => Some("descending"),

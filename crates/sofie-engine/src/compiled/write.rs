@@ -133,8 +133,17 @@ impl Writer {
                 });
                 self.expression(value);
             }
-            Call::Label { key, humanized, .. } => {
+            Call::Label {
+                scoped,
+                key,
+                humanized,
+                ..
+            } => {
                 self.0.push(tag::LABEL);
+                self.0.push(u8::from(scoped.is_some()));
+                if let Some(scoped) = scoped {
+                    self.text(scoped);
+                }
                 self.text(key);
                 self.text(humanized);
             }

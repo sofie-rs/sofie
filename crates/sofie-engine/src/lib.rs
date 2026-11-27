@@ -35,6 +35,7 @@ mod message;
 mod page;
 #[cfg(feature = "parse")]
 mod parse;
+#[cfg(feature = "parse")]
 mod program;
 mod render;
 pub mod rendering;

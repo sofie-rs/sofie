@@ -145,7 +145,8 @@ fn checked(name: &str, written: Vec<Op<Written>>) -> Result<Template, TemplateEr
 }
 
 pub(crate) fn build(name: &str, written: Vec<Op<Written>>) -> Result<Template, TemplateError> {
-    let ops = build_all(written).map_err(|error| TemplateError::located(name, error))?;
+    let ops = build_all(written, crate::template::module_of(name))
+        .map_err(|error| TemplateError::located(name, error))?;
     Ok(Template::new(name, ops))
 }
 

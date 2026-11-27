@@ -89,7 +89,8 @@ impl Template {
         fields: &'static [FormField],
     ) -> Result<(), TemplateError> {
         self.precomputed.forget_forms();
-        match catalog::describe_forms(&mut self.ops, form_id, fields) {
+        let module = module_of(&self.name);
+        match catalog::describe_forms(&mut self.ops, form_id, fields, module) {
             Ok(true) => Ok(()),
             Ok(false) => Err(TemplateError::unlocated(
                 &self.name,
@@ -141,6 +142,11 @@ impl Template {
 /// The fields `Form` `form_id` shows an error under, or `None` when the template has no such
 /// form: an error for any other name, or for a post without a form, belongs in the notice.
 #[must_use]
+/// A screen is named `<module>/<area>/<name>`; its derived labels read that module's keys first.
+pub(crate) fn module_of(name: &str) -> Option<&str> {
+    name.split_once('/').map(|(module, _)| module)
+}
+
 pub fn form_fields<'t>(template: &'t Template, form_id: &str) -> Option<Vec<&'t str>> {
     let mut names = None;
     catalog::form_fields(&template.ops, form_id, &mut names);

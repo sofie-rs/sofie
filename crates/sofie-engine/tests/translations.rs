@@ -582,6 +582,103 @@ fn gaps_list_what_a_language_lacks_or_writes_differently() {
     assert!(translations.keys().contains(&"orders.title"));
 }
 
+fn module_labels() -> Translations {
+    let mut translations = Translations::new(&["en", "tr", "de"]).unwrap();
+    let files = [
+        ("catalog", "tr", "[label]\ncategory = \"Kategori\"\n"),
+        ("shop", "tr", "[shop.label]\ncategory = \"Ürün grubu\"\n"),
+        ("shop", "de", "[shop.label]\ncategory = \"Warengruppe\"\n"),
+        (
+            "billing",
+            "en",
+            "[billing.label]\ncategory = \"Cost centre\"\n",
+        ),
+        ("blog", "tr", "[blog.label]\ncategory = \"Konu\"\n"),
+    ];
+    for (module, language, text) in files {
+        translations.add(module, language, text).unwrap();
+    }
+    translations
+}
+
+const CATEGORY_TABLE: &str = "<Table id=\"t\" of={data.rows} columns=\"category\" />";
+
+fn category_header(translations: &Translations, screen: &str, language: &str) -> String {
+    let html = render_template_in(
+        translations,
+        language,
+        &common::loaded(screen, CATEGORY_TABLE),
+        &json!({"rows": []}),
+    );
+    let start = html.find("<th scope=\"col\">").unwrap() + "<th scope=\"col\">".len();
+    html[start..start + html[start..].find('<').unwrap()].to_owned()
+}
+
+#[test]
+fn a_screen_reads_its_module_s_label_before_the_app_wide_one() {
+    let translations = module_labels();
+
+    assert_eq!(
+        category_header(&translations, "shop/web/products", "tr"),
+        "Ürün grubu"
+    );
+    assert_eq!(
+        category_header(&translations, "blog/web/posts", "tr"),
+        "Konu"
+    );
+    assert_eq!(
+        category_header(&translations, "news/web/posts", "tr"),
+        "Kategori"
+    );
+    assert_eq!(
+        category_header(&translations, "billing/web/costs", "tr"),
+        "Kategori"
+    );
+    assert_eq!(
+        category_header(&translations, "billing/web/costs", "en"),
+        "Cost centre"
+    );
+    assert_eq!(
+        category_header(&translations, "news/web/posts", "en"),
+        "Category"
+    );
+
+    let fields = Box::leak(Box::new([FormField {
+        name: "category",
+        input: Input::new(Control::Input),
+        required: true,
+        constraints: &[],
+    }]));
+    let mut form = common::loaded("shop/web/new", "<Form id=\"f\" post=\"/p\"></Form>");
+    form.describe_form("f", fields).unwrap();
+    let html = render_template_in(&translations, "de", &form, &json!({}));
+    assert!(html.contains(">Warengruppe</label>"), "{html}");
+}
+
+#[test]
+fn either_label_key_gives_a_language_its_text() {
+    let translations = module_labels();
+    let uses: Vec<KeyUse> = ["shop/web/products", "blog/web/posts", "news/web/posts"]
+        .into_iter()
+        .flat_map(|screen| translation_keys(&common::loaded(screen, CATEGORY_TABLE)))
+        .collect();
+    let gaps: Vec<String> = translations
+        .gaps(&uses)
+        .iter()
+        .filter(|gap| gap.key.ends_with("category"))
+        .map(Gap::to_string)
+        .collect();
+
+    assert_eq!(
+        gaps,
+        [
+            "`billing.label.category` has no `de` translation",
+            "`blog.label.category` has no `de` translation",
+            "`news.label.category` has no `de` translation",
+        ]
+    );
+}
+
 #[test]
 fn loading_refuses_what_cannot_be_served() {
     let mut translations = translations();

@@ -174,6 +174,6 @@ pub(crate) fn write_instant(
     push_escaped(out, zone.name());
 }
 
-pub(crate) fn label(name: &str, _position: Position) -> Expression {
+pub(crate) fn label(name: &str, _module: Option<&str>, _position: Position) -> Expression {
     Expression::Authored(humanize(name))
 }

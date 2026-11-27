@@ -1517,9 +1517,14 @@ compiled by the app's build script, loaded at boot and rendered by the engine.
   `gaps` reports it missing; a language without a `one` form leaves it out. `date(…)` of a local date-time
   writes its wall clock and zone (`Oct 20, 2026, 09:30 Europe/Istanbul`), not
   UTC; of an instant, the display zone's wall clock and that zone's name
-  (see [Config](#config)). Labels look up `label.<field>` and enum variants
-  `enum.<enum>.<variant>`, falling back to the humanized name, so the source
-  language needs no file for them. `Translations::negotiate` picks the
+  (see [Config](#config)). Labels look up `<module>.label.<field>`, the
+  module being the first segment of the screen's key (a refused field's
+  notice: the route's module), then the app-wide `label.<field>`, the
+  viewer's language before the source's; enum variants look up
+  `enum.<enum>.<variant>`. Both fall back to the humanized name, so the source
+  language needs no file for them, and `gaps` accepts either label key in a
+  language. Two modules with a field of one name translate it under their
+  own prefixes, since a key is still defined by one module only. `Translations::negotiate` picks the
   language from the principal's choice, then `Accept-Language`; its
   conventions (en, de, tr; others neutral) format numbers, amounts and days.
   Until an app declares languages, compiling the feature in changes nothing:

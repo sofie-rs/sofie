@@ -3,7 +3,7 @@ use std::fmt::Write;
 use super::script::{array, literal, slot, text, url_text, value};
 use super::tree::{AttributePart, Element, ElementAttribute, Node};
 use crate::catalog::{Component, Content, FormPart};
-use crate::syntax::{Expression, Position};
+use crate::syntax::Expression;
 
 pub(super) struct Emitter {
     out: String,
@@ -294,10 +294,7 @@ impl<'c> ComponentCall<'c> {
             "columns",
             array(table.columns.iter().map(|name| literal(name))),
         ));
-        let labels = table
-            .columns
-            .iter()
-            .map(|name| text(&crate::language::label(name, Position::START)));
+        let labels = table.labels.iter().map(text);
         self.props.push(("labels", array(labels)));
         if let Some(link) = &table.link {
             let row = slot(depth);

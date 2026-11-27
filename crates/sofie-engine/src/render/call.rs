@@ -6,7 +6,7 @@ use crate::catalog::money_of;
 use crate::escape::push_escaped;
 use crate::message::Recorded;
 use crate::syntax::Expression;
-use crate::translations::{Argument, Call, CountedKeys, Format, Message, Part};
+use crate::translations::{Argument, Call, CountedKeys, Format, Part};
 
 pub(super) fn write_call<'a>(renderer: &mut Renderer<'a>, call: &'a Call) {
     match call {
@@ -24,9 +24,14 @@ pub(super) fn write_call<'a>(renderer: &mut Renderer<'a>, call: &'a Call) {
             recorded.as_ref(),
         ),
         Call::Format { format, value, .. } => write_formatted(renderer, *format, value),
-        Call::Label { key, humanized, .. } => {
-            let message = renderer.language.message(key).and_then(Message::plain);
-            push_escaped(&mut renderer.out, message.unwrap_or(humanized));
+        Call::Label {
+            scoped,
+            key,
+            humanized,
+            ..
+        } => {
+            let text = renderer.language.label(scoped.as_deref(), key, humanized);
+            push_escaped(&mut renderer.out, text);
         }
     }
 }

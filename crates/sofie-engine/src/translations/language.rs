@@ -3,8 +3,10 @@ use std::sync::LazyLock;
 use sofie_core::{DisplayZone, Shown};
 use sofie_values::{Instant, Locale, Money, Present};
 
+use super::call::{label_key, module_label_key};
 use super::conventions::{self, Conventions, NEUTRAL};
 use super::{CountedKeys, Message, Part, Translations, Variant, negotiate};
+use crate::label::humanize;
 use crate::message::{is_exactly_one, number_of};
 
 static PLAIN: LazyLock<Translations> =
@@ -138,6 +140,27 @@ impl<'a> Language<'a> {
             return self.field_message(fallback).to_owned();
         }
         filled(message, arguments)
+    }
+
+    /// A field's label in `module`'s own words, else the app-wide ones, else humanized. The
+    /// viewer's language comes first: its app-wide label beats the source language's module one.
+    #[must_use]
+    pub fn field_label(self, module: &str, field: &str) -> String {
+        let humanized = humanize(field);
+        let scoped = module_label_key(module, field);
+        self.label(Some(&scoped), &label_key(field), &humanized)
+            .to_owned()
+    }
+
+    pub(crate) fn label<'m>(self, scoped: Option<&str>, key: &str, humanized: &'m str) -> &'m str
+    where
+        'a: 'm,
+    {
+        let keys = || scoped.into_iter().chain([key]);
+        keys()
+            .find_map(|key| self.own_message(key).and_then(Message::plain))
+            .or_else(|| keys().find_map(|key| self.message(key).and_then(Message::plain)))
+            .unwrap_or(humanized)
     }
 
     pub(crate) fn text<'m>(self, key: &str, fallback: &'m str) -> &'m str

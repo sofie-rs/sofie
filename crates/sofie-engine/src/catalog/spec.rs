@@ -193,6 +193,12 @@ const FORM: ComponentSpec = ComponentSpec {
         ),
         required("post", PropKind::Post, "The action's URL."),
         TARGET,
+        prop(
+            "skip",
+            PropKind::Names,
+            "Fields of the input the form leaves out, such as `skip=\"note\"`; each must be \
+             one the input may go without.",
+        ),
     ],
     feature: None,
 };

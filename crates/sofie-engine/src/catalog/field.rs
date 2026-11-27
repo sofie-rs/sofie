@@ -39,9 +39,7 @@ impl Field {
     }
 
     fn is_required(&self) -> bool {
-        self.described.map_or(self.is_required, |described| {
-            described.required || described.constraints.contains(&Constraint::Required)
-        })
+        self.described.map_or(self.is_required, is_required)
     }
 
     /// Only the template's own `required`: the input type's is given at runtime.
@@ -156,6 +154,10 @@ pub(crate) fn constant_label(
             None
         }
     }
+}
+
+pub(super) fn is_required(field: &FormField) -> bool {
+    field.required || field.constraints.contains(&Constraint::Required)
 }
 
 pub(super) fn build_field(props: &mut Props, position: Position) -> Result<Field, LocatedError> {

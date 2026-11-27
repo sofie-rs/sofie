@@ -1,7 +1,7 @@
 use sofie_values::FormField;
 
-use super::field::{Field, render_field};
-use super::props::{Props, is_element_id};
+use super::field::{Field, is_required, render_field};
+use super::props::{Props, is_element_id, is_field_name};
 use super::target::Target;
 use super::{Component, Content};
 use crate::render::Renderer;
@@ -14,6 +14,7 @@ pub(crate) struct Form {
     pub post: Expression,
     pub target: Option<Target>,
     pub parts: Vec<FormPart>,
+    skipped: Vec<String>,
     position: Position,
 }
 
@@ -59,12 +60,45 @@ pub(super) fn build_form(
     }
     let parts = form_parts(children, position)?;
     check_unique_names(&id, &parts)?;
+    let skipped = skipped_names(props)?;
+    if let Some(field) = written_fields(&parts).find(|field| skipped.contains(&field.name)) {
+        bail!(
+            field.position,
+            "`Form` `{id}` both skips and shows `{}`",
+            field.name
+        );
+    }
     Ok(Form {
         id,
         post: props.required_post()?,
         target: Target::take(props)?,
         parts,
+        skipped,
         position,
+    })
+}
+
+fn skipped_names(props: &mut Props) -> Result<Vec<String>, LocatedError> {
+    let Some(attribute) = props.take("skip") else {
+        return Ok(Vec::new());
+    };
+    let names: Vec<String> = match &attribute.value {
+        Expression::Authored(text) => text.split_whitespace().map(str::to_owned).collect(),
+        _ => Vec::new(),
+    };
+    if names.is_empty() || names.iter().any(|name| !is_field_name(name)) {
+        bail!(
+            attribute.position,
+            "`Form` needs `skip` as quoted field names, such as `skip=\"note internal_code\"`"
+        );
+    }
+    Ok(names)
+}
+
+fn written_fields(parts: &[FormPart]) -> impl Iterator<Item = &Field> {
+    parts.iter().filter_map(|part| match part {
+        FormPart::Field(field) => Some(&**field),
+        FormPart::Submit(_) => None,
     })
 }
 
@@ -93,10 +127,7 @@ fn form_parts(children: Vec<Op>, position: Position) -> Result<Vec<FormPart>, Lo
 
 fn check_unique_names(form_id: &str, parts: &[FormPart]) -> Result<(), LocatedError> {
     let mut seen: Vec<&str> = Vec::new();
-    for part in parts {
-        let FormPart::Field(field) = part else {
-            continue;
-        };
+    for field in written_fields(parts) {
         if seen.contains(&field.name.as_str()) {
             bail!(
                 field.position,
@@ -111,10 +142,7 @@ fn check_unique_names(form_id: &str, parts: &[FormPart]) -> Result<(), LocatedEr
 
 impl Form {
     pub(super) fn field_names(&self) -> impl Iterator<Item = &str> {
-        self.parts.iter().filter_map(|part| match part {
-            FormPart::Field(field) => Some(field.name.as_str()),
-            FormPart::Submit(_) => None,
-        })
+        written_fields(&self.parts).map(|field| field.name.as_str())
     }
 
     pub(super) fn describe(
@@ -130,7 +158,11 @@ impl Form {
                 submit @ FormPart::Submit(_) => submits.push(submit),
             }
         }
+        self.check_skipped(fields)?;
         for described in fields {
+            if self.skipped.iter().any(|name| name == described.name) {
+                continue;
+            }
             let mut field = match written
                 .iter()
                 .position(|field| field.name == described.name)
@@ -152,6 +184,32 @@ impl Form {
             );
         }
         self.parts.extend(submits);
+        Ok(())
+    }
+
+    /// A skipped field the input requires would refuse every post, as nothing else can send it.
+    fn check_skipped(&self, fields: &[FormField]) -> Result<(), LocatedError> {
+        for name in &self.skipped {
+            match fields.iter().find(|described| described.name == name) {
+                None => {
+                    let names: Vec<&str> = fields.iter().map(|described| described.name).collect();
+                    bail!(
+                        self.position,
+                        "`Form` `{}` skips `{name}`, which is not a field of the input it posts; \
+                         its fields are {}",
+                        self.id,
+                        names.join(", ")
+                    );
+                }
+                Some(described) if is_required(described) => bail!(
+                    self.position,
+                    "`Form` `{}` skips `{name}`, which the input requires; show it, or make it \
+                     an `Option` the action fills",
+                    self.id
+                ),
+                Some(_) => {}
+            }
+        }
         Ok(())
     }
 }

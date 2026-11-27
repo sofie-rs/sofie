@@ -1121,6 +1121,63 @@ fn wrapped(name: &str, label: &str, control: &str) -> String {
     )
 }
 
+const NOTE_AND_EMAIL: &[FormField] = &[
+    FormField {
+        name: "email",
+        input: Input::new(Control::Input),
+        required: true,
+        constraints: &[],
+    },
+    FormField {
+        name: "note",
+        input: Input::new(Control::Input),
+        required: false,
+        constraints: &[],
+    },
+];
+
+fn describe_skipping(skip: &str) -> Result<Template, TemplateError> {
+    let mut template = Template::parse(
+        "test",
+        &format!("<Form id=\"f\" post=\"/x\" skip=\"{skip}\"></Form>"),
+    )?;
+    template.describe_form("f", NOTE_AND_EMAIL)?;
+    Ok(template)
+}
+
+#[test]
+fn a_form_leaves_out_the_fields_it_skips() {
+    let html = describe_skipping("note")
+        .and_then(|template| template.render(&json!({})))
+        .unwrap_or_else(|error| panic!("{error}"));
+
+    assert!(html.contains("name=\"email\""), "{html}");
+    assert!(!html.contains("note"), "{html}");
+}
+
+#[test]
+fn a_form_skips_only_fields_of_its_input_that_it_may_go_without() {
+    let message = |skip: &str| describe_skipping(skip).unwrap_err().message;
+
+    assert_eq!(
+        message("notes"),
+        "`Form` `f` skips `notes`, which is not a field of the input it posts; its fields are \
+         email, note"
+    );
+    assert_eq!(
+        message("email"),
+        "`Form` `f` skips `email`, which the input requires; show it, or make it an `Option` \
+         the action fills"
+    );
+    assert!(message("no-te").contains("quoted field names"));
+    let shown = Template::parse(
+        "test",
+        "<Form id=\"f\" post=\"/x\" skip=\"note\"><Field name=\"note\" /></Form>",
+    )
+    .unwrap_err();
+    assert_eq!(shown.message, "`Form` `f` both skips and shows `note`");
+}
+
 #[test]
 fn form_posts_with_htmx_and_renders_its_parts() {
     let html = render(

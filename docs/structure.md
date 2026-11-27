@@ -360,7 +360,9 @@ reachable from its crate, so `actions` is a `pub mod`). The form then shows
 every field of the input, in its order, with its label and the control its
 value's type presents; a `Field` the template writes keeps its props
 (`label`, `value`, `options`, `currency`), so a template lists only what it
-changes:
+changes. `skip="note internal_code"` leaves fields of the input out; describing
+the form refuses a name the input lacks, one it requires (not an `Option`, or
+constrained `Required`), or one a `Field` also shows:
 
 ```html
 <Form id="place-order" post="/account/orders" target="orders">

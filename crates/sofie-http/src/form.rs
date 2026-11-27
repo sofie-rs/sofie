@@ -4,8 +4,8 @@ use sofie_core::{IDEMPOTENCY_KEY_FIELD, Result};
 use crate::dotted_name::insert;
 use crate::urlencoded::decode;
 
-/// A repeated name keeps its last value, as a checkbox after its hidden `false` needs. The
-/// idempotency key is the request's, not an input field.
+/// A repeated name reads as a list (see `dotted_name`). The idempotency key is the request's,
+/// not an input field.
 pub(crate) fn parse(body: &[u8]) -> Result<Map<String, Value>> {
     let mut object = Map::new();
     for (name, value) in pairs(body) {
@@ -68,10 +68,21 @@ mod tests {
     }
 
     #[test]
-    fn nests_dotted_names_and_keeps_the_last_of_a_repeated_name() {
+    fn nests_dotted_names_and_reads_a_repeated_name_as_a_list() {
         assert_eq!(
-            parsed("total.amount=1&total.currency=EUR&total.amount=12.50&gift=false&gift=true"),
-            json!({ "total": { "amount": "12.50", "currency": "EUR" }, "gift": "true" })
+            parsed("total.amount=1&total.currency=EUR&total.amount=12.50&tag=a&tag=&tag=b&tag=c"),
+            json!({
+                "total": { "amount": ["1", "12.50"], "currency": "EUR" },
+                "tag": ["a", "b", "c"],
+            })
+        );
+    }
+
+    #[test]
+    fn a_checked_box_replaces_its_hidden_false() {
+        assert_eq!(
+            parsed("gift=false&gift=true&wrap=false&tags=false&tags=red"),
+            json!({ "gift": "true", "wrap": "false", "tags": ["false", "red"] })
         );
     }
 
@@ -106,7 +117,7 @@ mod tests {
 
     #[test]
     fn refuses_a_name_that_is_both_a_value_and_a_group() {
-        for body in ["a=1&a.b=2", "a.b=2&a=1", "a.b=1&a.b.c=2"] {
+        for body in ["a=1&a.b=2", "a.b=2&a=1", "a.b=1&a.b.c=2", "a=1&a=2&a.b=3"] {
             assert!(refused(body.as_bytes()).contains("both"), "{body}");
         }
         assert_eq!(parsed("a=&a.b=2"), json!({ "a": { "b": "2" } }));
@@ -152,6 +163,6 @@ mod tests {
         let deep = format!("{}a=1", "a.".repeat(100_000));
         assert!(refused(deep.as_bytes()).contains("field name"));
         let many = "a=1&".repeat(100_000);
-        assert_eq!(parsed(&many), json!({ "a": "1" }));
+        assert_eq!(parsed(&many)["a"].as_array().map(Vec::len), Some(100_000));
     }
 }

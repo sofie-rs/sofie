@@ -282,7 +282,9 @@ framework owns. No frontend framework's release can break an app.
   taking `Listing<T, Q>` also reads the query's own parameters into `Q`, a
   `#[derive(Input)]` struct (`Listing<T>` is `Listing<T, ()>`): a key naming
   a field of `Q` is read into it (a nested field from dotted keys,
-  `budget.amount=5&budget.currency=EUR`, as `Query<Q>` reads it), held to
+  `budget.amount=5&budget.currency=EUR`, as `Query<Q>` and a form body read
+  it; a name given twice is a list, as a checkbox group or multiple select
+  posts, except a checkbox's `true` after its hidden `false`), held to
   its constraints, and
   `listing.parameters()` answers it (none when refused), which
   `listing.where_(condition)` narrows the list by. A field of `Q` named

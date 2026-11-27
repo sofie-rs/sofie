@@ -30,11 +30,23 @@ pub(crate) fn insert(object: &mut Map<String, Value>, name: &str, value: String)
         };
         current = nested;
     }
-    if current.get(*last).is_some_and(Value::is_object) {
-        return Err(value_and_group());
+    match current.get_mut(*last) {
+        None => {
+            current.insert((*last).to_owned(), Value::String(value));
+        }
+        Some(Value::Object(_)) => return Err(value_and_group()),
+        Some(posted) => repeat(posted, value),
     }
-    current.insert((*last).to_owned(), Value::String(value));
     Ok(())
+}
+
+/// A checkbox's `true` replaces its hidden `false`; any other repeated name is a list.
+fn repeat(posted: &mut Value, value: String) {
+    match posted {
+        Value::String(hidden) if hidden == "false" && value == "true" => *hidden = value,
+        Value::Array(values) => values.push(Value::String(value)),
+        first => *first = Value::Array(vec![first.take(), Value::String(value)]),
+    }
 }
 
 fn value_and_group() -> Error {

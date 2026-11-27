@@ -913,6 +913,7 @@ struct Preferences {
     quantity: u32,
     gift: bool,
     note: Option<String>,
+    topics: Option<Vec<String>>,
 }
 
 impl Input for Preferences {
@@ -921,11 +922,13 @@ impl Input for Preferences {
         let quantity = fields.take("quantity");
         let gift = fields.take("gift");
         let note = fields.optional("note");
+        let topics = fields.optional("topics");
         fields.finish()?;
         Ok(Self {
             quantity: quantity?,
             gift: gift?,
             note: note?,
+            topics: topics?,
         })
     }
 }
@@ -941,6 +944,7 @@ async fn save_preferences(preferences: Preferences) -> Result<Listing> {
         "quantity": preferences.quantity,
         "gift": preferences.gift,
         "note": preferences.note,
+        "topics": preferences.topics,
     })))
 }
 
@@ -973,15 +977,35 @@ async fn a_form_posts_numbers_and_checkboxes_as_strings() {
     assert_eq!(checked.status, StatusCode::OK);
     assert_eq!(
         checked.json(),
-        json!({ "quantity": 3, "gift": true, "note": null })
+        json!({ "quantity": 3, "gift": true, "note": null, "topics": null })
     );
     assert_eq!(
         unchecked.json(),
-        json!({ "quantity": 12, "gift": false, "note": "Ring twice" })
+        json!({ "quantity": 12, "gift": false, "note": "Ring twice", "topics": null })
     );
     assert_eq!(wrong.status, StatusCode::UNPROCESSABLE_ENTITY);
     assert!(wrong.body.contains("<li>quantity: "), "{}", wrong.body);
     assert_eq!(broken.status, StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn repeated_form_names_post_a_list() {
+    let app = empty_app().area("shop", |routes: &mut Routes<Web>| {
+        routes.post("/preferences", save_preferences);
+    });
+    let server = TestServer::start(app).await;
+
+    let answer = post_form(
+        &server,
+        "/preferences",
+        "quantity=1&gift=false&gift=true&topics=news&topics=offers",
+        &[],
+    )
+    .await;
+
+    assert_eq!(answer.status, StatusCode::OK, "{}", answer.body);
+    assert_eq!(answer.json()["gift"], true);
+    assert_eq!(answer.json()["topics"], json!(["news", "offers"]));
 }
 
 const FORM_SCREEN: &str = r#"<Section title="Orders">

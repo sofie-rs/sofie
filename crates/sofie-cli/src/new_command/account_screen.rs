@@ -4,7 +4,7 @@ use sofie_model::App;
 
 use super::Edits;
 use crate::gen_command::GenError;
-use crate::source_edits::read;
+use crate::source_edits::{add_import, read};
 
 /// A member's own screen sofie-identity ships, mounted in one of the module's areas.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -68,6 +68,7 @@ pub(super) fn new_account_screen(
         app,
         IDENTITY,
         &[format!("{}::<{area}>", screen.mount())],
+        &[&area],
     )
 }
 
@@ -91,6 +92,7 @@ pub(super) fn new_impersonation(
             format!("{IMPERSONATION}::routes::<{permitted}, {member}>"),
             format!("{IMPERSONATION}::stop_routes::<{member}, {permitted}>"),
         ],
+        &[&permitted, &member],
     )
 }
 
@@ -117,6 +119,7 @@ pub(super) fn new_tenancy(
             format!("{TENANCY}::member_routes::<{member}, {organization}>"),
             format!("{TENANCY}::organization_routes::<{organization}, {member}>"),
         ],
+        &[&organization, &member],
     )
 }
 
@@ -137,14 +140,19 @@ fn refuse_mounted(app: &App, mounted: &str) -> Result<(), GenError> {
     Ok(())
 }
 
-fn mount(edits: &mut Edits, app: &App, module: &str, mounts: &[String]) -> Result<(), GenError> {
+fn mount(
+    edits: &mut Edits,
+    app: &App,
+    module: &str,
+    mounts: &[String],
+    areas: &[&str],
+) -> Result<(), GenError> {
     let library = app_library(app);
     edits.edit_rust(&library, |text| {
-        mounts
+        let (imported, short_mounts) = shortened(text, mounts, areas);
+        short_mounts
             .iter()
-            .try_fold(text.to_owned(), |text, mounted| {
-                mounted_as(&text, module, mounted)
-            })
+            .try_fold(imported, |text, mounted| mounted_as(&text, module, mounted))
             .ok_or_else(|| {
                 let wanted: Vec<String> = mounts
                     .iter()
@@ -165,6 +173,50 @@ fn defined_area(app: &App, name: &str) -> Result<String, GenError> {
         .find(|known| known.name == name && known.definition.is_some())
         .map(|known| known.type_path)
         .ok_or_else(|| GenError::Usage(format!("the app defines no area `{name}`")))
+}
+
+/// The text importing the area's type, and the name to write it by; none when that name
+/// already means something else here.
+fn importable<'path>(text: &str, type_path: &'path str) -> Option<(String, &'path str)> {
+    let (parent, name) = type_path.rsplit_once("::")?;
+    let with_import = add_import(text, &format!("use {parent}"), name);
+    let already_imported = with_import == text;
+    if !already_imported && names(&text.replace(type_path, ""), name) {
+        return None;
+    }
+    Some((with_import, name))
+}
+
+/// Each area named by its type alone where it can be imported.
+fn shortened(text: &str, mounts: &[String], areas: &[&str]) -> (String, Vec<String>) {
+    areas.iter().fold(
+        (text.to_owned(), mounts.to_vec()),
+        |(text, mounts), area| match importable(&text, area) {
+            None => (text, mounts),
+            Some((imported, name)) => {
+                let mounts = mounts
+                    .iter()
+                    .map(|mounted| {
+                        mounted
+                            .replace(&format!("{area}>"), &format!("{name}>"))
+                            .replace(&format!("{area},"), &format!("{name},"))
+                    })
+                    .collect();
+                (imported, mounts)
+            }
+        },
+    )
+}
+
+fn names(text: &str, name: &str) -> bool {
+    text.match_indices(name).any(|(found, _)| {
+        is_identifier_end(text[..found].chars().next_back())
+            && is_identifier_end(text[found + name.len()..].chars().next())
+    })
+}
+
+fn is_identifier_end(next: Option<char>) -> bool {
+    next.is_none_or(|next| !(next.is_alphanumeric() || next == '_'))
 }
 
 /// The wiring's app gets one `.area(…)` more, the first turning it into a chain. Its
@@ -239,6 +291,35 @@ mod tests {
              .area(\"sofie_identity\", sofie_identity::passkeys::routes::<A>)\n        \
              .area(\"sofie_tenancy\", sofie_tenancy::member_routes::<A, B>))\n}\n"
         );
+    }
+
+    #[test]
+    fn mounts_name_areas_by_an_imported_type() {
+        let library = "use contract::area::Staff;\n\nfn app() {}\n";
+        let mounts = ["routes::<contract::area::Member, contract::area::Staff>".to_owned()];
+
+        let (text, mounts) = super::shortened(
+            library,
+            &mounts,
+            &["contract::area::Member", "contract::area::Staff"],
+        );
+
+        assert_eq!(
+            text,
+            "use contract::area::{Member, Staff};\n\nfn app() {}\n"
+        );
+        assert_eq!(mounts, ["routes::<Member, Staff>"]);
+    }
+
+    #[test]
+    fn mounts_keep_the_full_path_of_a_name_taken_by_another_type() {
+        let library = "use other::Member;\n\nfn app() {}\n";
+        let mounts = ["routes::<contract::area::Member>".to_owned()];
+
+        let (text, mounts) = super::shortened(library, &mounts, &["contract::area::Member"]);
+
+        assert_eq!(text, library);
+        assert_eq!(mounts, ["routes::<contract::area::Member>"]);
     }
 
     #[test]

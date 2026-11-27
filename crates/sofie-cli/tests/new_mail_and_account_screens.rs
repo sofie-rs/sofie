@@ -161,7 +161,11 @@ fn an_account_screen_is_mounted_for_its_area_with_its_identity_feature() {
     let library = read(&shop, "app/src/lib.rs");
     assert!(library.contains("Ok(wiring::app(db)?"), "{library}");
     assert!(
-        library.contains("sofie_identity::sessions::routes::<members_contract::area::Member>"),
+        library.contains("use members_contract::area::Member;"),
+        "{library}"
+    );
+    assert!(
+        library.contains("sofie_identity::sessions::routes::<Member>"),
         "{library}"
     );
     assert!(
@@ -195,11 +199,11 @@ fn impersonation_mounts_both_halves_with_its_feature() {
 
     let library: String = read(&shop, "app/src/lib.rs").split_whitespace().collect();
     assert!(
-        library.contains("sofie_identity::impersonation::routes::<members_contract::area::Staff,members_contract::area::Member,>"),
+        library.contains("sofie_identity::impersonation::routes::<Staff,Member>"),
         "{library}"
     );
     assert!(
-        library.contains("sofie_identity::impersonation::stop_routes::<members_contract::area::Member,members_contract::area::Staff,>"),
+        library.contains("sofie_identity::impersonation::stop_routes::<Member,Staff>"),
         "{library}"
     );
     assert!(read(&shop, "app/Cargo.toml").contains("features = [\"impersonation\"]"));
@@ -219,11 +223,11 @@ fn tenancy_mounts_both_areas_and_depends_on_sofie_tenancy() {
 
     let library: String = read(&shop, "app/src/lib.rs").split_whitespace().collect();
     assert!(
-        library.contains("sofie_tenancy::member_routes::<members_contract::area::Member,members_contract::area::Staff,>"),
+        library.contains("sofie_tenancy::member_routes::<Member,Staff>"),
         "{library}"
     );
     assert!(
-        library.contains("sofie_tenancy::organization_routes::<members_contract::area::Staff,members_contract::area::Member,>"),
+        library.contains("sofie_tenancy::organization_routes::<Staff,Member>"),
         "{library}"
     );
     assert!(read(&shop, "app/Cargo.toml").contains("sofie-tenancy.workspace = true"));

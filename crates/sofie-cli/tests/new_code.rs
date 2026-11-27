@@ -1126,14 +1126,13 @@ fn an_organization_area_is_entered_from_its_member_area_and_mounts_tenancy() {
         assert!(area.contains(expected), "{expected}: {area}");
     }
     let library: String = read(&app, "app/src/lib.rs").split_whitespace().collect();
-    assert!(
-        library.contains("sofie_tenancy::member_routes::<billing_contract::area::Member,billing_contract::area::Team,>"),
-        "{library}"
-    );
-    assert!(
-        library.contains("sofie_tenancy::organization_routes::<billing_contract::area::Team,billing_contract::area::Member,>"),
-        "{library}"
-    );
+    for expected in [
+        "usebilling_contract::area::{Member,Team};",
+        "sofie_tenancy::member_routes::<Member,Team>",
+        "sofie_tenancy::organization_routes::<Team,Member>",
+    ] {
+        assert!(library.contains(expected), "{expected}: {library}");
+    }
     assert!(
         read(&app, "modules/billing/contract/Cargo.toml")
             .contains("sofie-tenancy.workspace = true")

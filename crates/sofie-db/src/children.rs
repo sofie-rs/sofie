@@ -182,6 +182,25 @@ pub(crate) fn plan_children<A: Aggregate>(
     }
 }
 
+/// Before their parents, which a child table may reference.
+#[cfg(feature = "retention")]
+pub(crate) fn delete_children<A: Aggregate>(parents: &[Uuid], plan: &mut Plan<'_>) {
+    for child in A::CHILDREN {
+        let within = crate::condition::Kind::In {
+            columns: vec![A::NAME.to_owned()],
+            types: vec![SqlType::Uuid],
+            rows: parents.iter().map(|id| vec![SqlValue::Uuid(*id)]).collect(),
+        };
+        let mut params = Vec::new();
+        let mut sql = format!(
+            "DELETE FROM {} WHERE ",
+            plan.dialect().qualified(child.module, child.name)
+        );
+        within.render_into(plan.dialect(), &mut params, &mut sql);
+        plan.push_as::<A>(Step::statement(sql, params, None));
+    }
+}
+
 /// Run before the write, so the row still holds the parent it was loaded with.
 pub(crate) fn check_loaded_parent<A: Aggregate>(
     aggregate: &A,

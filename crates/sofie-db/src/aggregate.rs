@@ -382,6 +382,11 @@ pub trait Aggregate: Sized + Send + Sync + 'static {
         let _ = loaded;
         Ok(())
     }
+
+    #[cfg(feature = "retention")]
+    fn delete_permanently(self) -> crate::Erased<Self> {
+        crate::Erased::new(self)
+    }
 }
 
 /// The column holding the owner itself, unless the owner is reached through a parent.

@@ -16,8 +16,6 @@ pub(crate) use engine::{Installed, matched};
 pub use engine::{MATCHES_READ, SearchEngine, install_search};
 #[cfg(feature = "search-engine")]
 pub use indexing::{Reindexing, index_searches};
-#[cfg(all(feature = "search-engine", feature = "retention"))]
-pub(crate) use indexing::{index_of, queue_forget};
 #[cfg(feature = "search-engine")]
 pub use texts::Document;
 pub use texts::{REINDEX_TASK, SearchIndex, SearchTexts};
@@ -51,6 +49,21 @@ impl Behavior for Searched {
     fn planned(&self, write: &Write<'_>, plan: &mut crate::Plan<'_>) -> sofie_core::Result<()> {
         if plan.indexes_searches && indexing::changes_document(write) {
             return indexing::queue(write, plan);
+        }
+        Ok(())
+    }
+
+    /// In the deletion's own commit: the rows are gone, so no later reindex would find them.
+    #[cfg(all(feature = "search-engine", feature = "retention"))]
+    fn pruned(
+        &self,
+        schema: &str,
+        name: &str,
+        ids: &[sofie_core::Uuid],
+        plan: &mut crate::Plan<'_>,
+    ) -> sofie_core::Result<()> {
+        if plan.indexes_searches {
+            return indexing::queue_forget(schema, name, ids, plan);
         }
         Ok(())
     }

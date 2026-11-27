@@ -21,6 +21,8 @@ mod context;
 mod contracts;
 mod db;
 mod dead_messages;
+#[cfg(feature = "retention")]
+mod erased;
 mod event;
 mod factory;
 #[cfg(feature = "remote-contracts")]
@@ -166,6 +168,8 @@ pub use codes::{Coded, Slugged, Slugs, UniqueCode};
 pub use commit_hooks::{ChangedRecord, CommitHook, add_commit_hook, cache_driver, commit_hook};
 #[cfg(feature = "contracts")]
 pub use contracts::*;
+#[cfg(feature = "retention")]
+pub use erased::Erased;
 #[cfg(feature = "remote-contracts")]
 pub use feed::{
     FEED_PAGE, FeedEntry, FeedSource, FeedSql, feed_cursor, keeps_feed, read_feed, receive_feed,

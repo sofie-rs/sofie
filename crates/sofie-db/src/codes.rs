@@ -71,9 +71,16 @@ impl Behavior for Slugged {
     }
 
     #[cfg(feature = "retention")]
-    fn pruned(&self, schema: &str, name: &str, ids: &[sofie_core::Uuid], plan: &mut Plan<'_>) {
+    fn pruned(
+        &self,
+        schema: &str,
+        name: &str,
+        ids: &[sofie_core::Uuid],
+        plan: &mut Plan<'_>,
+    ) -> Result<()> {
         let table = SqlValue::Text(format!("{schema}.{name}"));
         plan.push(forget_records(plan.dialect(), table, ids));
+        Ok(())
     }
 }
 

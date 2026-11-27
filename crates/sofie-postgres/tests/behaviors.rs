@@ -484,6 +484,59 @@ async fn pruning_a_record_drops_its_previous_slugs() {
     assert_eq!(kept, [[SqlValue::Int(0)]]);
 }
 
+async fn counted(database: &TestDatabase, table: &str) -> Vec<Vec<SqlValue>> {
+    let sql = format!("SELECT count(*) FROM {table}");
+    sofie_db::query_values(&Postgres::connect(database.url()).unwrap(), &sql, &[])
+        .await
+        .unwrap()
+}
+
+#[tokio::test]
+async fn a_record_deleted_permanently_leaves_its_mirrors_and_its_previous_slugs() {
+    let (database, db) = catalog().await;
+    Postgres::connect(database.url())
+        .unwrap()
+        .transaction(vec![Step::Script(
+            "CREATE TABLE catalog.product_archive (id uuid PRIMARY KEY, version int8 NOT NULL, \
+             deleted_at timestamptz, name text NOT NULL)"
+                .to_owned(),
+        )])
+        .await
+        .unwrap();
+    sofie_db::provide::<dyn sofie_db::Lookup<()>>(&db, std::sync::Arc::new(NoRecords));
+    let shop = Uuid::now_v7().unwrap();
+    let mut scarf = added(&db, shop, "Scarf").await;
+    renamed(&db, &mut scarf, "Red Scarf").await;
+    let mirror = || sofie_db::worker::Worker::new(db.clone()).mirror::<ProductArchive>("archive");
+    mirror().drain().await.unwrap();
+    assert_eq!(
+        counted(&database, "catalog.product_archive").await,
+        [[SqlValue::Int(1)]]
+    );
+
+    db.commit_with(
+        &mut scarf.delete_permanently(),
+        Vec::new(),
+        Reach::OwnedBy(shop),
+    )
+    .await
+    .unwrap();
+    mirror().drain().await.unwrap();
+
+    assert_eq!(
+        counted(&database, "catalog.product").await,
+        [[SqlValue::Int(0)]]
+    );
+    assert_eq!(
+        counted(&database, "catalog.product_archive").await,
+        [[SqlValue::Int(0)]]
+    );
+    assert_eq!(
+        counted(&database, "sofie.previous_slug").await,
+        [[SqlValue::Int(0)]]
+    );
+}
+
 /// Every message queued from now on, in `public.queued`.
 async fn noting_queued(database: &TestDatabase) -> Postgres {
     let raw = Postgres::connect(database.url()).unwrap();

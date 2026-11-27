@@ -45,16 +45,15 @@ fn index_job(module: &str, aggregate: &str, id: Uuid) -> (&'static str, Value) {
     (INDEX_JOB, payload)
 }
 
-/// In the prune's own commit: the rows are gone, so no later prune or reindex would find them.
 #[cfg(feature = "retention")]
-pub(crate) fn queue_forget(index: &SearchIndex, ids: &[Uuid], plan: &mut Plan<'_>) -> Result<()> {
-    let payload = json!({ "module": index.module, "aggregate": index.name, "ids": ids });
+pub(super) fn queue_forget(
+    module: &str,
+    aggregate: &str,
+    ids: &[Uuid],
+    plan: &mut Plan<'_>,
+) -> Result<()> {
+    let payload = json!({ "module": module, "aggregate": aggregate, "ids": ids });
     plan.queue(MessageKind::Job, [(FORGET_JOB, payload)])
-}
-
-#[cfg(feature = "retention")]
-pub(crate) fn index_of(db: &Db, module: &str, name: &str) -> Option<SearchIndex> {
-    db.search.get()?.find(module, name).cloned()
 }
 
 struct Forgetting {

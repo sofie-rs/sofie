@@ -188,7 +188,7 @@ input fields from `multipart/form-data`, `.file_limit(…)`), `image-variants`
 rewriting stale search text), `search-meilisearch` (searched
 records kept in Meilisearch with `SOFIE_SEARCH=meilisearch`, `<app> task
 sofie.search.reindex`), `csv` (`.document(Media::Csv)`,
-`CsvRows`), `retention` (`Prune` in jobs), `content` (the engine's `<Markdown>`
+`CsvRows`), `retention` (`Prune` in jobs, `delete_permanently`), `content` (the engine's `<Markdown>`
 and `<Head>`), `tasks` (`#[task]`, `Tasks`,
 `run_with_tasks`: `<app> task NAME [--name value]...`), `capture`
 (`sofie::telemetry::capture`, for tests), and the telemetry features
@@ -436,6 +436,16 @@ while let Some(order) = stale.next().await? { … }
   `version` counts up and guards the update, `created_at` and `updated_at`
   are stamped, and `deleted_at` once `delete()` was called. Nothing is
   written, and nothing stamped, for an aggregate that did not change.
+- `record.delete_permanently()` (with `retention`) erases a loaded record
+  for good, as an erasure request needs: the returned `Erased<A>` is an
+  outcome committed like any other, deleting the row, its child rows and the
+  behaviors' rows of it (previous slugs) in one transaction, and raising the
+  change event and `<Aggregate>Pruned` a prune raises (see Retention), so
+  mirrors drop the record and caches and live screens refresh. It deletes
+  only at the version loaded, so a stale copy is a `Conflict` that deletes
+  nothing, and an owned area may erase only its principal's records, as its
+  saves (a record owned through its parent is checked in the database,
+  `NotFound` otherwise). A record never saved is refused.
 - A field whose enum lists `#[to]` transitions may only have moved along a
   listed edge between the loaded and the saved state; any other save fails as
   `Invalid` on that field (key `validation.move` with `from` and `to`),
@@ -1070,8 +1080,8 @@ a file control. CSRF and the session apply as to any form post.
   the record as it is then and puts it, or removes it when it is gone or
   softly deleted, then reads it again and writes once more if its version
   moved meanwhile, so a retried or late job never leaves an old state; a
-  pruned batch is removed by a `sofie.search.forget` job its prune's commit
-  queues. An index gets its settings (`text` searched, `owner` filterable)
+  pruned batch, or a record deleted permanently, is removed by a
+  `sofie.search.forget` job its commit queues. An index gets its settings (`text` searched, `owner` filterable)
   once per process before its first documents, and a match on an index not
   made yet finds nothing. Meilisearch answers a document write once it is
   queued, as a task that may still fail: the worker keeps the task uids in
@@ -1112,8 +1122,8 @@ a file control. CSRF and the session apply as to any form post.
 - **Retention** (`retention`). A scheduled job takes `Prune` and calls
   `prune.before(A::CREATED_AT, cutoff)`, on any ordered column, a nullable
   one keeping its null rows: deleted 1000 at a time, so no
-  statement holds many rows' locks and a retried job resumes; an aggregate
-  with children is refused. Each pruned record's change event carries only
+  statement holds many rows' locks and a retried job resumes; child rows
+  are deleted with their records. Each pruned record's change event carries only
   its id, version and `"sofie.pruned": true` (a key an app event may not
   set), and reaches only mirrors and feeds
   (other listeners are not handed it); the app's listeners hear `<Aggregate>Pruned`

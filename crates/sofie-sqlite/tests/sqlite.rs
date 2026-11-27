@@ -567,6 +567,41 @@ async fn a_child_s_bytes_load_back() {
     assert_eq!(loaded.books[0].cover.0, [0x0a, 0xff]);
 }
 
+#[tokio::test]
+async fn a_record_deleted_permanently_takes_its_child_rows_with_it() {
+    let file = File::new("erased");
+    let db = migrated_in(file.open()).await;
+    let tables = "CREATE TABLE notes_shelf (id uuid PRIMARY KEY, version bigint NOT NULL);\n\
+        CREATE TABLE notes_book (id uuid PRIMARY KEY, shelf uuid NOT NULL, cover blob NOT NULL)";
+    sofie_db::query_values(&file.open(), tables, &[])
+        .await
+        .unwrap();
+    let mut shelves = Vec::new();
+    for _ in 0..2 {
+        let mut shelf = Shelf {
+            meta: Meta::new().unwrap(),
+            books: sofie_db::Children::default(),
+        };
+        shelf.books.push(Book {
+            id: Id::from_uuid(Uuid::now_v7().unwrap()),
+            cover: Cover(vec![1]),
+        });
+        db.commit(&mut shelf).await.unwrap();
+        shelves.push(shelf);
+    }
+    let kept = shelves.pop().unwrap();
+
+    db.commit(&mut shelves.pop().unwrap().delete_permanently())
+        .await
+        .unwrap();
+
+    let left = sofie_db::query_values(&file.open(), "SELECT shelf FROM notes_book", &[])
+        .await
+        .unwrap();
+    assert_eq!(left, [[SqlValue::Uuid(kept.id().uuid())]]);
+    assert_eq!(Shelf::query().count(&db.read()).await.unwrap(), 1);
+}
+
 async fn refusal_of(name: &'static str, interval: Duration) -> String {
     Worker::new(Db::new(Sqlite::memory().unwrap()))
         .every(name, interval, tick)

@@ -153,7 +153,10 @@ fn next_version(loaded: &Snapshot) -> Snapshot {
 }
 
 /// A record owned through its parent is checked in the database, as loaded and as written.
-fn refuse_beyond_reach<A: Aggregate>(aggregate: &A, reach: Reach) -> Result<Option<Uuid>> {
+pub(crate) fn refuse_beyond_reach<A: Aggregate>(
+    aggregate: &A,
+    reach: Reach,
+) -> Result<Option<Uuid>> {
     let Reach::OwnedBy(owner) = reach else {
         return Ok(None);
     };

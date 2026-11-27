@@ -426,3 +426,143 @@ async fn a_list_under_another_principal_s_parent_is_not_found() {
     assert!(own.is_ok(), "{own:?}");
     assert!(matches!(other, Err(Error::NotFound)), "{other:?}");
 }
+
+async fn item_rows(database: &TestDatabase) -> Vec<Vec<SqlValue>> {
+    sofie_db::query_values(
+        &Postgres::connect(database.url()).unwrap(),
+        "SELECT product FROM crm.basket_item ORDER BY product",
+        &[],
+    )
+    .await
+    .unwrap()
+}
+
+fn texts(values: &[&str]) -> Vec<Vec<SqlValue>> {
+    values
+        .iter()
+        .map(|value| vec![SqlValue::Text((*value).to_owned())])
+        .collect()
+}
+
+#[tokio::test]
+async fn a_record_deleted_permanently_takes_its_child_rows_with_it() {
+    let (database, db) = crm().await;
+    let ada = member(&db, Uuid::now_v7().unwrap(), "Ada").await;
+    let mut weekly = Basket::new(ada, "weekly");
+    weekly.items.push(BasketItem::new("tea", 2));
+    weekly.items.push(BasketItem::new("milk", 1));
+    let mut kept = Basket::new(ada, "kept");
+    kept.items.push(BasketItem::new("bread", 1));
+    db.commit(&mut weekly).await.unwrap();
+    db.commit(&mut kept).await.unwrap();
+    let weekly_id = weekly.id();
+
+    let loaded = Basket::find(&db.read(), weekly_id).await.unwrap();
+    db.commit(&mut loaded.delete_permanently()).await.unwrap();
+
+    let gone = Basket::find(&db.read(), weekly_id).await;
+    assert!(matches!(gone, Err(Error::NotFound)), "{:?}", gone.err());
+    assert_eq!(item_rows(&database).await, texts(&["bread"]));
+}
+
+#[tokio::test]
+async fn deleting_a_stale_copy_permanently_is_a_conflict_and_deletes_nothing() {
+    let (database, db) = crm().await;
+    let ada = member(&db, Uuid::now_v7().unwrap(), "Ada").await;
+    let mut basket = Basket::new(ada, "weekly");
+    basket.items.push(BasketItem::new("tea", 2));
+    db.commit(&mut basket).await.unwrap();
+    let mut first = Basket::find(&db.read(), basket.id()).await.unwrap();
+    let stale = Basket::find(&db.read(), basket.id()).await.unwrap();
+    first.items[0].quantity = 5;
+    db.commit(&mut first).await.unwrap();
+
+    let refused = db.commit(&mut stale.delete_permanently()).await;
+
+    assert!(matches!(refused, Err(Error::Conflict)), "{refused:?}");
+    let kept = Basket::find(&db.read(), basket.id()).await.unwrap();
+    assert_eq!(products(&kept), [("tea", 5)]);
+    assert_eq!(item_rows(&database).await, texts(&["tea"]));
+}
+
+#[tokio::test]
+async fn an_owned_area_cannot_delete_another_principal_s_record_permanently() {
+    let (database, db) = crm().await;
+    let (ada_account, bob_account) = (Uuid::now_v7().unwrap(), Uuid::now_v7().unwrap());
+    let ada = member(&db, ada_account, "Ada").await;
+    let bob = member(&db, bob_account, "Bob").await;
+    let mut bob_s = Basket::new(bob, "bob's");
+    bob_s.items.push(BasketItem::new("tea", 1));
+    let mut ada_s = Basket::new(ada, "ada's");
+    db.commit(&mut bob_s).await.unwrap();
+    db.commit(&mut ada_s).await.unwrap();
+    let as_ada = Reach::OwnedBy(ada_account);
+
+    let basket = Basket::find(&db.read(), bob_s.id()).await.unwrap();
+    let basket_erased = db
+        .commit_with(&mut basket.delete_permanently(), Vec::new(), as_ada)
+        .await;
+    let member = Member::find(&db.read(), bob).await.unwrap();
+    let member_erased = db
+        .commit_with(&mut member.delete_permanently(), Vec::new(), as_ada)
+        .await;
+    let own = Basket::find(&db.read(), ada_s.id()).await.unwrap();
+    let own_erased = db
+        .commit_with(&mut own.delete_permanently(), Vec::new(), as_ada)
+        .await;
+
+    assert!(
+        matches!(basket_erased, Err(Error::NotFound)),
+        "{basket_erased:?}"
+    );
+    assert!(member_erased.is_err(), "{member_erased:?}");
+    assert!(own_erased.is_ok(), "{own_erased:?}");
+    assert!(Member::find(&db.read(), bob).await.is_ok());
+    assert_eq!(item_rows(&database).await, texts(&["tea"]));
+    assert_eq!(Basket::query().count(&db.read()).await.unwrap(), 1);
+}
+
+#[tokio::test]
+async fn a_record_never_saved_cannot_be_deleted_permanently() {
+    let (_database, db) = crm().await;
+    let ada = member(&db, Uuid::now_v7().unwrap(), "Ada").await;
+
+    let refused = db
+        .commit(&mut Basket::new(ada, "draft").delete_permanently())
+        .await;
+
+    assert!(
+        matches!(refused, Err(Error::Internal { .. })),
+        "{refused:?}"
+    );
+}
+
+async fn prune_baskets(prune: sofie_db::Prune, clock: sofie_core::Clock) -> Result<()> {
+    let created_at = Column::<Basket, sofie_core::Instant>::new("created_at");
+    let later = clock
+        .now()
+        .checked_add(std::time::Duration::from_secs(60))?;
+    prune.before(created_at, later).await.map(drop)
+}
+
+#[tokio::test]
+async fn a_prune_deletes_its_records_child_rows_too() {
+    let (database, db) = crm().await;
+    let ada = member(&db, Uuid::now_v7().unwrap(), "Ada").await;
+    let mut basket = Basket::new(ada, "weekly");
+    basket.items.push(BasketItem::new("tea", 2));
+    db.commit(&mut basket).await.unwrap();
+
+    sofie_db::worker::Worker::new(db.clone())
+        .every(
+            "crm.prune_baskets",
+            std::time::Duration::from_secs(3600),
+            prune_baskets,
+        )
+        .drain()
+        .await
+        .unwrap();
+
+    assert_eq!(item_rows(&database).await, texts(&[]));
+    assert_eq!(Basket::query().count(&db.read()).await.unwrap(), 0);
+}

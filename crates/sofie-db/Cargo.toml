@@ -72,7 +72,8 @@ cache = []
 # Statement durations, busy connections, message lag and outcomes, recorded
 # through sofie-telemetry's metrics.
 metrics = ["sofie-telemetry/metrics"]
-# `Prune`: a scheduled job deleting records past their retention, in batches.
+# Hard deletion: `Prune`, a scheduled job deleting records past their retention
+# in batches, and `delete_permanently`, erasing one record in a commit.
 retention = []
 # `Searched`: full-text search over the fields whose values are searched by their words.
 search = []

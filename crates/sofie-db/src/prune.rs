@@ -31,17 +31,6 @@ impl Prune {
         column: Column<A, T>,
         before: T,
     ) -> Result<u64> {
-        #[cfg(feature = "children")]
-        if !A::CHILDREN.is_empty() {
-            return Err(Error::internal_message(format!(
-                "`{}` has children, which pruning would leave behind; delete its records with \
-                 their children in a job of the module's own",
-                A::NAME
-            )));
-        }
-        #[cfg(feature = "search-engine")]
-        let index = crate::search::index_of(&self.db, A::MODULE, A::NAME);
-        let heard = self.db.arrivals().heard().known().unwrap_or_default();
         let mut deleted = 0;
         loop {
             let mut query = A::query()
@@ -52,18 +41,7 @@ impl Prune {
             let records = query.all(&self.db.read()).await?;
             let batch = u64::try_from(records.len())
                 .map_err(|error| Error::internal("counting pruned records", error))?;
-            let events = match records.first() {
-                Some(first) => heard_events(first, &heard.listeners)?,
-                None => Events::default(),
-            };
-            self.db
-                .commit(&mut Pruned {
-                    records,
-                    events,
-                    #[cfg(feature = "search-engine")]
-                    index: index.clone(),
-                })
-                .await?;
+            self.db.commit(&mut Pruned { records }).await?;
             deleted += batch;
             if batch < BATCH {
                 return Ok(deleted);
@@ -103,64 +81,63 @@ struct Events {
 
 struct Pruned<A> {
     records: Vec<A>,
-    events: Events,
-    #[cfg(feature = "search-engine")]
-    index: Option<crate::SearchIndex>,
 }
 
-/// Each record only at the version it was loaded at: one changed since is a conflict, retried.
 impl<A: Aggregate> Outcome for Pruned<A> {
     fn plan(&self, plan: &mut Plan<'_>) -> Result<()> {
-        if self.records.is_empty() {
-            return Ok(());
-        }
-        plan.push_as::<A>(delete_loaded::<A>(&self.records, plan.dialect())?);
-        let ids: Vec<sofie_core::Uuid> = self
-            .records
-            .iter()
-            .map(|record| record.meta().id())
-            .collect();
-        let table = crate::aggregate::table::<A>();
-        for (behavior, _) in &table.behaviors {
-            behavior.pruned(table.schema, table.name, &ids, plan);
-        }
-        #[cfg(feature = "search-engine")]
-        if let Some(index) = &self.index {
-            crate::search::queue_forget(index, &ids, plan)?;
-        }
-        for record in &self.records {
-            let meta = record.meta();
-            #[cfg(feature = "contracts")]
-            if let Some(name) = self.events.change {
-                let change = crate::change_event::pruned_change(meta);
-                plan.events.push(crate::RaisedEvent {
-                    name,
-                    payload: change,
-                });
-            }
-            if let Some(name) = self.events.pruned {
-                let pruned = crate::event::change_payload(
-                    serde_json::Map::new(),
-                    meta.id(),
-                    meta.version() + 1,
-                );
-                plan.events.push(crate::RaisedEvent {
-                    name,
-                    payload: serde_json::Value::Object(pruned),
-                });
-            }
-            #[cfg(feature = "cache")]
-            plan.announcements.changed(crate::ChangedRecord {
-                module: A::MODULE,
-                aggregate: A::NAME,
-                id: Some(record.meta().id()),
-            });
-            #[cfg(feature = "live")]
-            plan.announcements
-                .live_change(crate::TableChange::of::<A>(record.owner(), plan.reach()));
-        }
-        Ok(())
+        plan_deletion(&self.records, plan)
     }
+}
+
+/// Each record only at the version it was loaded at: one changed since is a conflict.
+pub(crate) fn plan_deletion<A: Aggregate>(records: &[A], plan: &mut Plan<'_>) -> Result<()> {
+    let Some(first) = records.first() else {
+        return Ok(());
+    };
+    let events = match plan.heard.as_deref() {
+        Some(known) => heard_events(first, &known.listeners)?,
+        None => Events::default(),
+    };
+    let ids: Vec<sofie_core::Uuid> = records.iter().map(|record| record.meta().id()).collect();
+    #[cfg(feature = "children")]
+    crate::children::delete_children::<A>(&ids, plan);
+    plan.push_as::<A>(delete_loaded::<A>(records, plan.dialect())?);
+    let table = crate::aggregate::table::<A>();
+    for (behavior, _) in &table.behaviors {
+        behavior.pruned(table.schema, table.name, &ids, plan)?;
+    }
+    for record in records {
+        announce_deleted(record, &events, plan);
+    }
+    Ok(())
+}
+
+fn announce_deleted<A: Aggregate>(record: &A, events: &Events, plan: &mut Plan<'_>) {
+    let meta = record.meta();
+    #[cfg(feature = "contracts")]
+    if let Some(name) = events.change {
+        plan.events.push(crate::RaisedEvent {
+            name,
+            payload: crate::change_event::pruned_change(meta),
+        });
+    }
+    if let Some(name) = events.pruned {
+        let pruned =
+            crate::event::change_payload(serde_json::Map::new(), meta.id(), meta.version() + 1);
+        plan.events.push(crate::RaisedEvent {
+            name,
+            payload: serde_json::Value::Object(pruned),
+        });
+    }
+    #[cfg(feature = "cache")]
+    plan.announcements.changed(crate::ChangedRecord {
+        module: A::MODULE,
+        aggregate: A::NAME,
+        id: Some(meta.id()),
+    });
+    #[cfg(feature = "live")]
+    plan.announcements
+        .live_change(crate::TableChange::of::<A>(record.owner(), plan.reach()));
 }
 
 fn delete_loaded<A: Aggregate>(records: &[A], dialect: &dyn Dialect) -> Result<Step> {

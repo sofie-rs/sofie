@@ -151,7 +151,7 @@ fn mount(edits: &mut Edits, app: &App, module: &str, mounts: &[String]) -> Resul
                     .map(|mounted| format!("`.area(\"{module}\", {mounted})`"))
                     .collect();
                 GenError::Usage(format!(
-                    "{} does not build the app with `wiring::app(db)`; add {} where it does",
+                    "{} does not build the app with `wiring::app(…)`; add {} where it does",
                     library.display(),
                     wanted.join(" and ")
                 ))
@@ -167,24 +167,25 @@ fn defined_area(app: &App, name: &str) -> Result<String, GenError> {
         .ok_or_else(|| GenError::Usage(format!("the app defines no area `{name}`")))
 }
 
-/// The wiring's app gets one `.area(…)` more, the first turning it into a chain.
+/// The wiring's app gets one `.area(…)` more, the first turning it into a chain. Its
+/// arguments vary: an app with flags passes them as well.
 fn mounted_as(text: &str, module: &str, mounted: &str) -> Option<String> {
     let area = format!("\n        .area(\"{module}\", {mounted})");
-    if let Some(at) = text.find(CHAINED) {
-        let end = at + CHAINED.len();
+    let start = text.find(WIRED)?;
+    let end = start + text[start..].find(')')? + 1;
+    if text[end..].starts_with('?') {
+        let end = end + 1;
         return Some(format!("{}{area}{}", &text[..end], &text[end..]));
     }
-    let at = text.find(WIRED)?;
-    let end = at + WIRED.len();
     Some(format!(
-        "{}Ok({CHAINED}{area}){}",
-        &text[..at],
+        "{}Ok({}?{area}){}",
+        &text[..start],
+        &text[start..end],
         &text[end..]
     ))
 }
 
-const WIRED: &str = "wiring::app(db)";
-const CHAINED: &str = "wiring::app(db)?";
+const WIRED: &str = "wiring::app(";
 
 #[cfg(test)]
 mod tests {
@@ -212,6 +213,31 @@ mod tests {
             "pub async fn app(db: Db) -> Result<App> {\n    Ok(wiring::app(db)?\n        \
              .area(\"sofie_identity\", sofie_identity::passkeys::routes::<A>)\n        \
              .area(\"sofie_identity\", sofie_identity::sessions::routes::<A>))\n}\n"
+        );
+    }
+
+    #[test]
+    fn mounts_chain_on_the_wiring_s_app_given_flags_as_well() {
+        let library = "pub async fn app(db: Db, flags: Flags) -> Result<App> {\n    wiring::app(db, flags)\n}\n";
+
+        let once = super::mounted_as(
+            library,
+            "sofie_tenancy",
+            "sofie_tenancy::member_routes::<A, B>",
+        )
+        .unwrap();
+        let twice = super::mounted_as(
+            &once,
+            "sofie_identity",
+            "sofie_identity::passkeys::routes::<A>",
+        )
+        .unwrap();
+
+        assert_eq!(
+            twice,
+            "pub async fn app(db: Db, flags: Flags) -> Result<App> {\n    Ok(wiring::app(db, flags)?\n        \
+             .area(\"sofie_identity\", sofie_identity::passkeys::routes::<A>)\n        \
+             .area(\"sofie_tenancy\", sofie_tenancy::member_routes::<A, B>))\n}\n"
         );
     }
 

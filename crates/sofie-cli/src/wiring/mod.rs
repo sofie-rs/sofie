@@ -1,4 +1,5 @@
 mod clients;
+mod entry_points;
 mod gates;
 mod gateways;
 mod islands;
@@ -22,6 +23,7 @@ use sofie_model::{
     Schedule, WallClock, WiringSide, interval_seconds,
 };
 
+pub(crate) use self::entry_points::{EntryPointEdit, entry_point_edits};
 use self::gates::{Gating, job_function};
 pub(crate) use self::mails::embedded_mails;
 pub(crate) use self::module_wiring::render_module_wiring;

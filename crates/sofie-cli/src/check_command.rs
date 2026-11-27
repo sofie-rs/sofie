@@ -7,6 +7,7 @@ use sofie_model::{App, Crate};
 
 use crate::gen_command::{GenError, GenMode, GenOutcome, sync_generated};
 use crate::translations::AppLanguages;
+use crate::wiring::{EntryPointEdit, entry_point_edits};
 
 const DERIVES_PACKAGE: &str = "sofie-macros";
 
@@ -52,6 +53,10 @@ pub(crate) fn check_loaded_app(
             &format!("run `sofie gen {}`", root.display()),
         ),
         stale_docs(root, app)?,
+        entry_point_edits(app)?
+            .into_iter()
+            .map(|edit| stale_entry_point(root, app, edit))
+            .collect(),
     ]
     .concat();
     if !stale.is_empty() {
@@ -95,6 +100,28 @@ fn stale_files(outcomes: Vec<GenOutcome>, rule: Rule, fix: &str) -> Vec<Finding>
             GenOutcome::Written(_) | GenOutcome::Removed(_) | GenOutcome::UpToDate(_) => None,
         })
         .collect()
+}
+
+fn stale_entry_point(root: &Path, app: &App, edit: EntryPointEdit) -> Finding {
+    let takes = if app.has_feature_flags() {
+        "takes the app's flags"
+    } else {
+        "takes no flags"
+    };
+    Finding {
+        rule: Rule::StaleWiring,
+        file: edit.file,
+        line: edit.line,
+        message: format!(
+            "the generated wiring {takes}, but this file calls `{}`",
+            edit.found
+        ),
+        fix: format!(
+            "call `{}`; `sofie gen {}` does",
+            edit.expected,
+            root.display()
+        ),
+    }
 }
 
 fn dead_code(root: &Path, app: &App) -> Result<Vec<Finding>, GenError> {

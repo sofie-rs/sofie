@@ -500,6 +500,79 @@ fn fix_removes_a_stale_allowance_behind_stale_wiring() {
     assert!(text.ends_with("ok\n"), "{text}");
 }
 
+const FLAGGED_MODULE: &str = "use sofie::flags::Feature;\n\npub const SPLIT: Feature = \
+     Feature::new(\"order.split\").added(\"2026-11-27\").retire_after_days(100000);\n\n\
+     pub const MODULE: sofie::Module = sofie::Module {\n    name: \"order\",\n    tier: \
+     sofie::Tier::Core,\n    context: None,\n    settings: &[],\n    ..crate::wiring::GENERATED\n};\n";
+
+#[test]
+fn gen_keeps_the_app_s_entry_points_passing_the_flags_its_wiring_takes() {
+    let fixture = Fixture::new();
+    fixture.write(
+        "app/src/lib.rs",
+        "use sofie::db::Db;\nuse sofie::prelude::*;\n\nmod wiring;\n\npub use wiring::{MODULES, \
+         worker};\n\npub async fn app(db: Db) -> Result<App> {\n    wiring::app(db)\n}\n",
+    );
+    fixture.write(
+        "app/src/main.rs",
+        "fn main() -> sofie::core::Result<()> {\n    sofie::run(shop::MODULES, shop::app, \
+         shop::worker)\n}\n",
+    );
+    let flagless = (
+        fixture.read("app/src/lib.rs"),
+        fixture.read("app/src/main.rs"),
+    );
+    assert_eq!(fixture.sofie(&["gen"]).status.code(), Some(0));
+    assert_eq!(stdout(&fixture.sofie(&["check"])), "ok\n");
+    fixture.write("modules/order/src/module.rs", FLAGGED_MODULE);
+
+    let check = stdout(&fixture.sofie(&["check"]));
+
+    for expected in [
+        "the generated wiring takes the app's flags, but this file calls `wiring::app(db)`",
+        "  --> app/src/lib.rs:9\n",
+        "call `wiring::app(db, flags)`",
+        "this file calls `sofie::run`",
+        "  --> app/src/main.rs:2\n",
+        "call `sofie::run_with_flags`",
+    ] {
+        assert!(check.contains(expected), "missing {expected} in {check}");
+    }
+    assert_eq!(fixture.sofie(&["gen"]).status.code(), Some(0));
+    assert_eq!(stdout(&fixture.sofie(&["check"])), "ok\n");
+    let library = fixture.read("app/src/lib.rs");
+    assert!(
+        library.contains("use sofie::flags::Flags;\n")
+            && library.contains("pub async fn app(db: Db, flags: Flags) -> Result<App> {\n    wiring::app(db, flags)\n"),
+        "{library}"
+    );
+    assert!(
+        fixture
+            .read("app/src/main.rs")
+            .contains("sofie::run_with_flags(")
+    );
+
+    fixture.write(
+        "modules/order/src/module.rs",
+        &FLAGGED_MODULE[FLAGGED_MODULE.find("pub const MODULE").unwrap()..],
+    );
+    let fixed = stdout(&fixture.sofie(&["fix"]));
+
+    assert!(
+        fixed
+            .contains("called `sofie::run` in place of `sofie::run_with_flags` in app/src/main.rs"),
+        "{fixed}"
+    );
+    assert!(fixed.ends_with("ok\n"), "{fixed}");
+    assert_eq!(
+        (
+            fixture.read("app/src/lib.rs"),
+            fixture.read("app/src/main.rs")
+        ),
+        flagless
+    );
+}
+
 /// The app's wiring names an area's contract only to sign members in through sofie-identity.
 #[test]
 fn fix_adds_no_area_contract_an_app_without_identity_never_names() {

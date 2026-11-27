@@ -1456,7 +1456,10 @@ with the first code that gates on it.
   each marked listener or schedule, wrapped in `sofie::flags::gated`, to the
   modules' jobs, and the app's `main` calls
   `sofie::run_with_flags(MODULES, app, worker)`
-  instead of `sofie::run`: it starts the flags once per process, for both
+  instead of `sofie::run`; `sofie gen` and `sofie fix` keep the
+  `wiring::app` call in `lib.rs` and the runner in `main.rs` in step as flags
+  come and go, and `sofie check` reports either one left behind as
+  `stale-wiring`. It starts the flags once per process, for both
   roles, in the environment `SOFIE_ENVIRONMENT` names (such as `production`;
   required, so a flag meant for staging is never guessed on in production;
   `sofie dev` and `sofie mcp` set `development` when neither the shell nor

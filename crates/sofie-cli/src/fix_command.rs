@@ -14,7 +14,7 @@ use crate::rustfmt::format_rust;
 use crate::source_edits::{
     add_dependency, append_lines, declare_module, read, with_dependency_line, write,
 };
-use crate::wiring::{crossing_traits, exposed_aggregates};
+use crate::wiring::{crossing_traits, entry_point_edits, exposed_aggregates};
 
 pub struct FixReport {
     pub applied: Vec<String>,
@@ -120,8 +120,9 @@ fn declare_missing_modules(app: &App, module: &Module) -> Result<Vec<String>, Ge
 }
 
 /// What makes the generated code reachable, in its one form: a contract declaring and
-/// exporting its `gen` module, and `main` handing the wiring's tasks to the runner. `sofie gen`
-/// writes it too, so an app a generator or a hand edit leaves builds.
+/// exporting its `gen` module, `lib.rs` and `main` passing the flags the wiring takes, and
+/// `main` handing the wiring's tasks to the runner. `sofie gen` writes it too, so an app a
+/// generator or a hand edit leaves builds.
 pub(crate) fn wire_generated_code(app: &App) -> Result<Vec<(PathBuf, String)>, GenError> {
     let mut applied = Vec::new();
     for module in &app.modules {
@@ -146,6 +147,17 @@ pub(crate) fn wire_generated_code(app: &App) -> Result<Vec<(PathBuf, String)>, G
                 applied.push((manifest, change));
             }
         }
+    }
+    // Before the tasks, whose runner keeps the flags this picks.
+    for edit in entry_point_edits(app)? {
+        write(&edit.file, &edit.text)?;
+        let change = format!(
+            "called `{}` in place of `{}` in {}",
+            edit.expected,
+            edit.found,
+            shown(app, &edit.file)
+        );
+        applied.push((edit.file, change));
     }
     let declares_tasks = app.modules.iter().any(|module| !module.tasks.is_empty());
     // A `main` it cannot change is left to `sofie check`'s `task-runner` finding.

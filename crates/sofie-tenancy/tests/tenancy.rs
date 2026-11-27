@@ -86,10 +86,7 @@ async fn started_with(plans: &'static Plans) -> TestApp {
 }
 
 async fn signed_up(app: &TestApp, email: &str) -> TestSession {
-    let credentials = json!({ "email": email, "password": "correct horse battery" });
-    app.post("/sign-up").json(&credentials).await.assert_ok();
-    let answer = app.post("/sign-in").json(&credentials).await;
-    answer.session().unwrap()
+    sofie_identity::testing::signed_up::<Member>(app, email, "correct horse battery").await
 }
 
 async fn post(app: &TestApp, path: &str, session: &TestSession, body: &Value) -> TestResponse {

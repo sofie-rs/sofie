@@ -35,6 +35,13 @@ struct Package {
     screens: Vec<PathBuf>,
 }
 
+impl Package {
+    /// Only the first segment, the package's crate, scopes its screens' labels.
+    fn screen_key(&self, file: &Path) -> String {
+        format!("{}/{}", self.crate_name, file_stem(file))
+    }
+}
+
 impl AppLanguages {
     pub(crate) fn read(app: &App) -> Result<Option<Self>, GenError> {
         let mut files = Vec::new();
@@ -94,10 +101,11 @@ impl AppLanguages {
             .map(|(file, template)| (file.as_path(), template));
         let mut findings = Vec::new();
         let mut uses: Vec<KeyUse> = Vec::new();
-        for (file, template) in module_templates(app, screens)?
-            .into_iter()
-            .chain(package_templates)
-        {
+        let module_templates = module_templates(app, screens)?;
+        let module_templates = module_templates
+            .iter()
+            .map(|(file, template)| (*file, template));
+        for (file, template) in module_templates.chain(package_templates) {
             if let Err(error) = check_translations(template, &translations) {
                 findings.push(finding(
                     file.to_path_buf(),
@@ -194,9 +202,13 @@ impl AppLanguages {
 
     fn package_templates(&self) -> Result<Vec<(PathBuf, Template)>, GenError> {
         let mut templates = Vec::new();
-        for file in self.packages.iter().flat_map(|package| &package.screens) {
+        let screens = self
+            .packages
+            .iter()
+            .flat_map(|package| package.screens.iter().map(move |file| (package, file)));
+        for (package, file) in screens {
             let source = fs::read_to_string(file).map_err(|source| io_error(file, source))?;
-            if let Ok(template) = Template::parse(&file.display().to_string(), &source) {
+            if let Ok(template) = Template::parse(&package.screen_key(file), &source) {
                 templates.push((file.clone(), template));
             }
         }
@@ -356,20 +368,18 @@ fn language_files(module: &str, paths: &[PathBuf]) -> Result<Vec<LanguageFile>, 
         .collect()
 }
 
-fn module_templates<'s>(
-    app: &'s App,
-    screens: &'s Screens,
-) -> Result<Vec<(&'s Path, &'s Template)>, GenError> {
-    let files = app.modules.iter().flat_map(|module| {
-        module.areas.iter().flat_map(|area| {
-            let overrides = area.overrides.iter().map(|replacement| &replacement.file);
-            area.screens.iter().chain(overrides)
-        })
-    });
+/// Parsed again under the key the app serves them by, whose module a derived label is
+/// scoped to; the screens were read under their file names.
+fn module_templates<'a>(
+    app: &'a App,
+    screens: &Screens,
+) -> Result<Vec<(&'a Path, Template)>, GenError> {
+    let keyed = app.modules.iter().flat_map(crate::wiring::embedded_screens);
     let mut templates = Vec::new();
-    for file in files {
-        if let Ok(template) = &readable_screen(screens, file)?.template {
-            templates.push((file.as_path(), template));
+    for (key, file) in keyed {
+        let source = &readable_screen(screens, file)?.source;
+        if let Ok(template) = Template::parse_with(&key, source, screens.components()) {
+            templates.push((file, template));
         }
     }
     Ok(templates)
@@ -474,6 +484,33 @@ mod tests {
             messages.contains(&"`label.status` has no `de` translation".to_owned()),
             "{messages:?}"
         );
+    }
+
+    #[test]
+    fn a_derived_label_is_checked_under_its_screen_s_module_key() {
+        let directory = sofie_model::testing::TemporaryDirectory::new("sofie-module-labels");
+        directory.write(
+            "shop/modules/order/src/areas/web/screens/orders.html",
+            "<Table id=\"t\" of={data.rows} columns=\"category\" />",
+        );
+        let mut order = module("order", directory.path("shop/modules/order"));
+        let mut web = sofie_model::testing::area(&order, "web", Vec::new());
+        web.screens = vec![directory.path("shop/modules/order/src/areas/web/screens/orders.html")];
+        order.areas.push(web);
+        let shop = app("shop", vec![order]);
+        let languages = AppLanguages::new(
+            vec![
+                file("en", "[order.label]\ncategory = \"Category\"\n"),
+                file("tr", "[order.label]\ncategory = \"Kategori\"\n"),
+            ],
+            Vec::new(),
+        );
+
+        let findings = languages
+            .findings(&shop, &Screens::read(&shop.modules))
+            .unwrap();
+
+        assert!(findings.is_empty(), "{findings:?}");
     }
 
     /// `sofie gen` names each key as a constant of the contract's `keys`; one no identifier

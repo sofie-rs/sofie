@@ -61,6 +61,25 @@ async fn a_flag_nobody_switched_is_off_and_a_stored_rule_is_read_back() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn a_declared_default_holds_until_a_rule_is_stored() {
+    const PAGES: Feature = Feature::new("catalog.pages").default(Rule::everyone);
+    let database = TestDatabase::create().await;
+    let flags = Flags::start(&migrated(&database).await, "production")
+        .await
+        .unwrap();
+    flags.declare_features(&[PAGES]).unwrap();
+    let anyone = member(Uuid::from_u128(1));
+    assert!(flags.evaluate(anyone).enabled_named("catalog.pages"));
+
+    flags.set("catalog.pages", Rule::off()).await.unwrap();
+
+    let features = flags.evaluate(anyone);
+    assert!(!features.enabled(PAGES));
+    assert!(!features.enabled_named("catalog.pages"));
+    assert!(flags.declare_features(&[PAGES, PAGES]).is_err());
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn a_malformed_stored_flag_is_left_out_and_the_others_still_load() {
     let database = TestDatabase::create().await;
     let db = migrated(&database).await;

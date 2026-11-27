@@ -207,6 +207,29 @@ mod tests {
     }
 
     #[test]
+    fn reads_a_flag_declared_with_a_default_rule() {
+        let code = collected(
+            r#"
+            pub const PAGES: Feature = Feature::new("catalog.pages").default(Rule::everyone).added("2026-11-01");
+            pub const REVIEWS: Feature = Feature::new("catalog.reviews").added("2026-11-02").default(Rule::off);
+            "#,
+        );
+
+        let read: Vec<_> = code
+            .declarations
+            .iter()
+            .map(|declaration| (declaration.name.as_deref(), declaration.added.as_deref()))
+            .collect();
+        assert_eq!(
+            read,
+            [
+                (Some("catalog.pages"), Some("2026-11-01")),
+                (Some("catalog.reviews"), Some("2026-11-02")),
+            ]
+        );
+    }
+
+    #[test]
     fn reads_gated_functions_and_finds_their_flag() {
         let code = collected(
             r#"

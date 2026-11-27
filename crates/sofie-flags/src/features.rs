@@ -1,14 +1,17 @@
+use std::borrow::Cow;
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex, MutexGuard};
 
 use sofie_core::unpoisoned;
 
 use crate::flags::Snapshot;
-use crate::{Feature, HeldSetting, SettingValue, Subject, Variants};
+use crate::{Feature, HeldSetting, Rule, SettingValue, Subject, Variants};
 
-/// A flag nobody stored a rule for is off.
+/// A flag nobody stored a rule for follows its feature's default rule, and without one is off.
 #[derive(Clone)]
 pub struct Features {
     snapshot: Arc<Snapshot>,
+    declared: Arc<HashMap<&'static str, Feature>>,
     environment: Arc<str>,
     subject: Subject,
     evaluated: Arc<Mutex<Vec<(String, String)>>>,
@@ -17,9 +20,15 @@ pub struct Features {
 }
 
 impl Features {
-    pub(crate) fn new(snapshot: Arc<Snapshot>, environment: Arc<str>, subject: Subject) -> Self {
+    pub(crate) fn new(
+        snapshot: Arc<Snapshot>,
+        declared: Arc<HashMap<&'static str, Feature>>,
+        environment: Arc<str>,
+        subject: Subject,
+    ) -> Self {
         Self {
             snapshot,
+            declared,
             environment,
             subject,
             evaluated: Arc::default(),
@@ -37,7 +46,7 @@ impl Features {
 
     #[must_use]
     pub fn enabled(&self, feature: Feature) -> bool {
-        self.enabled_named(feature.name())
+        self.answer(feature.name(), feature.default_rule())
     }
 
     #[must_use]
@@ -73,16 +82,30 @@ impl Features {
 
     #[must_use]
     pub fn enabled_named(&self, name: &str) -> bool {
+        let default = self
+            .declared
+            .get(name)
+            .and_then(|feature| feature.default_rule());
+        self.answer(name, default)
+    }
+
+    fn answer(&self, name: &str, default: Option<fn() -> Rule>) -> bool {
         let on = match self.overriding(name) {
             Some(answer) => answer != "off",
             None => self
-                .snapshot
-                .rules
-                .get(name)
+                .rule(name, default)
                 .is_some_and(|rule| rule.is_on(name, &self.environment, self.subject)),
         };
         self.record(name, if on { "on" } else { "off" });
         on
+    }
+
+    fn rule(&self, name: &str, default: Option<fn() -> Rule>) -> Option<Cow<'_, Rule>> {
+        self.snapshot
+            .rules
+            .get(name)
+            .map(Cow::Borrowed)
+            .or_else(|| default.map(|rule| Cow::Owned(rule())))
     }
 
     /// Whether any principal of the subject's area could have it on: what a request that carries
@@ -92,11 +115,9 @@ impl Features {
         let name = feature.name();
         match self.overriding(name) {
             Some(answer) => answer != "off",
-            None => {
-                self.snapshot.rules.get(name).is_some_and(|rule| {
-                    rule.is_on_for_someone(&self.environment, self.subject.area)
-                })
-            }
+            None => self
+                .rule(name, feature.default_rule())
+                .is_some_and(|rule| rule.is_on_for_someone(&self.environment, self.subject.area)),
         }
     }
 
@@ -198,8 +219,13 @@ mod tests {
         ]
         .map(|(name, answer)| (name.to_owned(), answer.to_owned()));
 
-        let features = Features::new(Arc::new(snapshot), Arc::from("test"), subject)
-            .overridden(Arc::new(overrides));
+        let features = Features::new(
+            Arc::new(snapshot),
+            Arc::default(),
+            Arc::from("test"),
+            subject,
+        )
+        .overridden(Arc::new(overrides));
 
         assert!(!features.enabled(Feature::new("shop.beta")));
         assert!(features.enabled(Feature::new("shop.split")));
@@ -211,5 +237,56 @@ mod tests {
             features.evaluated(),
             "shop.beta=off shop.split=on shop.layout=compact"
         );
+    }
+}
+
+#[cfg(test)]
+mod defaults {
+    use super::*;
+
+    const PAGES: Feature = Feature::new("catalog.pages").default(Rule::everyone);
+
+    fn features(snapshot: Snapshot, declared: &[Feature]) -> Features {
+        let declared = declared
+            .iter()
+            .map(|feature| (feature.name(), *feature))
+            .collect();
+        Features::new(
+            Arc::new(snapshot),
+            Arc::new(declared),
+            Arc::from("test"),
+            Subject::default(),
+        )
+    }
+
+    #[test]
+    fn a_flag_without_a_stored_rule_follows_its_default() {
+        let features = features(Snapshot::default(), &[PAGES]);
+
+        assert!(features.enabled(PAGES));
+        assert!(features.enabled_named("catalog.pages"));
+        assert!(features.enabled_for_someone(PAGES));
+        assert!(!features.enabled(Feature::new("catalog.reviews")));
+    }
+
+    #[test]
+    fn a_stored_rule_wins_over_the_default() {
+        let mut snapshot = Snapshot::default();
+        snapshot
+            .rules
+            .insert("catalog.pages".to_owned(), Rule::off());
+
+        let features = features(snapshot, &[PAGES]);
+
+        assert!(!features.enabled(PAGES));
+        assert!(!features.enabled_named("catalog.pages"));
+        assert!(!features.enabled_for_someone(PAGES));
+    }
+
+    #[test]
+    fn a_name_asked_for_alone_follows_no_default_unless_declared() {
+        let features = features(Snapshot::default(), &[]);
+
+        assert!(!features.enabled_named("catalog.pages"));
     }
 }

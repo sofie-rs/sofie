@@ -7,7 +7,7 @@ use sofie_core::{Error, Fnv1a64, Result, Timestamp, unpoisoned};
 use sofie_db::{Channel, Db, Listening, Select};
 
 use crate::store::{self, StoredFlag, StoredSetting};
-use crate::{DeclaredSetting, Features, HeldSetting, Rule, SettingValue, Subject};
+use crate::{DeclaredSetting, Feature, Features, HeldSetting, Rule, SettingValue, Subject};
 
 /// Fallback re-read should a change's wake-up be lost.
 const EXPIRY: Duration = Duration::from_secs(30);
@@ -24,6 +24,7 @@ struct Shared {
     db: Db,
     environment: Arc<str>,
     held: RwLock<Arc<Snapshot>>,
+    declared_features: RwLock<Arc<HashMap<&'static str, Feature>>>,
     reloads: AtomicU64,
 }
 
@@ -54,6 +55,7 @@ impl Flags {
                 db: db.clone(),
                 environment: Arc::from(environment),
                 held: RwLock::default(),
+                declared_features: RwLock::default(),
                 reloads: AtomicU64::new(0),
             }),
         };
@@ -64,7 +66,29 @@ impl Flags {
 
     #[must_use]
     pub fn evaluate(&self, subject: Subject) -> Features {
-        Features::new(self.held(), Arc::clone(&self.shared.environment), subject)
+        Features::new(
+            self.held(),
+            Arc::clone(&unpoisoned::read(&self.shared.declared_features)),
+            Arc::clone(&self.shared.environment),
+            subject,
+        )
+    }
+
+    /// So a flag asked for by name alone, as a template does, follows its default rule too.
+    /// Replaces those declared before.
+    pub fn declare_features(&self, features: &[Feature]) -> Result<()> {
+        let mut declared = HashMap::with_capacity(features.len());
+        for feature in features {
+            store::refuse_malformed_name("flag", feature.name())?;
+            if declared.insert(feature.name(), *feature).is_some() {
+                return Err(Error::internal_message(format!(
+                    "flag `{}` is declared twice",
+                    feature.name()
+                )));
+            }
+        }
+        *unpoisoned::write(&self.shared.declared_features) = Arc::new(declared);
+        Ok(())
     }
 
     pub async fn set(&self, name: &str, rule: Rule) -> Result<()> {

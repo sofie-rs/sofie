@@ -1425,7 +1425,10 @@ with the first code that gates on it.
   a percentage of the others, hashed (FNV-1a of the flag and the account id)
   so each person stays in or out, or split by weight between variants. A
   request without a principal, and a job, are in only at 100%. A flag
-  nobody stored a rule for is off.
+  nobody stored a rule for follows its constant's default rule
+  (`Feature::new("catalog.pages").default(Rule::everyone)`, any `fn() -> Rule`)
+  until one is stored, and without one is off. A flag a template asks for by
+  name follows its default once `Flags::declare_features` holds its constant.
 - **State:** declared in code, stored in `sofie.flags` (name, rule as JSON,
   `changed_at`), switched with `Flags::set` (its targeting is
   validated there: names of letters, digits, `_` and `-`, none twice, a

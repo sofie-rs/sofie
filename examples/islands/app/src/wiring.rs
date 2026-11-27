@@ -5,17 +5,23 @@ use sofie::db::Db;
 use sofie::http::{App, Module, Screens};
 use sofie::worker::Worker;
 
-pub static MODULES: &[Module] = &[Module {
-    screens: &[(
-        "board/web/summary",
-        sofie::db::embed!(
-            "../modules/board/src/areas/web/screens/summary.html",
-            compiled = "screens/board/web/summary.sft"
-        ),
-    )],
-    ..board::module::MODULE
-}];
+#[rustfmt::skip]
+pub static MODULES: &[Module] = &[
+    Module {
+        screens: &[
+            (
+                "board/web/summary",
+                sofie::db::embed!(
+                    "../modules/board/src/areas/web/screens/summary.html",
+                    compiled = "screens/board/web/summary.sft"
+                ),
+            ),
+        ],
+        ..board::module::MODULE
+    },
+];
 
+#[rustfmt::skip]
 pub fn app(db: Db) -> Result<App> {
     Ok(App::new(db)
         .serving(|serving| serving.named(env!("CARGO_PKG_NAME")))
@@ -24,12 +30,15 @@ pub fn app(db: Db) -> Result<App> {
 }
 
 #[must_use]
+#[rustfmt::skip]
 pub fn worker(db: Db) -> Worker {
     sofie::http::worker(db, MODULES)
 }
 
+#[rustfmt::skip]
 const COMPONENTS: &[(&str, &str)] = &[];
 
+#[rustfmt::skip]
 fn screens() -> Result<Screens> {
     let mut screens = sofie::http::wired_screens(MODULES, COMPONENTS)?;
     screens.islands(vec![sofie::engine::island_bundle!("web")]);

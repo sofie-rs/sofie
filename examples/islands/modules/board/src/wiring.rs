@@ -2,6 +2,7 @@
 
 use sofie::http::Module;
 
+#[rustfmt::skip]
 pub(crate) const GENERATED: Module = Module {
     migrations: Some(
         sofie::db::Migrations::new(

@@ -5,24 +5,30 @@ use sofie::db::Db;
 use sofie::http::{App, Module, Screens};
 use sofie::worker::Worker;
 
+#[rustfmt::skip]
 pub static MODULES: &[Module] = &[
     sofie_identity::module(&[sofie_identity::member::<order_contract::area::Customer>]),
     Module {
-        screens: &[(
-            "order/customer/orders",
-            sofie::db::embed!(
-                "../modules/order/src/areas/customer/screens/orders.html",
-                compiled = "screens/order/customer/orders.sft"
+        screens: &[
+            (
+                "order/customer/orders",
+                sofie::db::embed!(
+                    "../modules/order/src/areas/customer/screens/orders.html",
+                    compiled = "screens/order/customer/orders.sft"
+                ),
             ),
-        )],
-        forms: &[sofie::http::Form::of::<order::actions::PlaceOrder>(
-            "order/customer/orders",
-            "place-order",
-        )],
+        ],
+        forms: &[
+            sofie::http::Form::of::<order::actions::PlaceOrder>(
+                "order/customer/orders",
+                "place-order",
+            ),
+        ],
         ..order::module::MODULE
     },
 ];
 
+#[rustfmt::skip]
 pub fn app(db: Db) -> Result<App> {
     Ok(App::new(db)
         .serving(|serving| serving.named(env!("CARGO_PKG_NAME")))
@@ -31,12 +37,15 @@ pub fn app(db: Db) -> Result<App> {
 }
 
 #[must_use]
+#[rustfmt::skip]
 pub fn worker(db: Db) -> Worker {
     sofie::http::worker(db, MODULES)
 }
 
+#[rustfmt::skip]
 const COMPONENTS: &[(&str, &str)] = &[];
 
+#[rustfmt::skip]
 fn screens() -> Result<Screens> {
     sofie::http::wired_screens(MODULES, COMPONENTS)
 }

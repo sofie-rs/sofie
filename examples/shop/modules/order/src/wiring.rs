@@ -2,6 +2,7 @@
 
 use sofie::http::Module;
 
+#[rustfmt::skip]
 pub(crate) const GENERATED: Module = Module {
     migrations: Some(
         sofie::db::Migrations::new(
@@ -41,25 +42,30 @@ pub(crate) const GENERATED: Module = Module {
             name: "order.customer.cancel_order",
         },
     ],
-    areas: &[|app, module| {
-        app.area::<order_contract::area::Customer>(module, crate::areas::customer::routes::routes)
-    }],
+    areas: &[
+        |app, module| {
+            app.area::<order_contract::area::Customer>(
+                module,
+                crate::areas::customer::routes::routes,
+            )
+        },
+    ],
     jobs: |worker| {
         worker
-            .on::<order_contract::OrderPlaced, _>(
-                "order.listeners.audit_placement",
-                crate::listeners::audit_placement,
-            )
-            .on::<order_contract::OrderCancelled, _>(
-                "order.listeners.audit_cancellation",
-                crate::listeners::audit_cancellation,
-            )
             .each(
                 "order.jobs.unpaid_orders",
                 std::time::Duration::from_secs(3600),
                 crate::jobs::unpaid_orders,
                 "order.jobs.expire_unpaid",
                 crate::jobs::expire_unpaid,
+            )
+            .on::<order_contract::OrderCancelled, _>(
+                "order.listeners.audit_cancellation",
+                crate::listeners::audit_cancellation,
+            )
+            .on::<order_contract::OrderPlaced, _>(
+                "order.listeners.audit_placement",
+                crate::listeners::audit_placement,
             )
     },
     ..Module::new("order")

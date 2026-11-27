@@ -5,30 +5,34 @@ use sofie::db::Db;
 use sofie::http::{App, Module, Screens};
 use sofie::worker::Worker;
 
-pub static MODULES: &[Module] = &[Module {
-    screens: &[
-        (
-            "notes/board/notes",
-            sofie::db::embed!(
-                "../modules/notes/src/areas/board/screens/notes.html",
-                compiled = "screens/notes/board/notes.sft"
+#[rustfmt::skip]
+pub static MODULES: &[Module] = &[
+    Module {
+        screens: &[
+            (
+                "notes/board/notes",
+                sofie::db::embed!(
+                    "../modules/notes/src/areas/board/screens/notes.html",
+                    compiled = "screens/notes/board/notes.sft"
+                ),
             ),
-        ),
-        (
-            "notes/desk/notes",
-            sofie::db::embed!(
-                "../modules/notes/src/areas/desk/screens/notes.html",
-                compiled = "screens/notes/desk/notes.sft"
+            (
+                "notes/desk/notes",
+                sofie::db::embed!(
+                    "../modules/notes/src/areas/desk/screens/notes.html",
+                    compiled = "screens/notes/desk/notes.sft"
+                ),
             ),
-        ),
-    ],
-    forms: &[
-        sofie::http::Form::of::<notes::actions::WriteNote>("notes/board/notes", "write-note"),
-        sofie::http::Form::of::<notes::actions::WriteNote>("notes/desk/notes", "write-note"),
-    ],
-    ..notes::module::MODULE
-}];
+        ],
+        forms: &[
+            sofie::http::Form::of::<notes::actions::WriteNote>("notes/board/notes", "write-note"),
+            sofie::http::Form::of::<notes::actions::WriteNote>("notes/desk/notes", "write-note"),
+        ],
+        ..notes::module::MODULE
+    },
+];
 
+#[rustfmt::skip]
 pub fn app(db: Db) -> Result<App> {
     Ok(App::new(db)
         .serving(|serving| serving.named(env!("CARGO_PKG_NAME")))
@@ -37,17 +41,19 @@ pub fn app(db: Db) -> Result<App> {
 }
 
 #[must_use]
+#[rustfmt::skip]
 pub fn worker(db: Db) -> Worker {
     sofie::http::worker(db, MODULES)
 }
 
+#[rustfmt::skip]
 const COMPONENTS: &[(&str, &str)] = &[];
 
+#[rustfmt::skip]
 fn screens() -> Result<Screens> {
     let mut screens = sofie::http::wired_screens(MODULES, COMPONENTS)?;
-    screens.clients(vec![sofie::engine::client_bundle!(
-        "board",
-        &["notes/board/notes"]
-    )]);
+    screens.clients(vec![
+        sofie::engine::client_bundle!("board", &["notes/board/notes"]),
+    ]);
     Ok(screens)
 }

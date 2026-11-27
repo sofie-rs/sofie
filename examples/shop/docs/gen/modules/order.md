@@ -15,9 +15,9 @@ Prefix `/account`, principal `Account`, reaching principal's own records.
 
 | Method | Path | Name | Handler | Description | Permission | Feature, modifiers |
 | --- | --- | --- | --- | --- | --- | --- |
+| POST | `/account/orders/{order}/cancel` | `order.customer.cancel_order` | `order::actions::cancel_order` | — | — | `then_screen(orders#orders)` |
 | GET | `/account/orders` | `order.customer.list_orders` | `order::queries::list_orders` | — | — | `screen(orders)` |
 | POST | `/account/orders` | `order.customer.place_order` | `order::actions::place_order` | The order is sent to the email the customer's account has now. | — | `then_screen(orders#orders)` |
-| POST | `/account/orders/{order}/cancel` | `order.customer.cancel_order` | `order::actions::cancel_order` | — | — | `then_screen(orders#orders)` |
 
 Screens: `order/customer/orders`
 
@@ -106,8 +106,8 @@ stateDiagram-v2
 
 | Event | Raised by | Heard by |
 | --- | --- | --- |
-| `OrderPlaced` | `order::order::factory::place` | `order::listeners::audit_placement` |
 | `OrderCancelled` | `order::Order::cancel` | `order::listeners::audit_cancellation` |
+| `OrderPlaced` | `order::order::factory::place` | `order::listeners::audit_placement` |
 
 ## Jobs and schedules
 

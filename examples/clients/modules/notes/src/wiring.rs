@@ -2,6 +2,7 @@
 
 use sofie::http::Module;
 
+#[rustfmt::skip]
 pub(crate) const GENERATED: Module = Module {
     migrations: Some(
         sofie::db::Migrations::new(
@@ -20,6 +21,11 @@ pub(crate) const GENERATED: Module = Module {
             name: "notes.board.list_notes",
         },
         sofie::http::RouteName {
+            method: "GET",
+            path: "/desk/notes",
+            name: "notes.desk.list_notes",
+        },
+        sofie::http::RouteName {
             method: "POST",
             path: "/board/notes",
             name: "notes.board.write_note",
@@ -28,11 +34,6 @@ pub(crate) const GENERATED: Module = Module {
             method: "POST",
             path: "/board/notes/{note}/pin",
             name: "notes.board.pin_note",
-        },
-        sofie::http::RouteName {
-            method: "GET",
-            path: "/desk/notes",
-            name: "notes.desk.list_notes",
         },
         sofie::http::RouteName {
             method: "POST",
